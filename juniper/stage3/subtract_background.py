@@ -65,7 +65,7 @@ def subtract_background(segments, inpt_dict):
         if (plot_step or save_step) and i == 0:
             # Plot and/or save the background of the first int as an example.
             fig, ax, im = img(background, aspect=5, title="Int {} background".format(i),
-                                norm='linear',verbose=inpt_dict["verbose"])
+                                norm='log',verbose=inpt_dict["verbose"])
             if save_step:
                 plt.savefig(os.path.join(inpt_dict["diagnostic_plots"],"S3_ilbs-bckg_int{}.png".format(i)),
                             dpi=300, bbox_inches='tight')
@@ -75,7 +75,7 @@ def subtract_background(segments, inpt_dict):
         if (plot_ints or save_ints):
             # Plot and/or save every background to be thorough.
             fig, ax, im = img(background, aspect=5, title="Int {} background".format(i),
-                                norm='linear',verbose=inpt_dict["verbose"])
+                                norm='log',verbose=inpt_dict["verbose"])
             if save_ints:
                 plt.savefig(os.path.join(inpt_dict["diagnostic_plots"],"S3_ilbs-bckg_int{}.png".format(i)),
                             dpi=300, bbox_inches='tight')

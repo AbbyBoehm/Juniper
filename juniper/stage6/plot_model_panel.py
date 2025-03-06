@@ -12,7 +12,7 @@ from juniper.stage6.plot_fit_and_res import get_fit_and_res
 from juniper.util.plotting import plot_fit, plot_res
 from juniper.util.diagnostics import tqdm_translate, plot_translate, timer
 
-def plot_model_panel(t, lc, lc_err, planets, flares, systematics, LD, inpt_dict):
+def plot_model_panel(t, lc, lc_err, planets, flares, systematics, ld, inpt_dict):
     """Plots each part of the fitted model.
 
     Args:
@@ -23,7 +23,7 @@ def plot_model_panel(t, lc, lc_err, planets, flares, systematics, LD, inpt_dict)
         planets (dict): a dictionary of every fitted planet.
         flares (dict): a dictionary of every fitted flare.
         systematics (dict): a dictionary of every fitted systematic.
-        LD (dict): a dictionary of the limb darkening model.
+        ld (dict): a dictionary of the limb darkening model.
         inpt_dict (dict): instructions for running this step.
 
     Returns:
@@ -35,7 +35,7 @@ def plot_model_panel(t, lc, lc_err, planets, flares, systematics, LD, inpt_dict)
     lc_err = np.asarray(lc_err)
     
     # Get the model components and how many there are.
-    t_interp, lc_interp, components, residuals = get_fit_and_res(t, lc, lc_err, planets, flares, systematics, LD, inpt_dict)
+    t_interp, lc_interp, components, residuals = get_fit_and_res(t, lc, lc_err, planets, flares, systematics, ld, inpt_dict)
     N_comps = len(list(components.keys()))
 
     # Try to find the next largest square to N_comps.

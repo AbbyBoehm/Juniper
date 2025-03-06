@@ -29,13 +29,17 @@ def run_pipeline(config_folder,stages=(1,2,3,4,5,6,)):
         s1_config = read_config.read_config(s1_config_path)
 
         # Set up run name and define directories.
-        run_name = s1_config["run_name"] # set up run_name for the .berry file
         project_dir = s1_config["toplevel_dir"]
         input_dir = os.path.join(project_dir,s1_config["input"])
+        input_run = s1_config["input_run"]
+        if input_run:
+            # Add an extra sub-folder to select the correct input sub-folder.
+            input_dir = os.path.join(project_dir,os.path.join(s1_config["input"],input_run))
         output_dir = os.path.join(project_dir,s1_config["output"])
-        if run_name:
+        output_run = s1_config["output_run"]
+        if output_run:
             # Add an extra sub-folder to separate this run from other runs.
-            output_dir = os.path.join(project_dir,os.path.join(s1_config["output"],run_name))
+            output_dir = os.path.join(project_dir,os.path.join(s1_config["output"],output_run))
         diagnosticplots_dir = os.path.join(output_dir, s1_config["diagnostics"])
 
         # Open all needed directories.
@@ -65,7 +69,9 @@ def run_pipeline(config_folder,stages=(1,2,3,4,5,6,)):
         config_outdir = os.path.join(output_dir,"configuration")
         if not os.path.exists(config_outdir):
             os.makedirs(config_outdir)
-        config_name = "s1_{}_juniper.berry".format(run_name)
+        config_name = "s1_juniper.berry"
+        if output_run:
+            config_name = "s1_{}_juniper.berry".format(output_run)
         shutil.copy(s1_config_path,os.path.join(config_outdir,config_name))
     
     ### Run Juniper Stage 2: Wavelength Solution and Curvature Correction
@@ -75,13 +81,17 @@ def run_pipeline(config_folder,stages=(1,2,3,4,5,6,)):
         s2_config = read_config.read_config(s2_config_path)
 
         # Set up run name and define directories.
-        run_name = s2_config["run_name"] # set up run_name for the .berry file
         project_dir = s2_config["toplevel_dir"]
         input_dir = os.path.join(project_dir,s2_config["input"])
+        input_run = s2_config["input_run"]
+        if input_run:
+            # Add an extra sub-folder to select the correct s1 run.
+            input_dir = os.path.join(project_dir,os.path.join(s2_config["input"],input_run))
         output_dir = os.path.join(project_dir,s2_config["output"])
-        if run_name:
+        output_run = s2_config["output_run"]
+        if output_run:
             # Add an extra sub-folder to separate this run from other runs.
-            output_dir = os.path.join(project_dir,os.path.join(s2_config["output"],run_name))
+            output_dir = os.path.join(project_dir,os.path.join(s2_config["output"],output_run))
         diagnosticplots_dir = os.path.join(output_dir, s2_config["diagnostics"])
 
         # Open all needed directories.
@@ -113,8 +123,8 @@ def run_pipeline(config_folder,stages=(1,2,3,4,5,6,)):
         if not os.path.exists(config_outdir):
             os.makedirs(config_outdir)
         config_name = "s2_juniper.berry"
-        if run_name:
-            config_name = "s2_{}_juniper.berry".format(run_name)
+        if output_run:
+            config_name = "s2_{}_juniper.berry".format(output_run)
         shutil.copy(s2_config_path,os.path.join(config_outdir,config_name))
     
     ### Run Juniper Stage 3: Reduction
@@ -124,13 +134,17 @@ def run_pipeline(config_folder,stages=(1,2,3,4,5,6,)):
         s3_config = read_config.read_config(s3_config_path)
 
         # Set up run name and define directories.
-        run_name = s3_config["run_name"] # set up run_name for the .berry file
         project_dir = s3_config["toplevel_dir"]
         input_dir = os.path.join(project_dir,s3_config["input"])
+        input_run = s3_config["input_run"]
+        if input_run:
+            # Add an extra sub-folder to select the correct s2 run.
+            input_dir = os.path.join(project_dir,os.path.join(s3_config["input"],input_run))
         output_dir = os.path.join(project_dir,s3_config["output"])
-        if run_name:
+        output_run = s3_config["output_run"]
+        if output_run:
             # Add an extra sub-folder to separate this run from other runs.
-            output_dir = os.path.join(project_dir,os.path.join(s3_config["output"],run_name))
+            output_dir = os.path.join(project_dir,os.path.join(s3_config["output"],output_run))
         diagnosticplots_dir = os.path.join(output_dir, s3_config["diagnostics"])
 
         # Open all needed directories.
@@ -155,8 +169,8 @@ def run_pipeline(config_folder,stages=(1,2,3,4,5,6,)):
         if not os.path.exists(config_outdir):
             os.makedirs(config_outdir)
         config_name = "s3_juniper.berry"
-        if run_name:
-            config_name = "s3_{}_juniper.berry".format(run_name)
+        if output_run:
+            config_name = "s3_{}_juniper.berry".format(output_run)
         shutil.copy(s3_config_path,os.path.join(config_outdir,config_name))
 
     ### Run Juniper Stage 4: Extraction
@@ -166,13 +180,17 @@ def run_pipeline(config_folder,stages=(1,2,3,4,5,6,)):
         s4_config = read_config.read_config(s4_config_path)
 
         # Set up run name and define directories.
-        run_name = s4_config["run_name"] # set up run_name for the .berry file
         project_dir = s4_config["toplevel_dir"]
         input_dir = os.path.join(project_dir,s4_config["input"])
+        input_run = s4_config["input_run"]
+        if input_run:
+            # Add an extra sub-folder to select the correct s3 run.
+            input_dir = os.path.join(project_dir,os.path.join(s4_config["input"],input_run))
         output_dir = os.path.join(project_dir,s4_config["output"])
-        if run_name:
+        output_run = s4_config["output_run"]
+        if output_run:
             # Add an extra sub-folder to separate this run from other runs.
-            output_dir = os.path.join(project_dir,os.path.join(s4_config["output"],run_name))
+            output_dir = os.path.join(project_dir,os.path.join(s4_config["output"],output_run))
         diagnosticplots_dir = os.path.join(output_dir, s4_config["diagnostics"])
 
         # Open all needed directories.
@@ -197,8 +215,8 @@ def run_pipeline(config_folder,stages=(1,2,3,4,5,6,)):
         if not os.path.exists(config_outdir):
             os.makedirs(config_outdir)
         config_name = "s4_juniper.berry"
-        if run_name:
-            config_name = "s4_{}_juniper.berry".format(run_name)
+        if output_run:
+            config_name = "s4_{}_juniper.berry".format(output_run)
         shutil.copy(s4_config_path,os.path.join(config_outdir,config_name))
 
     ### Run Juniper Stage 5: Binning and Fitting
@@ -208,13 +226,21 @@ def run_pipeline(config_folder,stages=(1,2,3,4,5,6,)):
         s5_config = read_config.read_config(s5_config_path)
 
         # Set up run name and define directories.
-        run_name = s5_config["run_name"] # set up run_name for the .berry file
+        # In this stage, multiple Stage 4 inputs can be supplied!
         project_dir = s5_config["toplevel_dir"]
-        input_dir = os.path.join(project_dir,s5_config["input"])
+        input_dirs = [os.path.join(project_dir,s5_config["input"]),]
+        input_runs = s5_config["input_runs"]
+        if input_runs:
+            # Add extra sub-folders to select the correct s4 runs.
+            input_dirs = []
+            for input_run in input_runs:
+                input_dir = os.path.join(project_dir,os.path.join(s5_config["input"],input_run))
+                input_dirs.append(input_dir)
         output_dir = os.path.join(project_dir,s5_config["output"])
-        if run_name:
+        output_run = s5_config["output_run"]
+        if output_run:
             # Add an extra sub-folder to separate this run from other runs.
-            output_dir = os.path.join(project_dir,os.path.join(s5_config["output"],run_name))
+            output_dir = os.path.join(project_dir,os.path.join(s5_config["output"],output_run))
         diagnosticplots_dir = os.path.join(output_dir, s5_config["diagnostics"])
 
         # Open all needed directories.
@@ -224,12 +250,16 @@ def run_pipeline(config_folder,stages=(1,2,3,4,5,6,)):
             os.makedirs(diagnosticplots_dir)
 
         # Find files.
-        files = sorted(glob.glob(os.path.join(input_dir,"*1Dspec.nc")))
-        fnames = [str.split(f,sep='/')[-1] for f in files]
-        outfile = [str.replace(f,'_1Dspec.nc','_fits') for f in fnames][0] # use default name. There's only one file to be output here.
-        if s5_config["rename"]:
-            # Set up new outfile name.
-            outfile = '{}_fits'.format(s5_config["rename"])
+        files = []
+        for input_dir in input_dirs:
+            subfiles = sorted(glob.glob(os.path.join(input_dir,"*1Dspec.nc")))
+            for subfile in subfiles:
+                files.append(subfile) # collect all 1D spec together
+            fnames = [str.split(f,sep='/')[-1] for f in subfiles]
+            outfile = [str.replace(f,'_1Dspec.nc','_fits') for f in fnames][0] # use default name. There's only one file to be output here.
+            if s5_config["rename"]:
+                # Set up new outfile name.
+                outfile = '{}_fits'.format(s5_config["rename"])
 
         # Process Stage 5.
         do_stage5(files,outfile,output_dir,s5_config,diagnosticplots_dir)
@@ -239,8 +269,8 @@ def run_pipeline(config_folder,stages=(1,2,3,4,5,6,)):
         if not os.path.exists(config_outdir):
             os.makedirs(config_outdir)
         config_name = "s5_juniper.berry"
-        if run_name:
-            config_name = "s5_{}_juniper.berry".format(run_name)
+        if output_run:
+            config_name = "s5_{}_juniper.berry".format(output_run)
         shutil.copy(s5_config_path,os.path.join(config_outdir,config_name))
     ### Run Juniper Stage 6: Results
     if 6 in stages:
@@ -249,13 +279,17 @@ def run_pipeline(config_folder,stages=(1,2,3,4,5,6,)):
         s6_config = read_config.read_config(s6_config_path)
 
         # Set up run name and define directories.
-        run_name = s6_config["run_name"] # set up run_name for the .berry file
         project_dir = s6_config["toplevel_dir"]
         input_dir = os.path.join(project_dir,s6_config["input"])
+        input_run = s6_config["input_run"]
+        if input_run:
+            # Add an extra sub-folder to select the correct s5 run.
+            input_dir = os.path.join(project_dir,os.path.join(s6_config["input"],input_run))
         output_dir = os.path.join(project_dir,s6_config["output"])
-        if run_name:
+        output_run = s6_config["output_run"]
+        if output_run:
             # Add an extra sub-folder to separate this run from other runs.
-            output_dir = os.path.join(project_dir,os.path.join(s6_config["output"],run_name))
+            output_dir = os.path.join(project_dir,os.path.join(s6_config["output"],output_run))
         diagnosticplots_dir = os.path.join(output_dir, s6_config["diagnostics"])
 
         # Open all needed directories.
@@ -280,6 +314,6 @@ def run_pipeline(config_folder,stages=(1,2,3,4,5,6,)):
         if not os.path.exists(config_outdir):
             os.makedirs(config_outdir)
         config_name = "s6_juniper.berry"
-        if run_name:
-            config_name = "s6_{}_juniper.berry".format(run_name)
+        if output_run:
+            config_name = "s6_{}_juniper.berry".format(output_run)
         shutil.copy(s6_config_path,os.path.join(config_outdir,config_name))

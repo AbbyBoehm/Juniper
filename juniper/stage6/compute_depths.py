@@ -42,17 +42,23 @@ def compute_depth_aoverlap(fitted_dict, fitted_errs_dict, planet_ID):
         tuple: the depth A-overlap and its uncertainty.
     """
     # First, get the inclination.
-    inc = fitted_dict["incl"+planet_ID]
+    inc = fitted_dict["incl"+planet_ID]*np.pi/180
     inc_err = fitted_errs_dict["incl"+planet_ID]*np.pi/180
+    if inc == inc_err:
+        # Catch whether this was fit at all.
+        inc_err = 0
     
     # Then the a/R*.
     aoR = fitted_dict["aor"+planet_ID]
     aoR_err = fitted_errs_dict["aor"+planet_ID]
+    if aoR == aoR_err:
+        # Catch whether this was fit at all.
+        aoR_err = 0
     
     # Compute the b parameter.
-    bo = aoR*np.cos(inc*np.pi/180)
+    bo = aoR*np.cos(inc)
     bo_sq = bo**2
-    bo_err = np.sqrt((np.cos(inc*np.pi/180)*aoR_err)**2 + (aoR*np.sin(inc*np.pi/180)*inc_err)**2)
+    bo_err = np.sqrt((np.cos(inc)*aoR_err)**2 + (aoR*np.sin(inc)*inc_err)**2)
     
     # Stellar radius is just 1 in this system.
     rs = 1

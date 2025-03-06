@@ -45,5 +45,7 @@ def plot_spectrum(waves,depths,errors,bin_f,wave_bounds,spec_type):
     ax.errorbar(w,d,yerr=e,fmt='ko',ls='none',capsize=3)
     ax.set_xlabel(r"wavelength [$\mu$m]")
     ax.set_ylabel('depth [{}]'.format(spec_type))
+    if spec_type == 'fpfs':
+        ax.axhline(y=0,ls='--',color='k')
 
     return fig, ax

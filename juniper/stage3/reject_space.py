@@ -46,8 +46,35 @@ def smooth(segments, inpt_dict):
         smooth = median_filter(np.copy(segments.data.values[k,:,:]),
                                size=inpt_dict["space_kernel"])
         
+        if (plot_step or save_step and k == 0):
+            # Create a plot of the smoothed image.
+            fig, ax = plt.subplots(2,1,figsize=(10,5),sharex=True)
+            ax[0].imshow(segments.data.values[k,:,:],aspect=20,cmap='binary_r',
+                        vmin=0,vmax=6000,norm='log')
+            ax[1].imshow(smooth,aspect=20,cmap='binary_r',
+                        vmin=0,vmax=6000,norm='log')
+            if save_step:
+                plt.savefig(os.path.join(inpt_dict["diagnostic_plots"],"S3_spatial-smoothing_smoothedframe.png"),
+                            dpi=300, bbox_inches='tight')
+            if plot_step:
+                plt.show(block=True)
+            plt.close()
+        
         # Check for outliers and locate them.
-        S = np.where(np.abs(segments.data.values[k,:,:]-smooth)>inpt_dict["space_sigma"],1,0)
+        abs_diff = np.abs(segments.data.values[k,:,:]-smooth)
+        if (plot_step or save_step and k == 0):
+            # Create a plot of the smoothed image.
+            fig, ax = plt.subplots(figsize=(10,5),sharex=True)
+            ax.imshow(abs_diff,aspect=20,cmap='binary_r',
+                      vmin=0,vmax=inpt_dict["space_sigma"]*np.nanmean(abs_diff),norm='log')
+            if save_step:
+                plt.savefig(os.path.join(inpt_dict["diagnostic_plots"],"S3_spatial-smoothing_fracdiff.png"),
+                            dpi=300, bbox_inches='tight')
+            if plot_step:
+                plt.show(block=True)
+            plt.close()
+        #S = np.where(np.abs(segments.data.values[k,:,:]-smooth)>inpt_dict["space_sigma"],1,0)
+        S = np.where(abs_diff > inpt_dict["space_sigma"]*np.nanmean(abs_diff),1,0)
         bad_pix_map[k,:,:] += S
         bad_pix_this_frame = np.count_nonzero(S)
         bad_pix_removed += bad_pix_this_frame

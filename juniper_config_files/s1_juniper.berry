@@ -44,6 +44,7 @@ four_group_rej  5                                           # float. The sigma t
 flag_4          True                                        # bool. If True, flags the four adjacent pixels to a jump as also jumping.
 max_jump        200                                         # float. Limits neighbor flagging.
 min_jump        10                                          # float. Limits neighbor flagging.
+snowballs       True                                        # bool. If True, expands contiguous CR flags with ellipses to catch all affected pixels. These events are known as snowballs.
 
 do_ramp_fit     True                                        # bool. Whether to perform this step in jwst Detector1Pipeline.
 save_opt        False                                       # bool. Whether to save optional outputs from this step.

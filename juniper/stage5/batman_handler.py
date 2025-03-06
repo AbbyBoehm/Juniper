@@ -1,12 +1,12 @@
 import batman
 
-def batman_transit_params(exoplanet_params, planet_ID, LD_initialguess, model_type):
+def batman_transit_params(exoplanet_params, planet_ID, ld_coeffs, model_type):
     """Simple function to set up the batman.TransitParams() object.
 
     Args:
         exoplanet_params (dict): exoplanet parameters.
         planet_ID (str): the ID of this planet.
-        LD_initialguess (list): the limb darkening coefficients.
+        ld_coeffs (list): the limb darkening coefficients.
         model_type (str): the type of limb darkening model in use.
 
     Returns:
@@ -20,7 +20,7 @@ def batman_transit_params(exoplanet_params, planet_ID, LD_initialguess, model_ty
     params.inc = exoplanet_params["incl"+planet_ID]                                   #orbital inclination (in degrees)
     params.ecc = exoplanet_params["ecc"+planet_ID]                                    #eccentricity
     params.w = exoplanet_params["longitude"+planet_ID]                                #longitude of periastron (in degrees)
-    params.u = LD_initialguess                                                        #limb darkening coefficients [u1, u2] or [u1, u2, u3, u4] etc.
+    params.u = ld_coeffs                                                              #limb darkening coefficients [u1, u2] or [u1, u2, u3, u4] etc.
     params.limb_dark = model_type                                                     #limb darkening model
 
     return params
@@ -44,10 +44,12 @@ def batman_eclipse_params(exoplanet_params, planet_ID):
     params.inc = exoplanet_params["incl"+planet_ID]                                   #orbital inclination (in degrees)
     params.ecc = exoplanet_params["ecc"+planet_ID]                                    #eccentricity
     params.w = exoplanet_params["longitude"+planet_ID]                                #longitude of periastron (in degrees)
+    params.limb_dark = "uniform"                                                      #for batman eclipse modelling, you still have to give it lds even if it isn't using them
+    params.u = []                                                                     #for batman eclipse modelling, you still have to give it lds even if it isn't using them
 
     return params
 
-def batman_init_one_model(t, exoplanet_params, event, planet_ID, LD_initialguess, model_type):
+def batman_init_one_model(t, exoplanet_params, event, planet_ID, ld_initialguess, model_type):
     """Simple function to initialize a batman transit or eclipse model.
 
     Args:
@@ -56,7 +58,7 @@ def batman_init_one_model(t, exoplanet_params, event, planet_ID, LD_initialguess
         batman how to build the model.
         event (str): options are 'primary' or 'secondary'.
         planet_ID (str): the ID of this planet.
-        LD_initialguess (list): the limb darkening coefficients.
+        ld_initialguess (list): the limb darkening coefficients.
         model_type (str): the type of limb darkening model in use.
 
     Returns:
@@ -64,7 +66,7 @@ def batman_init_one_model(t, exoplanet_params, event, planet_ID, LD_initialguess
     """
     # Translate exoplanet parameters to batman.TransitParams() object.
     if event == 'primary':
-        batman_params = batman_transit_params(exoplanet_params, planet_ID, LD_initialguess, model_type)
+        batman_params = batman_transit_params(exoplanet_params, planet_ID, ld_initialguess, model_type)
     if event == 'secondary':
         batman_params = batman_eclipse_params(exoplanet_params, planet_ID)
 
@@ -72,23 +74,23 @@ def batman_init_one_model(t, exoplanet_params, event, planet_ID, LD_initialguess
     batman_model = batman.TransitModel(batman_params, t, transittype=event)
     return batman_model, batman_params
 
-def batman_init_all_planets(t, planets, LD, event):
+def batman_init_all_planets(t, planets, ld, event):
     """Wrapper to init models for all planets.
 
     Args:
         t (np.array): time.
         planets (dict): a series of dictionary entries describing each planet
         in the transit or eclipse curve.
-        LD (dict): instructions on handling stellar limb darkening, necessary for
+        ld (dict): instructions on handling stellar limb darkening, necessary for
         talking to batman.
         event (str): options are 'primary' or 'secondary'.
 
     Returns:
         dict: planets updated with keywords "batman_model" and "batman_params".
     """
-    # Grab the LD info we need to properly initialize batman.
-    LD_initialguess = LD["LD_initialguess"]
-    model_type = LD["LD_model"]
+    # Grab the ld info we need to properly initialize batman.
+    ld_coeffs = ld["ld_coeffs"]
+    model_type = ld["ld_model"]
 
     # Update planets to have batman models and parameters.
     for planet_name in list(planets.keys()):
@@ -97,19 +99,19 @@ def batman_init_all_planets(t, planets, LD, event):
 
         # Supply its ID number so that we can read out the right tags.
         planet_ID = str.replace(planet_name,"planet","")
-        planet["batman_model"+planet_ID], planet["batman_params"+planet_ID] = batman_init_one_model(t, planet, event, planet_ID, LD_initialguess, model_type)
+        planet["batman_model"+planet_ID], planet["batman_params"+planet_ID] = batman_init_one_model(t, planet, event, planet_ID, ld_coeffs, model_type)
     return planets
 
 # You ever stare at a screen so long you stop noticing the word 'batman'?
 
-def batman_flux_update(params_to_fit, fit_param_keys, batman_params, batman_model):
+def batman_flux_update(bundled_params, fit_or_not, batman_params, batman_model):
     """Simple function to get the new batman flux model.
 
     Args:
-        params_to_fit (list): the parameters we are fitting for. Can be None
-        if you just want to get the batman flux as-is.
-        fit_param_keys (list of str): the parameters that are actually being updated
-        during fitting. Guides the whole process.
+        bundled_params (dict): all of the original parameters from planets,
+        flares, systematics, and lds, spewed out into a long dict. Can also be
+        supplied as None when just retrieving the batman flux.
+        fit_or_not (dict): a series of keys explaining which items must be modified.
         batman_params (list): list of batman.TransitParams() objects to update
         and supply to the batman_model objects.
         batman_model (list): batman.TranstiModel() objects which return
@@ -119,10 +121,10 @@ def batman_flux_update(params_to_fit, fit_param_keys, batman_params, batman_mode
         np.array: total flux for the transit/eclipse events.
     """
     # Update the batman_params if asked.
-    if params_to_fit:
+    if bundled_params:
         # Need to update the params for each model.
         for i, (batman_params_i, batman_model_i) in enumerate(zip(batman_params,batman_model)):
-            batman_params_i = update_batman_params(params_to_fit, fit_param_keys, batman_params_i, str(i+1))
+            batman_params_i = update_batman_params(bundled_params, fit_or_not, batman_params_i, str(i+1))
     
     # And calculate and sum bat_flux.
     for i, (batman_params_i, batman_model_i) in enumerate(zip(batman_params,batman_model)):
@@ -132,14 +134,16 @@ def batman_flux_update(params_to_fit, fit_param_keys, batman_params, batman_mode
             bat_flux += batman_model_i.light_curve(batman_params_i)
     return bat_flux
 
-def update_batman_params(params_to_fit, fit_param_keys, batman_params, planet_ID):
-    """Simple function to help the params_to_fit dictionary talk
+def update_batman_params(bundled_params, fit_or_not, batman_params, planet_ID):
+    """Simple function to help the bundled_params dictionary talk
     to the batman.TransitParams() object.
 
     Args:
-        params_to_fit (dict): the fit parameters in dict form.
-        fit_param_keys (list of str): the parameters that are actually being updated
-        during fitting. Guides the whole process.
+        bundled_params (dict): all of the original parameters from planets,
+        flares, systematics, and lds, spewed out into a long dict.
+        fit_or_not (dict): a series of keys explaining which items must be modified.
+        batman_params (list): list of batman.TransitParams() objects to update
+        and supply to the batman_model objects.
         batman_params (batman.TransitParams()): batman.TransitParams() object
         which needs to be updated
         planet_ID (str): number of the planet being worked on. Helps grab
@@ -148,30 +152,30 @@ def update_batman_params(params_to_fit, fit_param_keys, batman_params, planet_ID
     Returns:
         batman.TransitParams(): updated parameters for batman.
     """
-    # First, remove the prior tag so it's just the proper keys.
-    fit_params = [str.replace(key, "_prior", "") for key in fit_param_keys]
-    if "rp"+planet_ID in fit_params:
-        batman_params.rp = params_to_fit["rp"+planet_ID]
-    if "fp"+planet_ID in fit_params:
-        batman_params.fp = params_to_fit["fp"+planet_ID]
-    if "t_prim"+planet_ID in fit_params:
-        batman_params.t0 = params_to_fit["t_prim"+planet_ID]
-    if "t_seco"+planet_ID in fit_params:
-        batman_params.t_secondary = params_to_fit["t_seco"+planet_ID]
-    if "period"+planet_ID in fit_params:
-        batman_params.per = params_to_fit["period"+planet_ID]
-    if "aor"+planet_ID in fit_params:
-        batman_params.a = params_to_fit["aor"+planet_ID]
-    if "incl"+planet_ID in fit_params:
-        batman_params.inc = params_to_fit["incl"+planet_ID]
-    if "ecc"+planet_ID in fit_params:
-        batman_params.ecc = params_to_fit["ecc"+planet_ID]
-    if "longitude"+planet_ID in fit_params:
-        batman_params.w = params_to_fit["longitude"+planet_ID]
+    # Check through fit_or_not and, where told to do so,
+    # use the relevant bundled_params info to update batman.
+    if fit_or_not["rp_prior"+planet_ID]:
+        batman_params.rp = bundled_params["rp"+planet_ID]
+    if fit_or_not["fp_prior"+planet_ID]:
+        batman_params.fp = bundled_params["fp"+planet_ID]
+    if fit_or_not["t_prim_prior"+planet_ID]:
+        batman_params.t0 = bundled_params["t_prim"+planet_ID]
+    if fit_or_not["t_seco_prior"+planet_ID]:
+        batman_params.t_secondary = bundled_params["t_seco"+planet_ID]
+    if fit_or_not["period_prior"+planet_ID]:
+        batman_params.per = bundled_params["period"+planet_ID]
+    if fit_or_not["aor_prior"+planet_ID]:
+        batman_params.a = bundled_params["aor"+planet_ID]
+    if fit_or_not["incl_prior"+planet_ID]:
+        batman_params.inc = bundled_params["incl"+planet_ID]
+    if fit_or_not["ecc_prior"+planet_ID]:
+        batman_params.ecc = bundled_params["ecc"+planet_ID]
+    if fit_or_not["longitude_prior"+planet_ID]:
+        batman_params.w = bundled_params["longitude"+planet_ID]
 
-    # LD has a slight bit of nuance to it.
-    if any(params_to_fit["fit_LDs"]):
+    # ld has a slight bit of nuance to it.
+    if any(bundled_params["fit_lds"]):
         # This will have been updated before.
-        batman_params.u = params_to_fit["LD_initialguess"]
+        batman_params.u = bundled_params["ld_coeffs"]
     
     return batman_params

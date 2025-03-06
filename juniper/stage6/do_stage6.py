@@ -6,7 +6,7 @@ import numpy as np
 import xarray as xr
 import matplotlib.pyplot as plt
 
-from juniper.config.translate_config import make_planets, make_flares, make_systematics, make_LD
+from juniper.config.translate_config import make_planets, make_flares, make_systematics, make_ld
 from juniper.util.diagnostics import tqdm_translate, plot_translate
 from juniper.util.datahandling import stitch_spectra, save_s5_output
 from juniper.stage6 import plot_fit_and_res, plot_model_panel, plot_spectrum, compute_depths
@@ -75,7 +75,7 @@ def do_stage6(filepaths, outfile, outdir, steps, plot_dir):
                 tag = 'LSQ'
             # Every result has keys planets, planet_errs,
             # flares, flare_errs, systematics, systematic_errs,
-            # LD, LD_err, time, light_curve, errors, wavelength.
+            # ld, ld_err, time, light_curve, errors, wavelength.
             result = results[key]
 
             try:
@@ -90,13 +90,13 @@ def do_stage6(filepaths, outfile, outdir, steps, plot_dir):
                 
                 fig, ax = plot_fit_and_res.plot_fit_and_res(time, light_curve, errors,
                                                             result['planets'],result['flares'],
-                                                            result['systematics'],result['LD'],steps)
+                                                            result['systematics'],result['ld'],steps)
                 
                 if (result['wavelength'] == 'broadband' and save_step):
-                    plt.savefig(os.path.join(plot_dir,'s5_{}_broadband_fit-res{}.png'.format(outfile,tag)),
+                    plt.savefig(os.path.join(plot_dir,'s6_{}_broadband_fit-res{}.png'.format(outfile,tag)),
                                 dpi=300,bbox_inches='tight')
                 elif save_ints:
-                    plt.savefig(os.path.join(plot_dir,'s5_{}_{}_fit-res{}.png'.format(outfile,result['wavelength'],tag)),
+                    plt.savefig(os.path.join(plot_dir,'s6_{}_{}_fit-res{}.png'.format(outfile,result['wavelength'],tag)),
                                 dpi=300,bbox_inches='tight')
                 if (result['wavelength'] == 'broadband' and plot_step):
                     plt.show(block=True)
@@ -117,7 +117,7 @@ def do_stage6(filepaths, outfile, outdir, steps, plot_dir):
                 tag = 'LSQ'
             # Every result has keys planets, planet_errs,
             # flares, flare_errs, systematics, systematic_errs,
-            # LD, LD_err, time, light_curve, errors, wavelength.
+            # ld, ld_err, time, light_curve, errors, wavelength.
             result = results[key]
 
             if 'broadband' in key:
@@ -131,13 +131,13 @@ def do_stage6(filepaths, outfile, outdir, steps, plot_dir):
 
             fig, axes = plot_model_panel.plot_model_panel(time, light_curve, errors,
                                                           result['planets'],result['flares'],
-                                                          result['systematics'],result['LD'],steps)
+                                                          result['systematics'],result['ld'],steps)
             
             if (result['wavelength'] == 'broadband' and save_step):
-                plt.savefig(os.path.join(plot_dir,'s5_{}_broadband_fit-comps{}.png'.format(outfile,tag)),
+                plt.savefig(os.path.join(plot_dir,'s6_{}_broadband_fit-comps{}.png'.format(outfile,tag)),
                             dpi=300,bbox_inches='tight')
             elif save_ints:
-                plt.savefig(os.path.join(plot_dir,'s5_{}_{}_fit-comps{}.png'.format(outfile,result['wavelength'],tag)),
+                plt.savefig(os.path.join(plot_dir,'s6_{}_{}_fit-comps{}.png'.format(outfile,result['wavelength'],tag)),
                             dpi=300,bbox_inches='tight')
             if (result['wavelength'] == 'broadband' and plot_step):
                 plt.show(block=True)
@@ -162,14 +162,14 @@ def do_stage6(filepaths, outfile, outdir, steps, plot_dir):
                     lcs.append(result['light_curve'])
                     lc_errs.append(result['errors'])
                     t_interp, lc_interp, comps, residuals = plot_fit_and_res.get_fit_and_res(result['time'],result['light_curve'],result['errors'],
-                                                                                             result['planets'], result['flares'], result['systematics'], result['LD'],
+                                                                                             result['planets'], result['flares'], result['systematics'], result['ld'],
                                                                                              steps)
                     t_interps.append(t_interp)
                     lc_interps.append(lc_interp)
                     residualses.append(residuals)
             fig, axes = plot_fit_and_res.plot_waterfall(wavelengths, ts, lcs, lc_errs, t_interps, lc_interps, residualses, steps)
             if save_step:
-                plt.savefig(os.path.join(plot_dir,'s5_{}_waterfall{}.png'.format(outfile,tag)),
+                plt.savefig(os.path.join(plot_dir,'s6_{}_waterfall{}.png'.format(outfile,tag)),
                             dpi=300,bbox_inches='tight')
             if plot_step:
                 plt.show(block=True)
@@ -192,11 +192,12 @@ def do_stage6(filepaths, outfile, outdir, steps, plot_dir):
                     waves = []
                     depths = []
                     errors = []
-                    for key in [key for key in result_keys if results[key]['wavelength'] != 'broadband']:
+                    for key in result_keys:
                         # Get the result's planets.
                         planets = results[key]['planets']
                         planet_errs = results[key]['planet_errs']
-                        waves.append(float(results[key]['wavelength']))
+                        if results[key]['wavelength'] != 'broadband':
+                            waves.append(float(results[key]['wavelength']))
 
                         # Get the spectrum for the current planet of interest.
                         if steps["spectrum_type"] == 'rprs':
@@ -215,9 +216,18 @@ def do_stage6(filepaths, outfile, outdir, steps, plot_dir):
                             depth, err = compute_depths.compute_depth_fpfs(planets['planet{}'.format(planet_ID)],
                                                                            planet_errs['planet{}'.format(planet_ID)],
                                                                            str(planet_ID))
-
-                        depths.append(depth)
-                        errors.append(err)
+                            
+                        if results[key]['wavelength'] == 'broadband':
+                            fname = os.path.join(plot_dir,'s6_{}_planet{}_broadband{}_fit{}.txt'.format(outfile,
+                                                                                                            planet_ID,
+                                                                                                            steps["spectrum_type"],
+                                                                                                            tag,))
+                            with open(fname,mode='w') as f:
+                                f.write('depth err\n')
+                                f.write('{:.5f} {:.5f}'.format(depth,err))
+                        else:
+                            depths.append(depth)
+                            errors.append(np.abs(err))
                     
                     # Plot, if asked.
                     if (plot_step or save_step):
@@ -231,7 +241,7 @@ def do_stage6(filepaths, outfile, outdir, steps, plot_dir):
                             fig, ax = plot_spectrum.plot_spectrum(waves,depths,errors,
                                                                 bin_f,wave_bounds,steps["spectrum_type"])
                             if save_step:
-                                plt.savefig(os.path.join(plot_dir,'s5_{}_planet{}_spectrum{}_fit{}_bin{}.png'.format(outfile,
+                                plt.savefig(os.path.join(plot_dir,'s6_{}_planet{}_spectrum{}_fit{}_bin{}.png'.format(outfile,
                                                                                                                      planet_ID,
                                                                                                                      steps["spectrum_type"],
                                                                                                                      tag,
@@ -242,7 +252,7 @@ def do_stage6(filepaths, outfile, outdir, steps, plot_dir):
                             plt.close()
                     
                     # And save.
-                    fname = os.path.join(outdir,'s5_{}_planet{}_spectrum{}_fit{}.dat'.format(outfile,
+                    fname = os.path.join(outdir,'s6_{}_planet{}_spectrum{}_fit{}.dat'.format(outfile,
                                                                                              planet_ID,
                                                                                              steps["spectrum_type"],
                                                                                              tag))
@@ -250,6 +260,43 @@ def do_stage6(filepaths, outfile, outdir, steps, plot_dir):
                         f.write("#wavelength[um] depth[{}] err[{}]\n".format(steps["spectrum_type"],steps["spectrum_type"]))
                         for w,d,e in zip(waves,depths,errors):
                             f.write("{}   {}   {}\n".format(w,d,e))
+
+                    # Now check out broadband depth.
+                    for key in [key for key in result_keys if results[key]['wavelength'] == 'broadband']:
+                        # Get the result's planets.
+                        planets = results[key]['planets']
+                        planet_errs = results[key]['planet_errs']
+
+                        # Get the spectrum for the current planet of interest.
+                        if steps["spectrum_type"] == 'rprs':
+                            depth, err = compute_depths.compute_depth_rprs(planets['planet{}'.format(planet_ID)],
+                                                                           planet_errs['planet{}'.format(planet_ID)],
+                                                                           str(planet_ID))
+                        if steps["spectrum_type"] == 'rprs2':
+                            depth, err = compute_depths.compute_depth_rprs2(planets['planet{}'.format(planet_ID)],
+                                                                           planet_errs['planet{}'.format(planet_ID)],
+                                                                           str(planet_ID))
+                        if steps["spectrum_type"] == 'aover':
+                            depth, err = compute_depths.compute_depth_aoverlap(planets['planet{}'.format(planet_ID)],
+                                                                           planet_errs['planet{}'.format(planet_ID)],
+                                                                           str(planet_ID))
+                        if steps["spectrum_type"] == 'fpfs':
+                            depth, err = compute_depths.compute_depth_fpfs(planets['planet{}'.format(planet_ID)],
+                                                                           planet_errs['planet{}'.format(planet_ID)],
+                                                                           str(planet_ID))
+                    # And save.
+                    fname = os.path.join(outdir,'s6_{}_planet{}_broadband{}_fit{}.dat'.format(outfile,
+                                                                                              planet_ID,
+                                                                                              steps["spectrum_type"],
+                                                                                              tag))
+                    with open(fname,mode='w') as f:
+                        f.write("#wavelength[um] depth[{}] err[{}]\n".format(steps["spectrum_type"],steps["spectrum_type"]))
+                        f.write("{}   {}   {}\n".format('broadband',depth,err))
+                        f.write('parameters\n')
+                        for key in list(planets['planet{}'.format(planet_ID)].keys()):
+                            f.write("{}    {}    {}\n".format(key,
+                                                              planets['planet{}'.format(planet_ID)][key],
+                                                              planet_errs['planet{}'.format(planet_ID)][key]))
                     
                     # Advance to next planet!
                     planet_ID += 1

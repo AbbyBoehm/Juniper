@@ -45,6 +45,9 @@ def clean_spec(oneD_spec, inpt_dict):
                   disable=(not time_ints)):
         # Iteration stop condition. As long as outliers are being found, we have to keep iterating.
         outlier_found = True
+        # But also, no need to be stuck endlessly iterating.
+        N_lim = 100
+        n = 0
         while outlier_found:
             # Define median spectrum in time.
             med_spec = np.median(oneD_spec,axis=0)
@@ -64,6 +67,13 @@ def clean_spec(oneD_spec, inpt_dict):
             
             # Correct outliers and loop once more.
             oneD_spec[i,:] = np.where(S == 1, med_spec, oneD_spec[i,:])
+
+            n += 1
+            if n > N_lim:
+                # We are breaking the loop to save computing time.
+                if inpt_dict["verbose"] >= 1:
+                    print("Hit iteration limit on spec {}.".format(i))
+                outlier_found = False
         cleaned_specs.append(oneD_spec[i,:])
 
         if (plot_step or save_step) and i==0:

@@ -9,10 +9,10 @@ def get_exotic_coefficients(exoticLD_instructions):
         exoticLD_instructions (dict): instructions for limb darkening handling.
 
     Returns:
-        list: list of floats corresponding to calculated LD coefficients.
+        list: list of floats corresponding to calculated ld coefficients.
     """
     # Unpack instructions.
-    model_type = exoticLD_instructions["LD_model"]
+    model_type = exoticLD_instructions["ld_model"]
     stellar_params = exoticLD_instructions["stellar_params"]
     wavelength_range = 1e4*exoticLD_instructions["wavelength_range"] # factor 1e4 converts micron to AA
     instrument_mode = exoticLD_instructions["instrument_mode"]
@@ -21,7 +21,7 @@ def get_exotic_coefficients(exoticLD_instructions):
     custom_grid = exoticLD_instructions["custom_grid"]
     interpolate = exoticLD_instructions["interpolate"]
 
-    print("Generating custom LDs for wavelength range [AA]:", wavelength_range)
+    print("Generating custom lds for wavelength range [AA]:", wavelength_range)
 
     # Check for custom model, indicated by ld_grid == None. If there is a custom model,
     # generate SLD from that.
@@ -39,16 +39,16 @@ def get_exotic_coefficients(exoticLD_instructions):
     
     # Now use SLD to make coefficients for the requested model type.
     if model_type == "linear":
-        LDs = sld.compute_linear_ld_coeffs(wavelength_range=wavelength_range,
+        lds = sld.compute_linear_ld_coeffs(wavelength_range=wavelength_range,
                                            mode=instrument_mode,mu_min=0.0)
     if model_type == "quadratic":
-        LDs = sld.compute_quadratic_ld_coeffs(wavelength_range=wavelength_range,
+        lds = sld.compute_quadratic_ld_coeffs(wavelength_range=wavelength_range,
                                               mode=instrument_mode,mu_min=0.0)
     if model_type == "square-root":
-        LDs = sld.compute_squareroot_ld_coeffs(wavelength_range=wavelength_range,
+        lds = sld.compute_squareroot_ld_coeffs(wavelength_range=wavelength_range,
                                                mode=instrument_mode,mu_min=0.0)
     if model_type == "nonlinear":
-        LDs = sld.compute_4_parameter_non_linear_ld_coeffs(wavelength_range=wavelength_range,
+        lds = sld.compute_4_parameter_non_linear_ld_coeffs(wavelength_range=wavelength_range,
                                                            mode=instrument_mode,mu_min=0.0)
-    LDs = [i for i in LDs]
-    return LDs
+    lds = [i for i in lds]
+    return lds

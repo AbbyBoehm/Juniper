@@ -172,13 +172,13 @@ def save_s3_output(segments, disp_pos, cdisp_pos, cdisp_widths, moved_ints, outf
         seg_details = segments.details[i]
 
         # Plus the new tracking data, if there is any.
-        disp = []
+        disp = np.empty_like(time)
         if disp_pos:
             disp = disp_pos[int_left:int_right]
-        cdisp = []
+        cdisp = np.empty_like(time)
         if cdisp_pos:
             cdisp = cdisp_pos[int_left:int_right]
-        cwidth = []
+        cwidth = np.empty_like(time)
         if cdisp_widths:
             cwidth = cdisp_widths[int_left:int_right]
 
@@ -291,7 +291,7 @@ def stitch_spectra(files, detector_method, time_step, verbose):
         verbose (int): from 0 to 2. How much logging to do.
 
     Returns:
-        xarray: 1D spectra xarray containing spectra.
+        dict: 1D spectra dict containing spectra.
     """
     # Log.
     if verbose >= 1:
@@ -304,8 +304,20 @@ def stitch_spectra(files, detector_method, time_step, verbose):
 
     # If there is just one file, we can take it as an xarray and adjust it to have the detector dim.
     if len(files) == 1:
-        print("Reading out one 1D spectrum...")
+        if verbose >= 1:
+            print("Reading out one 1D spectrum...")
         spectrum, err, waves, shifts, xpos, ypos, widths, time, details = read_one_spec(files[0])
+        # Simply bundle it together in a dictionary.
+        output = {}
+        output["spectrum"] = [spectrum,]
+        output["errors"] = [err,]
+        output["waves"] = [waves,]
+        output["shifts"] = [shifts,]
+        output["pos"] = [xpos,ypos]
+        output["widths"] = [widths,]
+        output["time"] = [time,]
+        output["details"] = [details,]
+        '''
         spectra = xr.Dataset(data_vars=dict(
                                     spectrum=(["detector", "time", "wavelength"], [spectrum,]),
                                     err=(["detector", "time", "wavelength"], [err,]),
@@ -323,6 +335,7 @@ def stitch_spectra(files, detector_method, time_step, verbose):
                         attrs=dict(
                               )
                               )
+        '''
 
     else:
         # Initialize some empty lists.
@@ -344,11 +357,59 @@ def stitch_spectra(files, detector_method, time_step, verbose):
             widths.append(widths_i)
             time.append(time_i)
             details.append(details_i)
-        
+
         # Now check instructions.
         if detector_method == "parallel":
-            # We do not join anything. Instead, xarray needs to contain each spectrum separately.
-            print("Parallelising multiple spectra...")
+            # We do not sum anything. Instead, xarray needs to contain each spectrum separately.
+            if verbose >= 1:
+                print("Parallelising multiple spectra...")
+
+            '''
+            # Since xarrays wig out if the dims aren't the same, we check for incongruities in
+            # dispersion and time.
+            if verbose >= 1:
+                print("Checking for dispersion and integration incongruities...")
+            max_time_axis = max([np.shape(arr)[0] for arr in spectra])
+            max_disp_axis = max([np.shape(arr)[1] for arr in spectra])
+            
+            # Repair time incongruities, which appear in all data.
+            for i in range(len(spectra)):
+                padding_size = abs(spectra[i].shape[0] - max_time_axis)
+                if padding_size != 0:
+                    if verbose >= 1:
+                        print("Time incongruity found in {}th spectrum, correcting...".format(i))
+                    spectra[i] = np.pad(spectra[i], ((0, padding_size), (0, 0)), 'empty')
+                    errors[i] = np.pad(errors[i], ((0, padding_size), (0, 0)), 'empty')
+                    waves[i] = np.pad(waves[i], ((0, padding_size), (0, 0)), 'empty')
+                    shifts[i] = np.pad(shifts[i], ((0, padding_size)), 'empty')
+                    xpos[i] = np.pad(xpos[i], ((0, padding_size)), 'empty')
+                    ypos[i] = np.pad(ypos[i], ((0, padding_size)), 'empty')
+                    widths[i] = np.pad(widths[i], ((0, padding_size)), 'empty')
+                    time[i] = np.pad(time[i], ((0, padding_size)), 'empty')
+            
+            # Repair dispersion incongruities, which appear in spectral data.
+            for i in range(len(spectra)):
+                padding_size = abs(spectra[i].shape[1] - max_disp_axis)
+                if padding_size != 0:
+                    if verbose >= 1:
+                        print("Dispersion incongruity found in {}th spectrum, correcting...".format(i))
+                    spectra[i] = np.pad(spectra[i], ((0, 0), (0, padding_size)), 'empty')
+                    errors[i] = np.pad(errors[i], ((0, 0), (0, padding_size)), 'empty')
+                    waves[i] = np.pad(waves[i], ((0, 0), (0, padding_size)), 'empty')
+            '''
+
+            # Simply bundle it together in a dictionary.
+            output = {}
+            output["spectrum"] = spectra
+            output["errors"] = errors
+            output["waves"] = waves
+            output["shifts"] = shifts
+            output["pos"] = [xpos,ypos]
+            output["widths"] = widths
+            output["time"] = time
+            output["details"] = details
+
+            '''
             spectra = xr.Dataset(data_vars=dict(
                                     spectrum=(["detector", "time", "wavelength"], spectra),
                                     err=(["detector", "time", "wavelength"], errors),
@@ -366,6 +427,7 @@ def stitch_spectra(files, detector_method, time_step, verbose):
                         attrs=dict(
                               )
                               )
+            '''
         
         elif detector_method == "join":
             # Check which detectors you are trying to join and warn the user about heinous combos.
@@ -373,10 +435,10 @@ def stitch_spectra(files, detector_method, time_step, verbose):
             gratings = [x[-1] for x in details]
             if any([gratings[0] != grating for grating in gratings]): # if any grating shows up that does not match the first one
                 if verbose >= 1:
-                    print("Warning: I noticed you are trying to stitch together files that use different gratings.")
+                    print("Warning: I noticed you are trying to stitch together files that use different dispering elements.")
                     print("While I commend your bravery, please note that the ''join'' method of combining files")
-                    print("was intended only for single gratings which span multiple detectors (e.g. G395H)")
-                    print("and the correct method for treating multiple gratings is ''parallel''.")
+                    print("was intended only for single dispersers which span multiple detectors (e.g. G395H)")
+                    print("and the correct method for treating multiple dispersers is ''parallel''.")
                     print("If you are not using limb darkening models like ExoTiC-LD, this should not crash the code.")
                     print("(It will still cause some creative and surprising behavior though.)")
                     print("If you are using limb darkening models, please relaunch Stage 5 with the ''detectors'' keyword set to ''parallel''.")
@@ -408,7 +470,18 @@ def stitch_spectra(files, detector_method, time_step, verbose):
                 con_spec.append(spec_i)
                 con_err.append(err_i)
                 con_waves.append(waves_i)
-            
+
+            # Simply bundle it together in a dictionary.
+            output = {}
+            output["spectrum"] = [con_spec,]
+            output["errors"] = [con_err,]
+            output["waves"] = [con_waves,]
+            output["shifts"] = [shifts,]
+            output["pos"] = [xpos,ypos]
+            output["widths"] = [widths,]
+            output["time"] = [time,]
+            output["details"] = [details[0],]
+            '''
             spectra = xr.Dataset(data_vars=dict(
                                     spectrum=(["detector", "time", "wavelength"], [con_spec,]),
                                     err=(["detector", "time", "wavelength"], [con_err,]),
@@ -426,27 +499,30 @@ def stitch_spectra(files, detector_method, time_step, verbose):
                         attrs=dict(
                               )
                               )
+            '''
 
-    return spectra
+    #return spectra
+    return output
 
 def read_one_lc(file):
-    """Read one light curve .nc file and return its attributes.
+    """Read one light curve .npy file and return its attributes.
 
     Args:
         file (str): path to the .nc file you want to read out.
 
     Returns:
-        np.array, np.array, np.array, np.array, np.array, list: the spectrum,
+        dict: a dictionary containing the extracted 1D spectrum,
         uncertainties, wavelength solutions, alignment shifts, times of
         mid-exposure for each spectrum, and the observing details which are
         instrument, detector, filter, and grating.
     """
-    curves = xr.open_dataset(file)
+    #curves = xr.open_dataset(file)
+    curves = np.load(file,allow_pickle=True)
     
     return curves
 
 def save_s5_output(planets, planets_err, flares, flares_err,
-                   systematics, systematics_err, LD, LD_err,
+                   systematics, systematics_err, ld, ld_err,
                    time, light_curve, errors, wavelength,
                    outfile, outdir):
     """Writes out the results of a fit to a .npy file.
@@ -458,8 +534,8 @@ def save_s5_output(planets, planets_err, flares, flares_err,
         flares_err (dict): every fitted flare's uncertainties.
         systematics (dict): fitted systematics models.
         systematics_err (dict): uncertainties on systematics models.
-        LD (dict): fitted limb darkening model.
-        LD_err (dict): uncertainties on limb darkening model.
+        ld (dict): fitted limb darkening model.
+        ld_err (dict): uncertainties on limb darkening model.
         time (np.array): timestamps for each flux point.
         light_curve (np.array): flux at each point in time.
         errors (np.array): uncertainty at each point in time.
@@ -474,12 +550,12 @@ def save_s5_output(planets, planets_err, flares, flares_err,
               "flare_errs":flares_err,
               "systematics":systematics,
               "systematic_errs":systematics_err,
-              "LD":LD,
-              "LD_err":LD_err,
-              "time":np.asarray(time),
-              "light_curve":np.asarray(light_curve),
-              "errors":np.asarray(errors),
-              "wavelength":np.asarray(wavelength)}
+              "ld":ld,
+              "ld_err":ld_err,
+              "time":time,#np.asarray(time),
+              "light_curve":light_curve,#np.asarray(light_curve),
+              "errors":errors,#np.asarray(errors),
+              "wavelength":wavelength}#np.asarray(wavelength)}
     
     filename = (os.path.join(outdir, '{}.npy'.format(outfile)))
     np.save(filename,output)

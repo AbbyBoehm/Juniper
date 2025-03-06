@@ -2,10 +2,10 @@ import numpy as np
 
 from juniper.stage5 import models
 
-def bundle_planets_flares_systematics_and_LD(planets,flares,systematics,LD):
-    """Simple function which unpacks every provided planet, flare, and
-    systematics model and puts them into a single dictionary to be passed to
-    least-squares and emcee fitters.
+def bundle_planets_flares_systematics_and_ld(planets,flares,systematics,ld):
+    """Simple function which unpacks every provided planet, flare, systematics
+    model, and limb darkening model and puts them into a single dictionary to
+    be passed to least-squares and emcee fitters.
 
     Args:
         planets (dict): series of entries describing each planet in the model,
@@ -14,49 +14,49 @@ def bundle_planets_flares_systematics_and_LD(planets,flares,systematics,LD):
         tagged by "flare1", "flare2", etc.
         systematics (dict): systematics info containing "poly", "poly_coeffs",
         "mirrortilt", "mirrortilt_coeffs", etc.
-        LD (dict): information on stellar limb darkening model. If you are fitting
+        ld (dict): information on stellar limb darkening model. If you are fitting
         for this, you need to add its info in.
 
     Returns:
-        dict: contents of all three dictionaries spilled into an array.
+        dict: contents of all four dictionaries spilled into an array.
     """
-    params_to_fit = {}
+    bundled_params = {}
     for planet_name in planets.keys():
         planet = planets[planet_name]
         for key in planet.keys():
             if "prior" in key:
                 continue
-            params_to_fit[key] = planet[key]
+            bundled_params[key] = planet[key]
     for flare_ID in flares.keys():
         flare = flares[flare_ID]
         for key in flare.keys():
             if "prior" in key:
                 continue
-            params_to_fit[key] = flare[key]
+            bundled_params[key] = flare[key]
     for key in systematics.keys():
-        if "coeffs" not in key:
+        if all(special_key not in key for special_key in ("coeffs","xpos","ypos","width")):
             continue
-        params_to_fit[key] = systematics[key]
+        if (key == "pos_detrend" or key == "width_detrend"):
+            continue
+        bundled_params[key] = systematics[key]
     
-    # Whether we are fitting or not, we need the LD info.
-    params_to_fit["LD_initialguess"] = LD["LD_initialguess"]
-    # It needs to know which ones are fixed and which are fitted.
-    params_to_fit["fit_LDs"] = LD["fit_LDs"]
+    # Whether we are fitting or not, we need the ld info.
+    special_keys = ["ld_model","fit_lds","ld_initialguess","ld_coeffs","use_exotic","ld_data_path","ld_grid",
+                    "custom_grid","interpolate","instrument_mode","stellar_params","wavelength_range",]
+    for key in special_keys:
+        bundled_params[key] = ld[key]
 
-    return params_to_fit
+    return bundled_params
 
-def unpack_params_back_to_dicts(params_to_fit, xpos, ypos, widths):
+def unpack_params_back_to_dicts(bundled_params):
     """Slightly less simple function which takes the unified parameters
     dictionary and separates it back into planets, flares, and systematics.
 
     Args:
-        params_to_fit (dict): contains keys like "rp1", "A1", and "poly_coeffs".
-        xpos (np.array): if detrending w.r.t. position, the dispersion position array.
-        ypos (np.array): if detrending w.r.t. position, the cross-dispersion position array.
-        widths (np.array): if detrending w.r.t. position, the cross-dispersion widths array.
+        bundled_params (dict): contains keys like "rp1", "A1", and "poly_coeffs".
 
     Returns:
-        dict, dict, dict, dict: the planets, flares, systematics and LD dictionaries rebuilt.
+        dict, dict, dict, dict: the planets, flares, systematics and ld dictionaries rebuilt.
     """
     # First, find every planet.
     special_keys = ["rp","fp","t_prim","t_seco","period","aor","incl","ecc",
@@ -72,7 +72,7 @@ def unpack_params_back_to_dicts(params_to_fit, xpos, ypos, widths):
         planet = {}
         try:
             for key in special_keys:
-                planet[key+str(planet_N)] = params_to_fit[key+str(planet_N)] # as long as a planet of this number exists, params_to_fit will have this key
+                planet[key+str(planet_N)] = bundled_params[key+str(planet_N)] # as long as a planet of this number exists, params_to_fit will have this key
             
             # Now add the planet to the planets.
             planets[planet_name] = planet
@@ -98,7 +98,7 @@ def unpack_params_back_to_dicts(params_to_fit, xpos, ypos, widths):
         flare = {}
         try:
             for key in special_keys:
-                flare[key+str(flare_ID)] = params_to_fit[key+str(flare_ID)] # as long as a flare of this number exists, params_to_fit will have this key
+                flare[key+str(flare_ID)] = bundled_params[key+str(flare_ID)] # as long as a flare of this number exists, params_to_fit will have this key
 
             # Now add the flare to the flares.
             flares[flare_name] = flare
@@ -112,49 +112,47 @@ def unpack_params_back_to_dicts(params_to_fit, xpos, ypos, widths):
     
     # We found the planets and the flares. Now to parse the systematics.
     special_keys = ["poly","mirrortilt","pos_detrend","width_detrend","singleramp","doubleramp"]
-    pos_detrend_keys = ["xpos","ypos",]
-    width_detrend_keys = ["width",]
     systematics = {}
     for key in special_keys:
         try:
-            systematics[key+"_coeffs"] = params_to_fit[key+"_coeffs"]
+            systematics[key+"_coeffs"] = bundled_params[key+"_coeffs"]
             systematics[key] = True # if we haven't failed yet, then this must be True.
             if key == "pos_detrend":
-                for key, pos in zip(pos_detrend_keys, (xpos, ypos,)):
-                    systematics[key] = pos
+                for pos_key in ("xpos","ypos"):
+                    systematics[pos_key] = bundled_params[pos_key]
             if key == "width_detrend":
-                for key, width in zip(width_detrend_keys, (widths,)):
-                    systematics[key] = width
+                pos_key = "width"
+                systematics[pos_key] = bundled_params[pos_key]
         except:
             # If this failed, then we were not fitting that kind of systematic.
             systematics[key] = False
 
-    # Finally, we need to read the LD info back out.
-    # This information will be there only if we fit the LDs though.
-    special_keys = ["LD_initialguess"]
-    LD = {}
+    # Finally, we need to read the ld info back out.
+    special_keys = ["ld_model","fit_lds","ld_initialguess","ld_coeffs","use_exotic","ld_data_path","ld_grid",
+                    "custom_grid","interpolate","instrument_mode","stellar_params","wavelength_range",]
+    ld = {}
     for key in special_keys:
         try:
-            LD[key] = params_to_fit[key]
+            ld[key] = bundled_params[key]
         except:
-            # We expect an exception if LD info was not fit to begin with.
+            # We expect an exception if ld info was not fit to begin with.
             pass
 
     # And we have now unpacked the params_to_fit dict.
-    return planets, flares, systematics, LD
+    return planets, flares, systematics, ld
 
-def refill(new_planets, new_flares, new_systematics, new_LD, old_planets, old_flares, old_systematics, old_LD):
+def refill(new_planets, new_flares, new_systematics, new_ld, old_planets, old_flares, old_systematics, old_ld):
     """Checks if the newly-fitted dictionaries are missing anything and replaces the missing entries.
 
     Args:
         new_planets (dict): series of entries describing the newly-fitted planets.
         new_flares (dict): series of entries describing the newly-fitted flares.
         new_systematics (dict): series of entries describing the newly-fitted systematics.
-        new_LD (dict): series of entries describing the newly-fitted limb darkening.
+        new_ld (dict): series of entries describing the newly-fitted limb darkening.
         old_planets (dict): series of entries describing the original planets.
         old_flares (dict): series of entries describing the original flares.
         old_systematics (dict): series of entries describing the original systematics.
-        old_LD (dict): series of entries describing the original limb darkening.
+        old_ld (dict): series of entries describing the original limb darkening.
 
     Returns:
         dict, dict, dict: the new planets, flares, and systematics with any holes filled.
@@ -180,74 +178,100 @@ def refill(new_planets, new_flares, new_systematics, new_LD, old_planets, old_fl
     for key in unfilled_keys:
         new_systematics[key] = old_systematics[key]
 
-    # And the LDs.
-    unfilled_keys = [key for key in old_LD.keys() if key not in new_LD.keys()]
+    # And the lds.
+    unfilled_keys = [key for key in old_ld.keys() if key not in new_ld.keys()]
     for key in unfilled_keys:
-        new_LD[key] = old_LD[key]
+        new_ld[key] = old_ld[key]
 
-    return new_planets, new_flares, new_systematics, new_LD
+    return new_planets, new_flares, new_systematics, new_ld
 
-def dict_to_array(params_to_fit, fit_param_keys):
+def dict_to_array(bundled_params, fit_or_not):
     """Simple function to take the dictionary of parameters that needs to be
     fitteed and spit out its contents as an array.
 
     Args:
-        params_to_fit (dict): all of the parameters needed to fit, including
-        every rp1, rp2, rpN, plus every flare,e systematic model, and LDs.
-        fit_param_keys (list of str): the keys that are actually getting
-        modified during fitting.
+        bundled_params (dict): all of the parameters needed to fit, including
+        every rp1, rp2, rpN, plus every flare, systematic model, and lds.
+        Each is stored in a '1', '2', etc. dict for each spectrum.
+        fit_or_not (dict): all of the keys that exist in this fit for every
+        spectrum, attached to a bool stating whether or not that parameter
+        is fit.
 
     Returns:
         np.array, dict: an array of the contents of params_to_fit, and a guide
         to which parameters need to be updated.
     """
-    # While params_to_fit does contain everything needed to evaluate a fit, not
-    # all of its contents are tunables. Plus, some of its contents are lists that
-    # must be pulled apart. So let's crack into it.
-    fit_param_keys = [str.replace(key,"_prior","") for key in fit_param_keys] # get rid of the prior tag
-
+    # Let's set up the array that will soon hold everything. Start as a list.
     params_to_arrayify = []
-    # First, copy wholesale what can easily be copied.
-    for key in fit_param_keys:
-        try:
-            if isinstance(params_to_fit[key],float) or isinstance(params_to_fit[key],int):
-                # It's a simple float or integer, so we can just tack it on there.
-                params_to_arrayify.append(params_to_fit[key])
-        except KeyError:
-            # This key does not exist in params_to_fit, so it must be a special key (LD, poly, etc.).
-            pass
 
-    # Now parse the systematics.
-    special_keys = ["poly","mirrortilt","pos_detrend","width_detrend","singleramp","doubleramp"]
-    for key in special_keys:
-        # There will always be at least coeff1 in any model. So this is a simple
-        # way to check that this model is being fitted.
-        if key+str(1) in fit_param_keys:
-            coeffs = params_to_fit[key+"_coeffs"] # all of the coefficients are bundled here.
-            for coeff in coeffs:
-                params_to_arrayify.append(coeff)
-    
-    # Now check out LDs.
-    try:
-        for i, bool in enumerate(params_to_fit["fit_LDs"]):
-            # For every bool here, check if it's fitted.
-            if bool:
-                params_to_arrayify.append(params_to_fit["LD_initialguess"][i])
-    except KeyError:
-        # We are not fitting LDs at all, so pass.
-        pass
+    # We need to go through this entire process one superdict at a time.
+    for superdict_key in list(bundled_params.keys()):
+        # Each superdict_key has the form "1", "2", etc. and its contents
+        # are otherwise as the single-spec dicts we have used before.
+        
+        # We start by fetching the correct parser.
+        fit_param_keys = fit_or_not[superdict_key]
+
+        # While bundled_params does contain everything needed to evaluate a fit, not
+        # all of its contents are tunables. Plus, some of its contents are lists that
+        # must be pulled apart. So let's crack into it.
+        params_in_spec = bundled_params[superdict_key]
+
+        # First, copy wholesale what can easily be copied.
+        for key in list(fit_param_keys.keys()):
+            # We can quickly skip anything that is not in fit_param_keys.
+            if fit_param_keys[key]:
+                # So the bool was True, that means it must be fit for.
+                key = str.replace(key,"_prior","") # clean up the prior tag
+                try:
+                    if isinstance(params_in_spec[key],float) or isinstance(params_in_spec[key],int):
+                        # It's a simple float or integer, so we can just tack it on there.
+                        params_to_arrayify.append(params_in_spec[key])
+                except KeyError:
+                    # This key does not exist in params_to_fit, so it must be a special key (ld, poly, etc.).
+                    pass
+
+        # Now parse the systematics.
+        system_keys = ["poly","mirrortilt","pos_detrend","width_detrend","singleramp","doubleramp"]
+        for key in system_keys:
+            # There will always be at least coeff1 in any model. So this is a simple
+            # way to check that this model is being fitted. If it is being fit, it is True.
+            try:
+                if fit_param_keys[key+str(1)]:
+                    key = str.replace(key,"_prior","") # clean up the prior tag
+                    coeffs = params_in_spec[key+"_coeffs"] # all of the coefficients are bundled here.
+                    for coeff in coeffs:
+                        params_to_arrayify.append(coeff)
+            except KeyError:
+                # This model is not being fitted so this key does not exist.
+                pass
+        
+        # Now check out lds.
+        try:
+            for i, bool in enumerate(params_in_spec["fit_lds"]):
+                # For every bool here, check if it's fitted.
+                if bool:
+                    params_to_arrayify.append(params_in_spec["ld_coeffs"][i])
+        except KeyError:
+            # We are not fitting lds at all, so pass.
+            pass
 
     # Make it an array! Now we can give it to scipy.
     arr = np.array(params_to_arrayify)
     return arr
 
-def array_to_dict(params_array, params_to_fit, fit_param_keys):
-    """Slightly less simple function which uses the original params_to_fit
-    input dict and the array-ified version of params_to_fit to re-dictionary-ify
-    the array.
+def array_to_dict(params_array, input_param_dict, fit_or_not):
+    """Slightly less simple function which uses the fit_or_not dict and the
+    array-ified params_array to re-dictionary-ify the array, or to un-array-ify
+    the array back into the dictionary it began as. This is a headache, haha!
 
     Args:
-        params_array (np.array): the array-ified version of the input.
+        params_array (np.array): the array-ified version of the fitted model.
+        fit_or_not (dict): a dictionary of every single parameter for every
+        input_param_dict (dict): the original dictionary that was given to the
+        fitter when the models.full_model() was initialized.
+        single spectrum recording fit instructions.
+
         params_to_fit (dict): the original dictionary that was given to the
         fitter when the models.full_model() was initialized.
         fit_param_keys (list of str): the keys that are actually getting
@@ -256,16 +280,120 @@ def array_to_dict(params_array, params_to_fit, fit_param_keys):
     Returns:
         dict: the parameters back in dictionary form.
     """
+    # We open a new dictionary.
+    redicted_params = {}
+
+    # We define some keys as requiring special treatment.
+    special_keys = ["poly","mirrortilt","pos_detrend","width_detrend","singleramp","doubleramp"]
+
+    # We track the params_array index.
+    i = 0
+
+    # Recall that the original bundled_params went by superdict, so
+    # we will have to go by superdict as well.
+    for superdict_key in list(fit_or_not.keys()):
+        # Let's re-open the parameter dictionary for this spectrum.
+        redicted_params[superdict_key] = {}
+
+        # Track special keys.
+        special_key_issues = {}
+        lds = []
+
+        # So the contents of each bundled_params were not separated. Thus,
+        # if we just parse the fit_or_not[superdict_key] information in order,
+        # it should restore the order of the keys naturally.
+        for key in list(fit_or_not[superdict_key].keys()):
+            # Check if that key was fitted.
+            if fit_or_not[superdict_key][key]:
+                # It was fitted, so pull from params_array.
+                key = str.replace(key,"_prior","") # clean up the prior tag
+
+                # Check if it is a special key.
+                if any(special in key for special in special_keys):
+                    # Will handle these later, they need repacked properly.
+                    special_key_issues[key] = params_array[i]
+                elif "ld" in key:
+                    # Will handle these later, they need repacked properly.
+                    lds.append(params_array[i])
+                else:
+                    redicted_params[superdict_key][key] = params_array[i]
+                i += 1
+            else:
+                # It was not fitted, pull from input_param_dict.
+                key = str.replace(key,"_prior","") # clean up the prior tag
+                redicted_params[superdict_key][key] = input_param_dict[superdict_key][key]
+        
+        # There will be some missing bat info.
+        hadKeyError = False
+        bat_index = 1
+        while not hadKeyError:
+            try:
+                batman_model_key = 'batman_model{}'.format(bat_index)
+                batman_param_key = 'batman_params{}'.format(bat_index)
+                for key in (batman_model_key,batman_param_key):
+                    redicted_params[superdict_key][key] = input_param_dict[superdict_key][key]
+                bat_index += 1
+            except KeyError:
+                hadKeyError = True
+
+        # Let's tango with the special keys.
+        for special_key in special_keys:
+            # We need to bundle these when they were found in special_key_issues.
+            new_bundle_key = "{}_coeffs".format(special_key)
+            bundle = []
+            for key in list(special_key_issues.keys()):
+                if special_key in key:
+                    bundle.append(special_key_issues[key])
+            # Add it into the redict only if it existed.
+            if bundle:
+                redicted_params[superdict_key][new_bundle_key] = bundle
+
+            # Fetch some extra info.
+            if special_key == "pos_detrend":
+                # At this time, grab xpos and ypos.
+                for key in ("xpos","ypos"):
+                    redicted_params[superdict_key][key] = input_param_dict[superdict_key][key]
+            if special_key == "width_detrend":
+                # At this time, grab xpos and ypos.
+                key = "width"
+                redicted_params[superdict_key][key] = input_param_dict[superdict_key][key]
+
+        # Finally, we need to pull the ld_initialguess and fit_lds info.
+        ld_keys = ["ld_model","fit_lds","ld_initialguess","ld_coeffs","use_exotic","ld_data_path","ld_grid",
+                   "custom_grid","interpolate","instrument_mode","stellar_params","wavelength_range",]
+        for key in ld_keys:
+            if key != "ld_coeffs":
+                redicted_params[superdict_key][key] = input_param_dict[superdict_key][key]
+            else:
+                # Need a bit more nuanced handling again. Right now, lds has been populated only
+                # with the lds that are getting fit. We need to check input_param_dict[superdict_key]['fit_lds']
+                # When we find True, we grab a value from lds.
+                # When we find False, we grab a value from input_param_dict[superdict_key]['ld_initialguess'].
+                lds_updated = []
+                lds_index = 0
+                for i, bool in enumerate(input_param_dict[superdict_key]['fit_lds']):
+                    if bool:
+                        # It was fit; we take the next value of lds.
+                        lds_updated.append(lds[lds_index])
+                        lds_index += 1
+                    else:
+                        # It was not fit: we take the current index i of the initial guess.
+                        lds_updated.append(input_param_dict[superdict_key]['ld_initialguess'][i])
+                redicted_params[superdict_key][key] = lds_updated
+    
+    return redicted_params
+
+    '''
     # Remove _prior from keys.
     fit_param_keys = [str.replace(key,"_prior","") for key in fit_param_keys]
     # Open a new dictionary.
     redicted_params = {}
     systematics = {}
-    LDs = {}
+    lds = {}
 
-    # Stash initial LD guess.
-    redicted_params["LD_initialguess"] = params_to_fit["LD_initialguess"]
-    redicted_params["fit_LDs"] = params_to_fit["fit_LDs"]
+    # Stash initial ld guess.
+    redicted_params["ld_initialguess"] = params_to_fit["ld_initialguess"]
+    redicted_params["fit_lds"] = params_to_fit["fit_lds"]
 
     # Keep "organized keys" for later.
     organized_keys = list(params_to_fit.keys())
@@ -275,13 +403,13 @@ def array_to_dict(params_array, params_to_fit, fit_param_keys):
     for i, key in enumerate(fit_param_keys):
         # Some of these keys will be able to be transferred wholesale.
         # The exceptions are systematics models (must be bundled as "model_coeffs")
-        # and limb darkening coefficients (must be bundled as "LD_initialguess")
+        # and limb darkening coefficients (must be bundled as "ld_initialguess")
         if any([special_key in key for special_key in special_keys]):
             # It's a systematic moodel coefficient! Store it to process later.
             systematics[key+str(i)] = params_array[i]
-        elif "LD" in key:
-            # It's an LD! Store it to process later.
-            LDs[key] = params_array[i]
+        elif "ld" in key:
+            # It's an ld! Store it to process later.
+            lds[key] = params_array[i]
         else:
             # It's nothing special, just take it as is.
             redicted_params[key] = params_array[i]
@@ -298,11 +426,11 @@ def array_to_dict(params_array, params_to_fit, fit_param_keys):
             # That is, only if that system model is there at all. No need to make empty tags.
             redicted_params[special_key+"_coeffs"] = system_model
 
-    # And let's put the LDs back in.
-    for key in LDs.keys():
-        # The key itself will tell us redicted_params["LD_initialguess"] items to update.
-        index_to_update = int(str.replace(key,"LD",""))-1
-        redicted_params["LD_initialguess"][index_to_update] = LDs[key]
+    # And let's put the lds back in.
+    for key in lds.keys():
+        # The key itself will tell us redicted_params["ld_initialguess"] items to update.
+        index_to_update = int(str.replace(key,"ld",""))-1
+        redicted_params["ld_initialguess"][index_to_update] = lds[key]
 
     # Finally, fill in anything that is missing.
     for key in params_to_fit.keys():
@@ -316,8 +444,9 @@ def array_to_dict(params_array, params_to_fit, fit_param_keys):
         reorganized_params[key] = redicted_params[key]
     
     return reorganized_params
+    '''
 
-def build_priors_dict(planets, flares, systematics, LD, is_spec=False):
+def build_priors_dict(planets, flares, systematics, ld, is_spec=False):
     """Simple function to get the priors on every fitting parameter.
 
     Args:
@@ -325,57 +454,81 @@ def build_priors_dict(planets, flares, systematics, LD, is_spec=False):
         flares (dict): series of entries describing each flare in the model.
         systematics (dict): series of entries describing systematic trends
         in the model.
-        LD (dict): series of entries describing the limb darkening model.
+        ld (dict): series of entries describing the limb darkening model.
         is_spec (bool, optional): whether this is a fit to a spectroscopic
         curve, in which case certain system parameters are to be locked.
         Defaults to False.
     
     Returns:
-        dict: each entry is a list of two numbers and this dict will be fed
-        into the build_bounds function.
+        dict, dict: each entry is a list of two numbers and this dict will be fed
+        into the build_bounds function. We also return a dict which tells us what
+        is and is not fitted.
     """
     # Initialize the priors dict.
     param_priors = {}
+    # Also start a dict of what is and is not fitted.
+    fit_or_not = {}
 
-    # First, gut every planet.
-    special_keys = ["rp","fp","t_prim","t_seco","period","aor","incl","ecc","longitude"]
-    if is_spec:
-        # In spectroscopic fits, we only concern ourselves with depth.
-        # Physical system parameters are not to be fit for.
-        special_keys = ["rp","fp"]
-    special_keys = [i+"_prior" for i in special_keys]
+    # We go in order of superdict, and stay inside a try until it breaks.
+    superdict_keys = planets.keys()
+    for superdict_key in superdict_keys:
+        # Start up the dicts that will correspond to param_priors[superdict_key].
+        superdict_prior = {}
+        superdict_fitornot = {}
 
-    for i, planet_name in enumerate(planets.keys()):
-        planet = planets[planet_name]
-        for key in special_keys:
-            if planet[key+str(i+1)]: # if this is not None, it's being fitted.
-                param_priors[key+str(i+1)] = planet[key+str(i+1)]
+        # First, gut every planet inside the superdict.
+        special_keys = ["rp","fp","t_prim","t_seco","period","aor","incl","ecc","longitude"]
+        if is_spec:
+            # In spectroscopic fits, we only concern ourselves with depth.
+            # Physical system parameters are not to be fit for.
+            special_keys = ["rp","fp"]
+        special_keys = [i+"_prior" for i in special_keys]
+
+        # Parse the planets only within the correct superdict entry.
+        for i, planet_name in enumerate(planets[superdict_key].keys()):
+            planet = planets[superdict_key][planet_name]
+            for key in special_keys:
+                if planet[key+str(i+1)]: # if this is not None, it's being fitted.
+                    superdict_prior[key+str(i+1)] = planet[key+str(i+1)]
+                    superdict_fitornot[key+str(i+1)] = True
+                else:
+                    superdict_fitornot[key+str(i+1)] = False
     
-    # We gutted all the planets. Now to gut all the flares.
-    special_keys = ["A","B","C","Dr","Ds","Fr","E"]
-    special_keys = [i+"_prior" for i in special_keys]
+        # We gutted all the planets. Now to gut all the flares.
+        special_keys = ["A","B","C","Dr","Ds","Fr","E"]
+        special_keys = [i+"_prior" for i in special_keys]
 
-    for i, flare_ID in enumerate(flares.keys()):
-        flare = flares[flare_ID]
+        # Parse the flares only within the correct superdict entry.        
+        for i, flare_ID in enumerate(flares[superdict_key].keys()):
+            flare = flares[superdict_key][flare_ID]
+            for key in special_keys:
+                if flare[key+str(i+1)]: # if this is not None, it's being fitted.
+                    superdict_prior[key+str(i+1)] = flare[key+str(i+1)]
+                    superdict_fitornot[key+str(i+1)] = True
+                else:
+                    superdict_fitornot[key+str(i+1)] = False
+            
+        # We need to unpack systematic info.
+        special_keys = ["poly","mirrortilt","pos_detrend","width_detrend","singleramp","doubleramp"]
         for key in special_keys:
-            if flare[key+str(i+1)]: # if this is not None, it's being fitted.
-                param_priors[key+str(i+1)] = flare[key+str(i+1)]
+            if systematics[superdict_key][key]:
+                # If this systematic is included, we need to put a wicked broad bound on every parameter.
+                for i,coeff in enumerate(systematics[superdict_key][key+"_coeffs"]):
+                    superdict_prior[key+str(i+1)] = [-1e20,1e20]
+                    superdict_fitornot[key+str(i+1)] = True
+
+        # And ld info, if applicable.
+        for i, bool in enumerate(ld[superdict_key]["fit_lds"]):
+            # If any of the lds are getting fit, we need a bound on it.
+            if bool:
+                superdict_prior["ld"+str(i+1)] = [-10,10]
+                superdict_fitornot["ld"+str(i+1)] = True
+
+        # And load it all in.
+        param_priors[superdict_key] = superdict_prior
+        fit_or_not[superdict_key] = superdict_fitornot
     
-    # We need to unpack systematic info.
-    special_keys = ["poly","mirrortilt","pos_detrend","width_detrend","singleramp","doubleramp"]
-    for key in special_keys:
-        if systematics[key]:
-            # If this systematic is included, we need to put a wicked broad bound on every parameter.
-            for i,coeff in enumerate(systematics[key+"_coeffs"]):
-                param_priors[key+str(i+1)] = [-1e20,1e20]
-
-    # And LD info, if applicable.
-    for i, bool in enumerate(LD["fit_LDs"]):
-        # If any of the LDs are getting fit, we need a bound on it.
-        if bool:
-            param_priors["LD"+str(i+1)] = [-10,10]
-
-    return param_priors
+    return param_priors, fit_or_not
 
 def build_bounds(params_priors, priors_type):
     """Builds bounds for linear least squares fitting.
@@ -393,13 +546,33 @@ def build_bounds(params_priors, priors_type):
     bounds = []
 
     # And unpack.
-    for key in list(params_priors.keys()):
-        if priors_type == 'uniform':
-            lower, upper = params_priors[key]
-            bounds.append((lower, upper))
-        elif priors_type == 'gaussian':
-            mean, sigma = params_priors[key]
-            bounds.append((mean-(5*sigma),mean+(5*sigma)))
+    '''
+    for superdict_key in list(params_priors.keys()):
+        # The first key defines the parallel spectrum superdict key.
+        for class_key in list(params_priors[superdict_key].keys()):
+            # The next key defines the class of prior,
+            # e.g. planets, flares, systematics, or lds.
+            for key in list(params_priors[superdict_key][class_key].keys()):
+                # Finally, we get down to the parameters themselves.
+                parameter_priors = params_priors[superdict_key][class_key]
+                if priors_type == 'uniform':
+                    lower, upper = parameter_priors[key]
+                    bounds.append((lower, upper))
+                elif priors_type == 'gaussian':
+                    mean, sigma = parameter_priors[key]
+                    bounds.append((mean-(5*sigma),mean+(5*sigma)))
+    '''
+    for superdict_key in list(params_priors.keys()):
+        # Retrieve the parallel spectrum key.
+        for key in list(params_priors[superdict_key].keys()):
+            # We get down to the parameters themselves.
+            parameter_priors = params_priors[superdict_key][key]
+            if priors_type == 'uniform':
+                lower, upper = parameter_priors
+                bounds.append((lower, upper))
+            elif priors_type == 'gaussian':
+                mean, sigma = parameter_priors
+                bounds.append((mean-(5*sigma),mean+(5*sigma)))
     return bounds
 
 def consolidate_multiple_detectors(detectors):
@@ -416,7 +589,7 @@ def consolidate_multiple_detectors(detectors):
     """
     # Each params_array object has a corresponding fit_param_keys object
     # which tells us what each parameter is. Parameters like rpN, polyN,
-    # LDN, etc. are allowed to be separated by detector number. But ones
+    # ldN, etc. are allowed to be separated by detector number. But ones
     # like t_primN, aorN, etc. must be the same.
     dets = detectors.keys()
 
@@ -537,22 +710,23 @@ def get_result_from_post(ndim, flat_samples):
         param_errs_array.append(np.std(flat_samples[:, i]))
     return np.array(params_array), np.array(param_errs_array)
 
-def _residuals(params_array, lc_time, light_curve, errors, params_to_fit,
-               fit_param_keys, xpos, ypos, widths, give_res=False):
+def _residuals(params_array, exp_times, light_curve, errors, bundled_params, fit_or_not,
+               preserve_timing=False, preserve_depth=False, give_res=False):
     """Computes the residuals between the full model and the given light curve.
 
     Args:
         params_array (np.array): the array-ified version of params_to_fit.
-        lc_time (np.array): mid-exposure time of each point in the light curve.
+        exp_times (np.array): mid-exposure time of each point in the light curve.
+        light_curve (np.array): flux at each point in the light curve.
         errors (np.array): uncertainties associated with each data point, used
         in weighting the residuals.
-        light_curve (np.array): flux at each point in the light curve.
-        params_to_fit (dict): the parameters being fitted, in dict form.
-        fit_param_keys (list of str): the keys that are actually getting
-        modified during fitting.
-        xpos (np.array): if detrending w.r.t. position, the dispersion position array.
-        ypos (np.array): if detrending w.r.t. position, the cross-dispersion position array.
-        widths (np.array): if detrending w.r.t. position, the cross-dispersion widths array.
+        bundled_params (dict): all of the original parameters from planets,
+        flares, systematics, and lds, spewed out into a long dict.
+        fit_or_not (dict): a series of keys explaining which items must be modified.
+        preserve_timing (bool): whether or not to force all time-related arguments
+        being fitted to be equal. Useful for parallel fits of simul-events.
+        preserve_depth (bool): whether or not to force all depth-related arguments
+        being fitted to be equal. Useful for parallel fits of multiple visits.
         give_res (bool, optional): if asked, return the residuals as an array, not summed.
         Defaults to False.
     
@@ -561,20 +735,68 @@ def _residuals(params_array, lc_time, light_curve, errors, params_to_fit,
         evaluate the goodness of fit. If give_res, returns the residuals array.
     """
     # Turn the array back into a dictionary.
-    redicted_params = array_to_dict(params_array, params_to_fit, fit_param_keys)
+    redicted_params = array_to_dict(params_array, bundled_params, fit_or_not)
     
     # Then, separate those back into planets, flares, and systematics.
-    planets_fit, flares_fit, systematics_fit, LD_fit = unpack_params_back_to_dicts(redicted_params,
-                                                                                   xpos, ypos, widths)
+    planets_fit, flares_fit, systematics_fit, ld_fit = {}, {}, {}, {}
+    for key in list(redicted_params.keys()):
+        planets_fit[key], flares_fit[key], systematics_fit[key], ld_fit[key] = unpack_params_back_to_dicts(redicted_params[key])
+
+    # Force equals where called for using the preserve arguments.
+    if preserve_timing:
+        # Arbitrarily call the first spectrum's time-related args as absolute.
+        reference_planet = planets_fit['1']
+        abs_times = {}
+        for k, pl_key in enumerate(list(reference_planet.keys())):
+            abs_times[pl_key] = {}
+            for time_key in ('t_prim{}'.format(k+1),'t_seco{}'.format(k+1)):
+                abs_times[pl_key][time_key] = reference_planet[pl_key][time_key]
+        # Now we have taken the t_prim/t_seco args for planet1, planet2, etc. from
+        # the first parallelised spectrum as the absolute. All planets must
+        # now be fixed to that value.
+        for key in list(planets_fit.keys()):
+            for k, pl_key in enumerate(list(reference_planet.keys())):
+                for time_key in ('t_prim{}'.format(k+1),'t_seco{}'.format(k+1)):
+                    # Get spectrum 'key', planet 'pl_key', parameter 'time_key' and lock it.
+                    planets_fit[key][pl_key][time_key] = abs_times[pl_key][time_key]
+    if preserve_depth:
+        # Arbitrarily call the first spectrum's depth-related args as absolute.
+        reference_planet = planets_fit['1']
+        abs_depths = {}
+        for k, pl_key in enumerate(list(reference_planet.keys())):
+            abs_depths[pl_key] = {}
+            for depth_key in ('rp{}'.format(k),'fp{}'.format(k)):
+                abs_depths[pl_key][depth_key] = reference_planet[pl_key][depth_key]
+        # Now we have taken the rp/fp args for planet1, planet2, etc. from
+        # the first parallelised spectrum as the absolute. All planets must
+        # now be fixed to that value.
+        for key in list(planets_fit.keys()):
+            for k, pl_key in enumerate(list(reference_planet.keys())):
+                for depth_key in ('rp{}'.format(k),'fp{}'.format(k)):
+                    # Get spectrum 'key', planet 'pl_key', parameter 'depth_key' and lock it.
+                    planets_fit[key][pl_key][depth_key] = abs_depths[pl_key][depth_key]
     
-    # Now redo the flux model calculation, this time supplying redicted_params as an argument.
-    model, components = models.full_model(lc_time, planets_fit, flares_fit, systematics_fit,
-                                          params_to_fit=redicted_params, fit_param_keys=fit_param_keys)
+    # Now redo the flux model calculation for each spectrum,
+    # this time supplying redicted_params as an argument.
+    sum_residuals = 0
+    full_residuals = []
+    for d, superdict_key in enumerate(list(planets_fit.keys())):
+        model, components = models.full_model(exp_times[d],
+                                              planets_fit[superdict_key],
+                                              flares_fit[superdict_key],
+                                              systematics_fit[superdict_key],
+                                              bundled_params=redicted_params[superdict_key],
+                                              fit_or_not=fit_or_not[superdict_key])
 
-    # And compare to the data.
-    residuals = np.sum(((model-light_curve)/errors)**2)
+        # And compare to the data.
+        residuals_full = (model-light_curve[d])/errors[d]
+        full_residuals.append(residuals_full)
+        sum_residuals += np.sum(residuals_full**2)
 
-    return residuals
+    if give_res:
+        return full_residuals
+    else:
+        return sum_residuals
 
 def _residuals_multi(params_array, time, light_curve, errors, params_to_fit,
                      fit_param_keys, xpos, ypos, widths, give_res=False):
@@ -609,7 +831,7 @@ def _residuals_multi(params_array, time, light_curve, errors, params_to_fit,
         lc = light_curve[detector,:]
         t = time[detector,:]
         # Then, separate those back into planets, flares, and systematics.
-        planets_fit, flares_fit, systematics_fit, LD_fit = unpack_params_back_to_dicts(redicted_params,
+        planets_fit, flares_fit, systematics_fit, ld_fit = unpack_params_back_to_dicts(redicted_params,
                                                                                     xpos, ypos, widths)
         
         # Now redo the flux model calculation, this time supplying redicted_params as an argument.

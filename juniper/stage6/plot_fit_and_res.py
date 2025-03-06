@@ -10,7 +10,7 @@ from juniper.stage5.bin_light_curves import time_bin
 from juniper.util.plotting import plot_fit, plot_res
 from juniper.util.diagnostics import tqdm_translate, plot_translate, timer
 
-def get_fit_and_res(t, lc, lc_err, planets, flares, systematics, LD, inpt_dict):
+def get_fit_and_res(t, lc, lc_err, planets, flares, systematics, ld, inpt_dict):
     """Gets the fitted model and residuals for the given light curve
     and model dictionaries.
 
@@ -22,7 +22,7 @@ def get_fit_and_res(t, lc, lc_err, planets, flares, systematics, LD, inpt_dict):
         planets (dict): a dictionary of every fitted planet.
         flares (dict): a dictionary of every fitted flare.
         systematics (dict): a dictionary of every fitted systematic.
-        LD (dict): a dictionary of the limb darkening model.
+        ld (dict): a dictionary of the limb darkening model.
         inpt_dict (dict): instructions for running this step.
     """
     # Array-ify as needed.
@@ -30,8 +30,8 @@ def get_fit_and_res(t, lc, lc_err, planets, flares, systematics, LD, inpt_dict):
     lc = np.asarray(lc)
     lc_err = np.asarray(lc_err)
 
-    # Initialize the planets, giving them the LD info they need to talk to batman properly.
-    planets = batman_handler.batman_init_all_planets(t, planets, LD,
+    # Initialize the planets, giving them the ld info they need to talk to batman properly.
+    planets = batman_handler.batman_init_all_planets(t, planets, ld,
                                                      event=inpt_dict["event_type"])
     
     # Create the full model and components.
@@ -43,7 +43,7 @@ def get_fit_and_res(t, lc, lc_err, planets, flares, systematics, LD, inpt_dict):
 
     # Create interpolated model.
     t_interp = np.linspace(np.min(t),np.max(t),1000)
-    planets = batman_handler.batman_init_all_planets(t_interp, planets, LD,
+    planets = batman_handler.batman_init_all_planets(t_interp, planets, ld,
                                                      event=inpt_dict["event_type"])
     
     # Create the full model and components.
@@ -52,7 +52,7 @@ def get_fit_and_res(t, lc, lc_err, planets, flares, systematics, LD, inpt_dict):
     
     return t_interp, lc_interp, components, residuals
 
-def plot_fit_and_res(t, lc, lc_err, planets, flares, systematics, LD, inpt_dict):
+def plot_fit_and_res(t, lc, lc_err, planets, flares, systematics, ld, inpt_dict):
     """Gets the fitted model and residuals for the given light curve
     and model dictionaries.
 
@@ -64,7 +64,7 @@ def plot_fit_and_res(t, lc, lc_err, planets, flares, systematics, LD, inpt_dict)
         planets (dict): a dictionary of every fitted planet.
         flares (dict): a dictionary of every fitted flare.
         systematics (dict): a dictionary of every fitted systematic.
-        LD (dict): a dictionary of the limb darkening model.
+        ld (dict): a dictionary of the limb darkening model.
         inpt_dict (dict): instructions for running this step.
 
     Returns:
@@ -76,7 +76,15 @@ def plot_fit_and_res(t, lc, lc_err, planets, flares, systematics, LD, inpt_dict)
     lc_err = np.asarray(lc_err)
 
     # Get the needed info from get_fit_and_res.
-    t_interp, lc_interp, components, residuals = get_fit_and_res(t, lc, lc_err, planets, flares, systematics, LD, inpt_dict)
+    t_interp, lc_interp, components, residuals = get_fit_and_res(t, lc, lc_err, planets, flares, systematics, ld, inpt_dict)
+
+    # Normalize and express residuals as ppm.
+    norm_factor = np.median(lc)
+    lc /= norm_factor
+    lc_interp /= norm_factor
+    lc_err /= norm_factor
+    residuals /= norm_factor
+    residuals *= 1e6
 
     # And plot.
     fig, axes = plt.subplots(2,1,figsize=(7,5))
@@ -90,6 +98,10 @@ def plot_fit_and_res(t, lc, lc_err, planets, flares, systematics, LD, inpt_dict)
         
         axes[0].scatter(bin_t,bin_lc,color='blue',alpha=0.5, zorder=1)
         axes[1].scatter(bin_t,bin_res,color='blue',alpha=0.5, zorder=1)
+
+    axes[0].set_ylabel('relative flux [a.u.]')
+    axes[1].set_ylabel('residuals [ppm]')
+    axes[1].set_xlabel('time [mjd]')
 
     return fig, axes
 

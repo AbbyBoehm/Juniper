@@ -1,6 +1,8 @@
 import os
 from tqdm import tqdm
+
 import numpy as np
+import matplotlib.pyplot as plt
 
 from juniper.util.diagnostics import tqdm_translate, plot_translate
 from juniper.util.datahandling import stitch_files, save_s3_output
@@ -30,7 +32,7 @@ def do_stage3(filepaths, outfiles, outdir, steps, plot_dir):
     time_step, time_ints = tqdm_translate(steps["verbose"])
     # FIX : i'll figure this out later
     plot_step, plot_ints = plot_translate(steps["show_plots"])
-    save_step, save_plots = plot_translate(steps["save_plots"])
+    save_step, save_ints = plot_translate(steps["save_plots"])
     
     # Create the output directory if it does not yet exist.
     if not os.path.exists(outdir):
@@ -43,6 +45,11 @@ def do_stage3(filepaths, outfiles, outdir, steps, plot_dir):
     segments = stitch_files(filepaths,
                             time_step=time_step,
                             verbose=steps["verbose"])
+    
+    if plot_step or save_step:
+        raw_f0 = np.copy(segments.data.values[0,:,:])
+    if plot_ints or save_ints:
+        raw_fs = np.copy(segments.data.values[:,:,:])
     
     # Mask data flags.
     if steps["reject_flagged"]:
@@ -83,6 +90,32 @@ def do_stage3(filepaths, outfiles, outdir, steps, plot_dir):
 
     # Save everything out.
     save_s3_output(segments, disp_pos, cdisp_pos, cdisp_width, moved_ints, outfiles, outdir)
+
+    if plot_step or save_step:
+        fig, ax = plt.subplots(2,1,figsize=(10,5),sharex=True)
+        ax[0].imshow(raw_f0,aspect=20,cmap='binary_r',
+                     vmin=0,vmax=6000,norm='log')
+        ax[1].imshow(segments.data.values[0,:,:],aspect=20,cmap='binary_r',
+                     vmin=0,vmax=6000,norm='log')
+        if save_step:
+            plt.savefig(os.path.join(steps["diagnostic_plots"],"S3_before-after_f0.png"),
+                        dpi=300, bbox_inches='tight')
+        if plot_step:
+            plt.show(block=True)
+        plt.close()
+    if plot_ints or save_ints:
+        for k in range(segments.data.values.shape[0]):
+            fig, ax = plt.subplots(2,1,figsize=(10,5),sharex=True)
+            ax[0].imshow(raw_fs[k,:,:],aspect=20,cmap='binary_r',
+                         vmin=0,vmax=6000,norm='log')
+            ax[1].imshow(segments.data.values[k,:,:],aspect=20,cmap='binary_r',
+                         vmin=0,vmax=6000,norm='log')
+            if save_step:
+                plt.savefig(os.path.join(steps["diagnostic_plots"],"S3_before-after_f{}.png".format(k)),
+                            dpi=300, bbox_inches='tight')
+            if plot_step:
+                plt.show(block=True)
+            plt.close()
 
     # Log.
     if steps["verbose"] >= 1:

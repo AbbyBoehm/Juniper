@@ -1,10 +1,11 @@
 import numpy as np
+from scipy.interpolate import interp1d
 from scipy.special import erfc
 
 from juniper.util.cleaning import median_timeseries_filter
 from juniper.stage5 import batman_handler
 
-def full_model(t, planets, flares, systematics, params_to_fit=None, fit_param_keys=None):
+def full_model(t, planets, flares, systematics, bundled_params=None, fit_or_not=None):
     """Builds a model of a transit/eclipse light curve using the provided
     information on observed planets, suspected flaring events, and systematic
     models to detrend for.
@@ -18,10 +19,9 @@ def full_model(t, planets, flares, systematics, params_to_fit=None, fit_param_ke
         event suspected to have occurred during the observation.
         systematics (dict): a series of dictionary entries describing each
         systematic model to detrend for.
-        params_to_fit (dict, optional): new planet parameters, needs to be
-        supplied if you are fitting. Defaults to None.
-        fit_param_keys (list of str, optional): the parameters that are actually
-        being updated during fitting. Guides the whole process. Defaults to None.
+        bundled_params (dict): all of the original parameters from planets,
+        flares, systematics, and lds, spewed out into a long dict.
+        fit_or_not (dict): a series of keys explaining which items must be modified.
     
     Returns:
         np.array, dict: Sys(t;A)*(Sum[planets(t;B)+flares(t;C)]), or the sum of
@@ -37,8 +37,8 @@ def full_model(t, planets, flares, systematics, params_to_fit=None, fit_param_ke
     for planet_name in list(planets.keys()):
         planet = planets[planet_name] # dict, contains rp, rp_prior, fp, fp_prior, etc. as well as batman_model
         planet_ID = str.replace(planet_name, "planet", "")
-        batman_flux = batman_handler.batman_flux_update(params_to_fit=params_to_fit,
-                                                        fit_param_keys=fit_param_keys,
+        batman_flux = batman_handler.batman_flux_update(bundled_params=bundled_params,
+                                                        fit_or_not=fit_or_not,
                                                         batman_params=[planet["batman_params"+planet_ID],],
                                                         batman_model=[planet["batman_model"+planet_ID],])
         # Multiply planet's flux contribution into the full model.
@@ -84,6 +84,9 @@ def full_model(t, planets, flares, systematics, params_to_fit=None, fit_param_ke
     if systematics["pos_detrend"]:
         jitter = systematic_jitter(systematics["xpos"], systematics["ypos"],
                                    systematics["pos_detrend_coeffs"])
+        # If building an interpolated model, these ones can have size mismatch.
+        if len(jitter) != len(system):
+            jitter = interpolate_model(jitter, system)
         system *= jitter
         models["pos_detrend"] = jitter
         
@@ -91,6 +94,9 @@ def full_model(t, planets, flares, systematics, params_to_fit=None, fit_param_ke
     if systematics["width_detrend"]:
         psf = systematic_psf(systematics["width"],
                              systematics["width_detrend_coeffs"])
+        # If building an interpolated model, these ones can have size mismatch.
+        if len(psf) != len(system):
+            psf = interpolate_model(psf, system)
         system *= psf
         models["width_detrend"] = psf
 
@@ -221,3 +227,19 @@ def flare_h(t, B, C, D):
     a3 = ((B/C)+a2)**2
     a4 = (B-t)/C
     return np.exp(a1+a3)*erfc(a4+a2)
+
+def interpolate_model(model, base):
+    """Interpolates the model to match the time resolution of the base.
+
+    Args:
+        model (np.array): model that may be a position or width detrend.
+        base (np.array): interpolated system model.
+
+    Returns:
+        np.array: model interpolated to match the base resolution.
+    """
+    # Define an interpolater function.
+    x = np.linspace(0,len(base),len(model))
+    xnew = np.linspace(0,len(base),len(base))
+    interp_model = interp1d(x, model, kind='linear', fill_value='extrapolate')
+    return interp_model(xnew)

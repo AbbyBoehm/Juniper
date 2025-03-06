@@ -59,8 +59,8 @@ bckg_threshold  10000                                       # float. Signal leve
 
 # Step 5: Track x, y displacement of trace in space
 track_disp      True                                        # bool. Whether to track frame motion in the dispersion direction.
-reject_disp     True                                        # bool. Whether to reject framess which show significant motion in the dispersion direction.
+reject_disp     True                                        # bool. Whether to reject frames which show significant motion in the dispersion direction.
 track_spatial   True                                        # bool. Whether to track frame motion in the spatial or cross-dispersion direction.
-reject_spatial  True                                        # bool. Whether to reject framess which show significant motion in the spatial or cross-dispersion direction.
+reject_spatial  True                                        # bool. Whether to reject frames which show significant motion in the spatial or cross-dispersion direction.
 
 # ENDPARSE

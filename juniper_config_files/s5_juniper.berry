@@ -4,7 +4,7 @@
 toplevel_dir    ''                                          # Top-level directory for all files in this project. The input and output files should be here.
 input           'extracted'                                 # The sub-directory relative to the top-level directory where your input *1Dspec.nc files are.
 output          'fits'                                      # The sub-directory relative to the top-level directory where your output *fits.nc files will be saved.
-input_run       None                                        # str or None. You can use this to choose a sub-folder from the input folder if you wanted to rerun (e.g. pull from input/run1 instead of input/ or input/run2).
+input_runs      None                                        # lst of str or None. You can use this to choose sub-folders from the input folder if you wanted to rerun (e.g. pull from input/run1 instead of input/ or input/run2). If you plan on treating more than one 1D spectrum, place each Stage 4 run's name here!
 output_run      None                                        # str or None. You can use this to open sub-folders in the output folder if you wanted to rerun (e.g. have output/run1 and output/run2).
 CRDS_PATH       None                                        # str or None. If you already have a crds_cache directory, point to its absolute path here. Otherwise, a crds_cache will be opened in the current working directory.
 max_cores       'half'                                      # integer or 'quarter', 'half', 'all'. How many cores to use for multiprocessing.
@@ -20,115 +20,128 @@ detectors       'parallel'                                  # str. Choices are '
 
 # Step 2: Bin 1D spectra into light curves
 bin_method      'columns'                                   # str. Options are 'wavelengths' (to bin based on wavelength) or 'columns' (to bin every N columns).
-broadband_waves None                                        # tuple of float. If not None, limit broadband lightcurve extraction to between these wavelengths in micron.
+broadband_waves [None,]                                     # list of tuple of float, or list of None. If not None, limit broadband lightcurve extraction to between these wavelengths in micron. If treating many detectors in parallel, supply one entry per detector as a list. You can also supply one entry as None and the next as a tuple, e.g. [None, (0.5,3.0)] to treat each detector differently.
 reject_bad_cols True                                        # bool. If True, masks contributions from columns deemed too noisy.
 bad_col_thres   0.001                                       # float. Used to control how aggressively we flag columns. The lower the number, the less noisiness we tolerate in our columns.
 clip_outliers   3.0                                         # float or None. If not None, clips outliers from the light curves.
 
 # Step 2a: Binning by wavelength
-wave_bins       np.arange(0.50,6.125,0.125)                 # Either an object that can be parsed as a list (i.e. [1,2,3] or np.arange(1,4,1)), or a str pointing to a text file containing the comma-separated bin edges as the first column.
+wave_bins       [np.arange(0.50,6.125,0.125),]              # Either an object that can be parsed as a list (i.e. [1,2,3] or np.arange(1,4,1)), or a str pointing to a text file containing the comma-separated bin edges as the first column. If treating many detectors in parallel, supply one entry per detector as a list.
 
 # Step 2b: Binning by columns
-n_columns       10                                          # int. How many columns each bin should contain.
+n_columns       [10,]                                       # int. How many columns each bin should contain. If treating many detectors in parallel, supply one entry per detector as a list.
 
 # Step 2c: Binning in time
 bin_time        False                                       # bool. Whether to bin the light curves down in time.
 bin_size        20                                          # int. How many points to bin down by.
 
-# Step 3: Light-curve fitting
+# Step 3: High-level fitting settings
 fit_broadband   True                                        # bool. Whether you will be fitting broad-band light curves.
 fit_spec        True                                        # bool. Whether you will be fitting spectroscopic light curves. For these curves, system parameters are forced fixed, regardless of whether you fit the broad-band curves or not.
 scale_errors    True                                        # bool. Whether to fit a multiplier to the errors extracted in Stage 4 to achieve a reduced-chi2 of unity. WIP!
 
+preserve_timing False                                       # bool. For parallel detector treatment only. Forces all parallel spectral fits to share timing, e.g. fitted values of t_prim, t_seco, etc. Set to True if you are fitting the same event observed with multiple detectors (e.g. nrs1+nrs2 simultaneous observation of one eclipse).
+preserve_depth  False                                       # bool. For parallel detector treatment only. Forces all parallel spectral fits to share depth, e.g. rp if fitting transit, fp if fitting eclipes. Set to True if you are fitting different events observed with one detector (e.g. multiple PRISM visits of the same transiting planet).
+
+clean_pos       True                                        # bool. For systematics fitting when detrending on position. If True, use median filtering to clean up the fitted disp/cross-disp position of the trace. Recommended to leave on.
+clean_widths    True                                        # bool. For systematics fitting when detrending on trace width. If True, use median filtering to clean up the fitted cross-dispersion width of the trace. Recommended to leave on.
+
 use_LSQ         True                                        # bool. Whether to use a linear least-squares estimator to refine initial parameter guesses and scale error bars to achieve unity chi2.
 LSQ_type        ''                                          # str. Scipy.optimize.minimize algorithm to use. Options are "Nelder-Mead", "L-BFGS-B", "Powell", or "TNC", as only these methods support bounds.
-LSQ_tolerance   1e-10                                       # float. Tolerance for scipy LSQ algorithm. The smaller the number, the more tightly it will try to fight.
+LSQ_tolerance   1e-10                                       # float. Tolerance for scipy LSQ algorithm. The smaller the number, the more tightly it will try to fit.
 LSQ_iter        None                                        # int. If not None, forces LSQ to stop after this many iterations.
 
 use_MCMC        True                                        # bool. Whether to use a Markov Chain Monte Carlo routine to fit parameters with posterior distribution.
 MCMC_chains     20                                          # int. How many chains to run in parallel.
-MCMC_steps      20000                                       # int. How many steps each chain should take before running.
+MCMC_steps      20000                                       # int. How many steps each chain should take before stopping.
 MCMC_specsteps  5000                                        # int. If not None, use only this many steps for chains in spec curves. They have less parameters to explore so a smaller chain size can be permitted.
 MCMC_burnin     0.20                                        # int > 1 or float < 1. If int, how many steps are regarded as burn-in, independent of MCMC_steps. If float, the fraction of MCMC_steps to be considered burn-in.
 
 priors_type     'uniform'                                   # Str. Options are 'uniform' or 'gaussian'. See priors below for more info. Set this whether you use LSQ, MCMC, or both!
 
-# Step 3a: Setting up your star
+# Step 4: Setting up your star
+# Step 4a: Stellar parameters
 star_MH         0.00                                        # float. Metallicity of the star in dex.
-star_Teff       5800                                        # float. Effective temperature of the star.
+star_Teff       5800                                        # float. Effective temperature of the star in K.
 star_logg       4.5                                         # float. Log of the star's surface gravity g in cgs units.
 
-# Step 3b: Setting up your limb-darkening model
-LD_model        'nonlinear'                                 # str. Which kind of batman LD model to use. Options are 'uniform', 'linear', 'quadratic', 'square-root', 'logarithmic', 'exponential', 'power2' (from Morello et al. 2017), and 'nonlinear'.
-fit_LDs         [False,False]                               # bool. Whether to treat LD coefficients as a free parameter. Only use if you have really good ingress/egress information, otherwise these will be really unconstrained
-LD_initialguess [0,0]                                       # list of float. The initial guess of LD coefficient to supply to the LD fitting routine. Only used if exotic_LD is False.
+# Step 4b: Limb darkening model
+ld_model        'nonlinear'                                 # str. Which kind of batman ld model to use. Options are 'uniform', 'linear', 'quadratic', 'square-root', 'logarithmic', 'exponential', 'power2' (from Morello et al. 2017), and 'nonlinear'.
+fit_lds         [False,False]                               # bool. Whether to treat ld coefficients as a free parameter. Only use if you have really good ingress/egress information, otherwise these will be really unconstrained. Need one bool per coefficient in your ld model.
+ld_initialguess [0,0]                                       # list of float. The initial guess of ld coefficient to supply to the ld fitting routine. Only used if use_exotic is False.
 
-# Step 3b i: Configuring ExoTiC-LD
-use_exotic      True                                        # bool. If True, ignore LD_initialguess and supply the values produced by ExoTiC-LD instead.
+# Step 4c: Configuring ExoTiC-LD
+use_exotic      True                                        # bool. If True, ignore ld_initialguess and supply the values produced by ExoTiC-LD instead. Can still fit lds even if using ExoTiC-LD; in that case, all ExoTiC-LD does is supply the initial guess.
 ld_data_path    None                                        # str. Absolute path to your exotic_ld_data-#.#.# folder.
 ld_grid         "stagger"                                   # str. Which ExoTiC-LD model grid to use. Options are "1D"/"kurucz", "3D"/"stagger", "mps1", "mps2", "phoenix", or None to supply a custom grid.
 custom_grid     None                                        # str. If ld_grid is None, use the grid at this path.
 interpolate     "trilinear"                                 # str. How to interpolate between different models in the grid. Options are "nearest" or "trilinear".
-instrument_mode "JWST_NIRSpec_Prism"                        # str. Specifies which instrument was used for the observations.
+instrument_mode "JWST_NIRSpec_Prism"                        # str. Specifies which instrument was used for the observations. See https://exotic-ld.readthedocs.io/en/latest/views/supported_instruments.html for list of supported modes.
 
-# Step 3c: Setting up your planets
+# Step 5: Planets, flares, and systematics
+# For every parallelised spectrum you want to fit, make one copy of all of the lines from "# Step 5a" up to "# ENDPARSE"
+# For all priors, you can enter None to keep that parameter fixed, or a list of two floats to fit that parameter.
+# If your prior type is "uniform", the entries are the lower and upper bound of the uniform prior distribution.
+# If your prior type is "gaussian", the entries are the mean and width of the Gaussian prior distribution.
+
+# Step 5a: Setting up your planets
 event_type      'primary'                                   # str. Options are 'primary' (for transits) or 'secondary' (for eclipses).
 n_planets       1                                           # int. How many planets to fit. Most observations have just one, but some have more than one!
 
-# Step 3c i: Planet parameters - make one copy of this entry per planet! Set prior = None to fix that parameter instead of fitting for it.
+# Step 5a i: Planet parameters - make one copy of this entry per planet! Set prior = None to fix that parameter instead of fitting for it.
 rp              0.10                                        # float. Planet radius in terms of stellar radius, rp/r*.
-rp_prior        [0,100]                                     # list of float. If priors are 'uniform', these are the min and max allowed value. If 'gaussian', this is the mean and sigma of the Gaussian prior.
+rp_prior        [0,100]                                     # list of float or None. Prior on the above.
 
 fp              0.0001                                      # float. Planet flux in terms of stellar flux, fp/f*.
-fp_prior        None                                        # list of float. If priors are 'uniform', these are the min and max allowed value. If 'gaussian', this is the mean and sigma of the Gaussian prior.
+fp_prior        None                                        # list of float or None. Prior on the above.
 
 t_prim          0                                           # float. Mid-transit time in days.
-t_prim_prior    [-1,1]                                      # list of float. If priors are 'uniform', these are the min and max allowed value. If 'gaussian', this is the mean and sigma of the Gaussian prior.
+t_prim_prior    [-1,1]                                      # list of float or None. Prior on the above.
 
 t_seco          0                                           # float. Mid-eclipse time in days.
-t_seco_prior    None                                        # list of float. If priors are 'uniform', these are the min and max allowed value. If 'gaussian', this is the mean and sigma of the Gaussian prior.
+t_seco_prior    None                                        # list of float or None. Prior on the above.
 
 period          3                                           # float. Orbital period in days.
-period_prior    None                                        # list of float. If priors are 'uniform', these are the min and max allowed value. If 'gaussian', this is the mean and sigma of the Gaussian prior.
+period_prior    None                                        # list of float or None. Prior on the above.
 
 aor             10                                          # float. Orbital semimajor axis in terms of stellar radius, a/r*.
-aor_prior       None                                        # list of float. If priors are 'uniform', these are the min and max allowed value. If 'gaussian', this is the mean and sigma of the Gaussian prior.
+aor_prior       None                                        # list of float or None. Prior on the above.
 
 incl            90                                          # float. Orbital inclination in degrees.
-incl_prior      None                                        # list of float. If priors are 'uniform', these are the min and max allowed value. If 'gaussian', this is the mean and sigma of the Gaussian prior.
+incl_prior      None                                        # list of float or None. Prior on the above.
 
 ecc             0                                           # float. Orbital eccentricity, usually assumed to be 0 for short-period planets.
-ecc_prior       None                                        # list of float. If priors are 'uniform', these are the min and max allowed value. If 'gaussian', this is the mean and sigma of the Gaussian prior.
+ecc_prior       None                                        # list of float or None. Prior on the above.
 
 longitude       0                                           # float. Orbital longitude of periastron in degrees.
-longitude_prior None                                        # list of float. If priors are 'uniform', these are the min and max allowed value. If 'gaussian', this is the mean and sigma of the Gaussian prior.
+longitude_prior None                                        # list of float or None. Prior on the above.
 
-# Step 3d: Setting up your flares
-n_flares        0                                           # int. How many flares to fit. Most observations do not contain a flare, but if you see any, use this to specify how many the fitter should look for.
+# Step 5b: Setting up your flares
+n_flares        0                                           # int. How many flares to fit. Many observations do not contain a flare, but if you see any, use this to specify how many the fitter should look for.
 
-# Step 3d i: Flare parameters - make one copy of this entry per flare!
+# Step 5b i: Flare parameters - make one copy of this entry per flare!
 A               1                                           # float. Amplitude of the flare.
-A_prior         [-1e10,1e10]                                # list of float. Same rules as planet parameter priors.
+A_prior         [-1e10,1e10]                                # list of float or None. Prior on the above.
 
 B               0                                           # float. Position in time of the flare peak relative to where the flare model began.
-B_prior         [-1e10,1e10]                                # list of float. Same rules as planet parameter priors.
+B_prior         [-1e10,1e10]                                # list of float or None. Prior on the above.
 
 C               1                                           # float. Gaussian heating timescale.
-C_prior         [-1e10,1e10]                                # list of float. Same rules as planet parameter priors.
+C_prior         [-1e10,1e10]                                # list of float or None. Prior on the above.
 
 Dr              1                                           # float. Timescale of the rapid cooling phase.
-Dr_prior        [-1e10,1e10]                                # list of float. Same rules as planet parameter priors.
+Dr_prior        [-1e10,1e10]                                # list of float or None. Prior on the above.
 
 Ds              1                                           # float. Timescale of the slow cooling phase.
-Ds_prior        [-1e10,1e10]                                # list of float. Same rules as planet parameter priors.
+Ds_prior        [-1e10,1e10]                                # list of float or None. Prior on the above.
 
 Fr              0.5                                         # float. Relative importance of the rapid cooling exponential. The importance of the slow cooler is Fs = 1 - Fr.
-Fr_prior        [0,1]                                       # list of float. Same rules as planet parameter priors.
+Fr_prior        [0,1]                                       # list of float or None. Prior on the above.
 
 E               None                                        # float. Offset in time. If None, initializes as the MJD of the first integration.
-E_prior         [-1e10,1e10]                                # list of float. Same rules as planet parameter priors.
+E_prior         [-1e10,1e10]                                # list of float or None. Prior on the above.
 
-# Step 3e: Setting up your systematics
+# Step 5c: Systematic parameters
 poly            True                                        # bool. Whether to fit a visit-long polynomial trend to the data.
 poly_order      1                                           # float. The order of polynomial to fit. You should at least fit a 0th-order polynomial, which scales the entire curve by a constant.
 

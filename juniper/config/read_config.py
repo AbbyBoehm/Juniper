@@ -16,22 +16,34 @@ def read_config(path_to_config_file):
 
     # Define certain keys as special. These are keys for which multiple
     # similar entries are expected to appear.
-    special_keys = ["rp","fp","t_prim","t_seco","period",
-                    "aor","incl","ecc","longitude",
-                    "A","B","C","Dr","Ds","Fr","E"]
-    prior_keys = [key+"_prior" for key in special_keys]
-    for key in prior_keys:
-        special_keys.append(key)
+    planet_keys = ["rp","fp","t_prim","t_seco","period",
+                   "aor","incl","ecc","longitude"]
+    planet_prior_keys = [key+"_prior" for key in planet_keys]
+    for key in planet_prior_keys:
+        planet_keys.append(key)
+    flare_keys = ["A","B","C","Dr","Ds","Fr","E",]
+    flare_prior_keys = [key+"_prior" for key in flare_keys]
+    for key in flare_prior_keys:
+        flare_keys.append(key)
+    systematics_keys = ["poly","poly_order","mirrortilt","n_tilt_events",
+                        "pos_detrend","width_detrend","superbias_scale",
+                        "singleramp","doubleramp"]
     
     # Keep track of how many times we have seen this key appear.
     # Allows us to assign number IDs to each instance.
-    seen_this_key = {}
-    for key in special_keys:
-        seen_this_key[key] = 0
+    seen_this_planet_key = {}
+    for key in planet_keys:
+        seen_this_planet_key[key] = 0
+    seen_this_flare_key = {}
+    for key in flare_keys:
+        seen_this_flare_key[key] = 0
 
     # Read out all lines.
     with open(path_to_config_file,mode='r') as f:
         lines = f.readlines()
+
+    # Init the event_ID variable.
+    event_ID = 0
 
     # Process all lines.
     for line in lines:
@@ -45,14 +57,34 @@ def read_config(path_to_config_file):
         # It's a useful line. Take the dict key.
         key = line[0]
 
-        # Handle special keys.
-        if key in special_keys:
-            # For planets and flares, the same key name may appear many times. 
+        # There is a chance this could be a new block of planets+flares+systematics
+        if key == "event_type":
+            # When the event_type key is encountered, we need to reset the planet and flare key counter.
+            # Each planet and flare key is going to have its own number of recurrences within each block
+            # for each parallelised spectrum.
+            for reset_key in planet_keys:
+                seen_this_planet_key[reset_key] = 0
+            for reset_key in flare_keys:
+                seen_this_flare_key[reset_key] = 0
+
+            # Also, we need to update the event ID spectrum each time we start a new block.
+            event_ID += 1
+
+        # Count planet keys, with event ID attached.
+        if key in planet_keys:
+            # For planets and flares, the same key may appear multiple times.
             # e.g. if you fit two planets in transit, rp and rp_prior will both appear twice.
-            # And if you fit two flares, they will have two distinct amplitudes A.
             # So we have to add numbers to keep them distinct.
-            seen_this_key[key] += 1 # keep track of how many times we've seen the special key.
-            key = key + str(seen_this_key[key]) # assign tracker number to the key.
+            seen_this_planet_key[key] += 1 # keep track of how many times we've seen the special key.
+            key = "{}{:.0f}_{:.0f}".format(key, seen_this_planet_key[key], event_ID) # assign tracker number to the key.
+
+        # And count flare keys, with event ID attached.
+        if key in flare_keys:
+            # For flares, the same key may appear multiple times.
+            # e.g. if you fit two flares, each will have its own amplitude and timing.
+            # So we have to add numbers to keep them distinct.
+            seen_this_flare_key[key] += 1 # keep track of how many times we've seen the special key.
+            key = "{}{:.0f}_{:.0f}".format(key, seen_this_flare_key[key], event_ID) # assign tracker number to the key.
 
         # Param may have spaces, so we need to keep going with it.
         param = line[1]
@@ -66,8 +98,16 @@ def read_config(path_to_config_file):
         except:
             # It was just a string after all.
             pass
+
+        # Note that event_type, n_planets, and n_flares are all event_ID-dependent. So...
+        if key in ("event_type","n_planets","n_flares"):
+            key = "{}_{:.0f}".format(key,event_ID)
+
+        # Systematics are also event_ID-dependent variables. So...
+        if key in systematics_keys:
+            key = "{}_{:.0f}".format(key,event_ID)
         
         # And put it in the dictionary.
         config[key] = param
-
+    
     return config

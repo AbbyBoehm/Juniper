@@ -11,7 +11,7 @@ from juniper.stage5 import batman_handler, fit_handler, exotic_handler
 from juniper.util.diagnostics import tqdm_translate, plot_translate, timer
 from juniper.util.cleaning import median_timeseries_filter
 
-def mcmcfit_one(lc_time, light_curve, errors, waves, planets, flares, systematics, LD, inpt_dict, is_spec=False):
+def mcmcfit_one(lc_time, light_curve, errors, waves, planets, flares, systematics, ld, inpt_dict, is_spec=False):
     """Performs Markov Chain Monte Carlo fitting on the given array(s) using emcee.
     Fits a single light curve. Useful for fitting spectroscopic curves.
 
@@ -28,7 +28,7 @@ def mcmcfit_one(lc_time, light_curve, errors, waves, planets, flares, systematic
         event suspected to have occurred during the observation.
         systematics (dict): a series of dictionary entries describing each
         systematic model to detrend for.
-        LD (dict): a dictionary describing the limb darkening model, including
+        ld (dict): a dictionary describing the limb darkening model, including
         the star's physical characteristics.
         inpt_dict (dict): instructions for running this step.
         is_spec (bool, optional): whether this is a fit to a spectroscopic
@@ -36,14 +36,14 @@ def mcmcfit_one(lc_time, light_curve, errors, waves, planets, flares, systematic
         Defaults to False.
     
     Returns:
-        dict, dict, dict, dict: planets, flares, systematics, and LD updated
+        dict, dict, dict, dict: planets, flares, systematics, and ld updated
         with fitted values.
     """
     # Copy planets, flares, systematics, and stellar limb darkening in their unmodified state.
     old_planets = planets.copy()
     old_flares = flares.copy()
     old_systematics = systematics.copy()
-    old_LD = LD.copy()
+    old_ld = ld.copy()
 
     # Check if position detrending is available.
     xpos, ypos, widths = [], [], []
@@ -65,27 +65,27 @@ def mcmcfit_one(lc_time, light_curve, errors, waves, planets, flares, systematic
         systematics["poly_coeffs"][0] = np.median(light_curve)
 
     # Check if ExoTiC-LD is being used.
-    if LD["use_exotic"]:
+    if ld["use_exotic"]:
         # We need to update our parameters then.
-        LD["wavelength_range"] = np.array([np.min(waves), np.max(waves)])
-        LD["LD_initialguess"] = exotic_handler.get_exotic_coefficients(LD)
+        ld["wavelength_range"] = np.array([np.min(waves), np.max(waves)])
+        ld["ld_initialguess"] = exotic_handler.get_exotic_coefficients(ld)
     
-    # (Re-)Initialize the planets, giving them the LD info they need to talk to batman properly.
-    planets = batman_handler.batman_init_all_planets(lc_time, planets, LD,
+    # (Re-)Initialize the planets, giving them the ld info they need to talk to batman properly.
+    planets = batman_handler.batman_init_all_planets(lc_time, planets, ld,
                                                      event=inpt_dict["event_type"])
     
     # Build a priors dictionary.
-    params_priors = fit_handler.build_priors_dict(planets,flares,systematics,LD,
+    params_priors = fit_handler.build_priors_dict(planets,flares,systematics,ld,
                                                   is_spec=is_spec)
 
     # Conveniently, the priors also tells us which keys are getting fit.
     fit_param_keys = list(params_priors.keys())
 
-    # Translate planets, flares, systematics, and LDs into a single fitting dictionary.
-    params_to_fit = fit_handler.bundle_planets_flares_systematics_and_LD(planets,
+    # Translate planets, flares, systematics, and lds into a single fitting dictionary.
+    params_to_fit = fit_handler.bundle_planets_flares_systematics_and_ld(planets,
                                                                          flares,
                                                                          systematics,
-                                                                         LD)
+                                                                         ld)
     
     # Turn that into an array so emcee will accept it.
     params_array = fit_handler.dict_to_array(params_to_fit, fit_param_keys)
@@ -168,26 +168,26 @@ def mcmcfit_one(lc_time, light_curve, errors, waves, planets, flares, systematic
         repack_ypos = systematics["ypos"]
     if "width" in systematics.keys():
         repack_widths = systematics["width"]
-    planets, flares, systematics, LD = fit_handler.unpack_params_back_to_dicts(fitted_dict,
+    planets, flares, systematics, ld = fit_handler.unpack_params_back_to_dicts(fitted_dict,
                                                                                repack_xpos,
                                                                                repack_ypos,
                                                                                repack_widths)
     
-    planets_e, flares_e, systematics_e, LD_e = fit_handler.unpack_params_back_to_dicts(fitted_errs_dict,
+    planets_e, flares_e, systematics_e, ld_e = fit_handler.unpack_params_back_to_dicts(fitted_errs_dict,
                                                                                        repack_xpos,
                                                                                        repack_ypos,
                                                                                        repack_widths)
     
     # Fill in anything that went missing.
-    planets, flares, systematics, LD = fit_handler.refill(planets,flares,systematics,LD,
-                                                          old_planets,old_flares,old_systematics,old_LD)
+    planets, flares, systematics, ld = fit_handler.refill(planets,flares,systematics,ld,
+                                                          old_planets,old_flares,old_systematics,old_ld)
     
-    planets_e, flares_e, systematics_e, LD_e = fit_handler.refill(planets_e,flares_e,systematics_e,LD_e,
-                                                                  old_planets,old_flares,old_systematics,old_LD)
+    planets_e, flares_e, systematics_e, ld_e = fit_handler.refill(planets_e,flares_e,systematics_e,ld_e,
+                                                                  old_planets,old_flares,old_systematics,old_ld)
     
     # Re-initialize the planets.
-    planets = batman_handler.batman_init_all_planets(lc_time, planets, LD,
+    planets = batman_handler.batman_init_all_planets(lc_time, planets, ld,
                                                      event=inpt_dict["event_type"])
 
     # And return the fitted parameters.
-    return planets, flares, systematics, LD, planets_e, flares_e, systematics_e, LD_e, plotting_items
+    return planets, flares, systematics, ld, planets_e, flares_e, systematics_e, ld_e, plotting_items

@@ -112,6 +112,7 @@ def fix_curvature(data, wvs, timer, show, save, verbose, outdir, outfile):
                 fig, ax, im = img(shifted_data[i,:,:],
                                   aspect=5,
                                   title="Rolled frame {}".format(i),
+                                  norm='log',
                                   vmin=0,
                                   vmax=100,
                                   verbose=verbose)

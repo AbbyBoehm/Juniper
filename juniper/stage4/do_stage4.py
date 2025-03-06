@@ -4,7 +4,7 @@ import numpy as np
 
 from juniper.util.diagnostics import tqdm_translate, plot_translate
 from juniper.util.datahandling import stitch_files, save_s4_output
-from juniper.stage4 import extract_1D, align_spec, clean_spec
+from juniper.stage4 import extract_1D, align_spec, clean_spec, plot_spec_gif
 
 def do_stage4(filepaths, outfile, outdir, steps, plot_dir):
     """Performs Stage 4 extraction on the given files.
@@ -86,6 +86,10 @@ def do_stage4(filepaths, outfile, outdir, steps, plot_dir):
     # Clean spectra.
     if steps["sigma"]:
         oneD_spec = clean_spec.clean_spec(oneD_spec, steps)
+
+    # Make diagnostic gif.
+    if (plot_step or save_step):
+        plot_spec_gif.make_gif(oneD_spec,wav_sols,time,steps)
 
     # Save everything out.
     save_s4_output(oneD_spec, oneD_err, time, wav_sols, shifts,
