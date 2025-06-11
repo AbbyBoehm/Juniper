@@ -17,7 +17,7 @@ rename          None                                        # str. What you want
 # Step 1: Read in the LSQ and MCMC results.
 read_LSQ        True                                        # bool. If True, reads in the results from linear least squares fitting.
 read_MCMC       True                                        # bool. If True, reads in the results from Markov Chain Monte Carlo fitting.
-event_type      'primary'                                   # str. Options are 'primary' (for transits) or 'secondary' (for eclipses).
+event_type      ('primary',)                                # list of str. Options are 'primary' (for transits) or 'secondary' (for eclipses). One entry per parallelised spectrum loaded.
 
 # Step 2: Plot fits and residuals
 plot_individual True                                        # bool. If True, individually plots the light curve, fitted model, and residuals for each wavelength bin.
@@ -25,6 +25,8 @@ plot_bin        20                                          # int or None. If no
 
 plot_components True                                        # bool. If True, plots the individual model components (e.g. planet, poly, ramp, etc.) in tiles.
 comps_bin       20                                          # int or None. If not None, plots a binned version of the light curve and residuals over the model. Bins by this many timestamps.
+
+plot_allan_var  True                                        # bool. Whether to plot Allan variance of residuals of fit.
 
 plot_waterfall  True                                        # bool. If True, plots the light curve, fitted model, and residuals for all models as a waterfall.
 waterfall_bin   100                                         # int or None. If not None, plots a binned version of the light curve and residuals instead. Bins by this many timestamps. Recommended for large waterfalls.
@@ -34,7 +36,7 @@ waterfall_wavs  [0.5,5.5]                                   # list of float. If 
 
 # Step 3: Get spectrum
 get_spectrum    True                                        # bool. If True, saves the transmission/emission spectrum computed from these fits as a .dat and a .txt.
-spectrum_type   'rprs2'                                     # str. Options are 'rprs' (planet radius/star radius), 'rprs2' (planet radius^2/star radius^2), 'aover' (planet area overlapping star area), or 'fpfs' (planet flux/star flux).
+spectrum_type   ('rprs2',)                                  # str. Options are 'rprs' (planet radius/star radius), 'rprs2' (planet radius^2/star radius^2), 'aover' (planet area overlapping star area), or 'fpfs' (planet flux/star flux). One entry per parallelised spectrum loaded.
 bin_factors     []                                          # list of int. How many depth points you want to bin together. You can enter multiple ints to get many binned spectra. Can be empty to just leave it in native resolution.
 wave_bounds     []                                          # list. If not empty, the lower and upper limits of wavelength you want to view. Helpful if one part of your spectrum is small but detailed (i.e. the optical end of an eclipse spectrum can be like this).
 

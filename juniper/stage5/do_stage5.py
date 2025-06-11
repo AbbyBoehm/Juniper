@@ -73,7 +73,8 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
         event_ID = d+1
         planets[str(event_ID)] = make_planets(steps,event_ID=event_ID)
         flares[str(event_ID)] = make_flares(steps)
-        xpos, ypos = light_curves["pos"][d]
+        xpos = light_curves["xpos"][d]
+        ypos = light_curves["ypos"][d]
         widths = light_curves["widths"][d]
 
         # Optionally, clean the position and widths data
@@ -115,7 +116,6 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
                            systematics, systematics_err, ld, ld_err,
                            light_curves["time"], light_curves["broadband"],light_curves["broaderr"],
                            'broadband', outfile+"_broadbandLSQ", outdir)
-            print(1/0)
         '''
             planets, flares, systematics, ld = lsqfit_handler.lsqfit_one(lc_time=light_curves["time"][0],
                                                                  light_curve=light_curves["broadband"][0],
@@ -153,7 +153,57 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
 
 
         # Now refine those linear fits with MCMC, or just go straight to MCMC if desired.
-        if steps["use_MCMC"] and len(light_curves["broadband"])==1:
+        if steps["use_MCMC"]:# and len(light_curves["broadband"])==1:
+            if steps["verbose"] == 2:
+                print("Markov Chain Monte Carlo fitting to all supplied broadband data...")
+            planets, flares, systematics, ld, \
+            planets_err, flares_err, systematics_err, ld_err, \
+            plotting_items = mcmcfit_handler.mcmcfit(exp_times=light_curves["time"],
+                                                     light_curve=light_curves["broadband"],
+                                                     errors=light_curves["broaderr"],
+                                                     wavelengths=light_curves["broadbins"],
+                                                     planets=planets, flares=flares,
+                                                     systematics=systematics, ld=ld,
+                                                     inpt_dict=steps, is_spec=False)
+            
+            # Save output.
+            save_s5_output(planets, planets_err, flares, flares_err,
+                           systematics, systematics_err, ld, ld_err,
+                           light_curves["time"], light_curves["broadband"],light_curves["broaderr"],
+                           'broadband', outfile+"_broadbandMCMC", outdir)
+            
+            # Plot, if asked.
+            if (plot_step or save_step):
+                # Unpack plotting items.
+                ndim, samples, flat_samples, labels, n = plotting_items
+                
+                # Plot posteriors.
+                fig, ax = plot_post(ndim,samples,labels,n)
+                if save_step:
+                    plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_broadbandMCMC-posterior.png"),
+                                dpi=300, bbox_inches='tight')
+                if plot_step:
+                    plt.show(block=True)
+                plt.close()
+
+                # Plot corners.
+                fig = plot_corner(flat_samples,labels)
+                if save_step:
+                    plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_broadbandMCMC-corner.png"),
+                                dpi=300, bbox_inches='tight')
+                if plot_step:
+                    plt.show(block=True)
+                plt.close()
+
+                # Plot chains.
+                fig, ax = plot_chains(ndim,samples,labels)
+                if save_step:
+                    plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_broadbandMCMC-chains.png"),
+                                dpi=300, bbox_inches='tight')
+                if plot_step:
+                    plt.show(block=True)
+                plt.close()
+            '''
             if steps["verbose"] == 2:
                 print("Markov Chain Monte Carlo fitting to a single broadband curve...")
             planets, flares, systematics, ld, p_err, f_err, s_err, l_err, plotting_items = mcmcfit_handler.mcmcfit_one(lc_time=light_curves["time"][0],
@@ -205,7 +255,7 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
         else:
             if steps["verbose"] == 2:
                 print("Markov Chain Monte Carlo fitting to multiple broadband curves in parallel...")
-            '''
+            
             planets, flares, systematics, ld, p_err, f_err, s_err, l_err = MCMCfit.mcmcfit_joint(lc_time=light_curves.time.values[0,:],
                                                                                                light_curve=light_curves.broadband.values[0,:],
                                                                                                errors=light_curves.broaderr.values[0,:],
@@ -219,7 +269,6 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
                             light_curves.time.values[0,:], light_curves.broadband.values[0,:], light_curves.broaderr.values[0,:], 'broadband',
                             outfile+"_broadbandMCMC", outdir)
             '''
-    
     # Then fit the spectroscopic curves.
     if steps["fit_spec"]:
         # Load planets, flares, systematics, and ld from a fitted model, if available.
@@ -228,8 +277,8 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
                 result = np.load(os.path.join(outdir,outfile+"_broadbandMCMC.npy"), allow_pickle=True).item()
                 planets, flares, systematics, ld = (result['planets'],result['flares'],
                                                     result['systematics'],result['ld'])
-                p_err, f_err, s_err, l_err = (result['planet_errs'],result['flare_errs'],
-                                              result['systematic_errs'],result['ld_err'])
+                planets_err, flares_err, systematics_err, ld_err = (result['planet_errs'],result['flare_errs'],
+                                                                    result['systematic_errs'],result['ld_err'])
                 print("MCMC broadband fit successfully loaded.")
             except FileNotFoundError:
                 print("No MCMC results found, proceeding with initial guesses.")
@@ -238,12 +287,211 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
         flares0 = flares.copy()
         systematics0 = systematics.copy()
         ld0 = ld.copy()
-        p_err0 = p_err.copy()
-        f_err0 = f_err.copy()
-        s_err0 = s_err.copy()
-        l_err0 = l_err.copy()
-        
-        # We need to treat one light curve at a time, one detector at a time.
+        planets_err0 = planets_err.copy()
+        flares_err0 = flares_err.copy()
+        systematics_err0 = systematics_err.copy()
+        ld_err0 = ld_err.copy()
+
+        # Treatments of multiple possible visits/detectors is complex. Let's break it down.
+        # First, we have to check if all the wavelengths are equal.
+        detector_wavelengths = []
+        for i in range(len(light_curves["specbins"])):
+            detector_wavelengths.append(light_curves["specbins"][i])
+        detectors_are_same_bins = False
+        if all(np.array_equal(detector_wavelengths[0],dlist) for dlist in detector_wavelengths):
+            detectors_are_same_bins = True
+        if steps["verbose"] == 2:
+            if detectors_are_same_bins:
+                print("Detectors were found to have matching wavelength bins; treatment will be parallel.")
+            else:
+                print("Detector wavelengths do not match; treatment will be serial.")
+
+        if detectors_are_same_bins:
+            # Then we can treat this stuff in parallel fit.
+            # Of course, how that manifests will depend on your preserve calls.
+
+            # Iterate over each wavelength bin.
+            for i in range(len(light_curves["spec"][0])):
+                # Get the parallelised spectra dict for this wavelength band.
+                light_curve, errors, wavelengths = [], [], []
+                for j in range(len(light_curves["spec"])):
+                    light_curve.append(light_curves["spec"][j][i])
+                    errors.append(light_curves["specerr"][j][i])
+                    wavelengths.append(light_curves["specbins"][j][i])
+                
+                wavestr = '{:.3f}'.format(np.mean(wavelengths[0]))
+
+                if steps["use_LSQ"]:
+                    if steps["verbose"] == 2:
+                        print("Linear least squares fitting to supplied spectroscopic light curve {} micron in parallel...".format(wavestr))
+                    # Now we lsqfit this.
+                    planets, flares, systematics, ld = lsqfit_handler.lsqfit(exp_times=light_curves["time"],
+                                                                             light_curve=light_curve,
+                                                                             errors=errors,
+                                                                             wavelengths=wavelengths,
+                                                                             planets=planets, flares=flares,
+                                                                             systematics=systematics, ld=ld,
+                                                                             inpt_dict=steps, is_spec=True)
+                
+                    # Save output. Needs to be formatted as if there is more than one dimension.
+                    planets_err, flares_err, systematics_err, ld_err = planets, flares, systematics, ld
+                    save_s5_output(planets, planets_err, flares, flares_err,
+                                   systematics, systematics_err, ld, ld_err,
+                                   light_curves["time"], light_curve, errors,
+                                   wavestr, outfile+"_spec{}LSQ".format(wavestr), outdir)
+                if steps["use_MCMC"]:
+                    if steps["verbose"] == 2:
+                        print("Markov Chain Monte Carlo fitting to supplied spectroscopic light curve {} micron in parallel...".format(wavestr))
+                    # Now we mcmcfit this.
+                    planets, flares, systematics, ld, \
+                    planets_err, flares_err, systematics_err, ld_err, \
+                    plotting_items = mcmcfit_handler.mcmcfit(exp_times=light_curves["time"],
+                                                            light_curve=light_curve,
+                                                            errors=errors,
+                                                            wavelengths=wavelengths,
+                                                            planets=planets, flares=flares,
+                                                            systematics=systematics, ld=ld,
+                                                            inpt_dict=steps, is_spec=True)
+                    
+                    # Save output.
+                    save_s5_output(planets, planets_err, flares, flares_err,
+                                   systematics, systematics_err, ld, ld_err,
+                                   light_curves["time"], light_curve, errors,
+                                   wavestr, outfile+"_spec{}MCMC".format(wavestr), outdir)
+                    
+                    # Plot, if asked.
+                    if (plot_step or save_step):
+                        # Unpack plotting items.
+                        ndim, samples, flat_samples, labels, n = plotting_items
+                        
+                        # Plot posteriors.
+                        fig, ax = plot_post(ndim,samples,labels,n)
+                        if save_ints:
+                            plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_spec{}MCMC-posterior.png".format(wavestr)),
+                                        dpi=300, bbox_inches='tight')
+                        if plot_ints:
+                            plt.show(block=True)
+                        plt.close()
+
+                        # Plot corners.
+                        fig = plot_corner(flat_samples,labels)
+                        if save_ints:
+                            plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_spec{}MCMC-corner.png".format(wavestr)),
+                                        dpi=300, bbox_inches='tight')
+                        if plot_ints:
+                            plt.show(block=True)
+                        plt.close()
+
+                        # Plot chains.
+                        fig, ax = plot_chains(ndim,samples,labels)
+                        if save_step:
+                            plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_spec{}MCMC-chains.png".format(wavestr)),
+                                        dpi=300, bbox_inches='tight')
+                        if plot_step:
+                            plt.show(block=True)
+                        plt.close()
+                    
+                # Reset planets, etc. to originals.
+                planets, flares, systematics, ld = planets0, flares0, systematics0, ld0
+                planets_err, flares_err, systematics_err, ld_err = planets_err0, flares_err0, systematics_err0, ld_err0
+                    
+        else:
+            # We need to treat one light curve at a time, one detector at a time.
+            # Again, how that manifests will depend on your preserve calls.
+
+            # Iterate over each detector.
+            for d in range(len(light_curves["spec"])):
+                # Iterate over each wavelength bin.
+                for i in range(len(light_curves["spec"][d])):
+                    # Get the detector's spectrum dict for this wavelength band.
+                    light_curve = [light_curves["spec"][d][i],]
+                    errors = [light_curves["specerr"][d][i],]
+                    wavelengths = [light_curves["specbins"][d][i],]
+                    
+                    wavestr = '{:.3f}'.format(np.mean(wavelengths[0]))
+
+                    # Get the specific planets, flares, systematics, ld we need here,
+                    # and ignore the other entries. We'll call this one "1".
+                    planets = {"1":planets[str(d+1)]}
+                    flares = {"1":flares[str(d+1)]}
+                    systematics = {"1":systematics[str(d+1)]}
+                    ld = {"1":ld[str(d+1)]}
+
+                    if steps["use_LSQ"]:
+                        if steps["verbose"] == 2:
+                            print("Linear least squares fitting to supplied spectroscopic light curve {} micron in series...".format(wavestr))
+                        # Now we lsqfit this.
+                        planets, flares, systematics, ld = lsqfit_handler.lsqfit(exp_times=[light_curves["time"][d],],
+                                                                                 light_curve=light_curve,
+                                                                                 errors=errors,
+                                                                                 wavelengths=wavelengths,
+                                                                                 planets=planets, flares=flares,
+                                                                                 systematics=systematics, ld=ld,
+                                                                                 inpt_dict=steps, is_spec=True)
+                    
+                        # Save output. Needs to be formatted as if there is more than one dimension.
+                        planets_err, flares_err, systematics_err, ld_err = planets, flares, systematics, ld
+                        save_s5_output(planets, planets_err, flares, flares_err,
+                                    systematics, systematics_err, ld, ld_err,
+                                    light_curves["time"], light_curve, errors,
+                                    wavestr, outfile+"_spec{}LSQ_ID{}".format(wavestr,d+1), outdir)
+                    if steps["use_MCMC"]:
+                        if steps["verbose"] == 2:
+                            print("Markov Chain Monte Carlo fitting to supplied spectroscopic light curve {} micron in series...".format(wavestr))
+                        # Now we mcmcfit this.
+                        planets, flares, systematics, ld, \
+                        planets_err, flares_err, systematics_err, ld_err, \
+                        plotting_items = mcmcfit_handler.mcmcfit(exp_times=[light_curves["time"][d],],
+                                                                 light_curve=light_curve,
+                                                                 errors=errors,
+                                                                 wavelengths=wavelengths,
+                                                                 planets=planets, flares=flares,
+                                                                 systematics=systematics, ld=ld,
+                                                                 inpt_dict=steps, is_spec=True)
+                        
+                        # Save output.
+                        save_s5_output(planets, planets_err, flares, flares_err,
+                                       systematics, systematics_err, ld, ld_err,
+                                       light_curves["time"], light_curve, errors,
+                                       wavestr, outfile+"_spec{}MCMC_ID{}".format(wavestr,d+1), outdir)
+                        
+                        # Plot, if asked.
+                        if (plot_step or save_step):
+                            # Unpack plotting items.
+                            ndim, samples, flat_samples, labels, n = plotting_items
+                            
+                            # Plot posteriors.
+                            fig, ax = plot_post(ndim,samples,labels,n)
+                            if save_ints:
+                                plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_spec{}MCMC_ID{}-posterior.png".format(wavestr,d+1)),
+                                            dpi=300, bbox_inches='tight')
+                            if plot_ints:
+                                plt.show(block=True)
+                            plt.close()
+
+                            # Plot corners.
+                            fig = plot_corner(flat_samples,labels)
+                            if save_ints:
+                                plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_spec{}_ID{}MCMC-corner.png".format(wavestr,d+1)),
+                                            dpi=300, bbox_inches='tight')
+                            if plot_ints:
+                                plt.show(block=True)
+                            plt.close()
+
+                            # Plot chains.
+                            fig, ax = plot_chains(ndim,samples,labels)
+                            if save_step:
+                                plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_spec{}_ID{}MCMC-chains.png".format(wavestr,d+1)),
+                                            dpi=300, bbox_inches='tight')
+                            if plot_step:
+                                plt.show(block=True)
+                            plt.close()
+                        
+                    # Reset planets, etc. to originals.
+                    planets, flares, systematics, ld = planets0, flares0, systematics0, ld0
+                    planets_err, flares_err, systematics_err, ld_err = planets_err0, flares_err0, systematics_err0, ld_err0
+
+        '''
         for detector in tqdm(len(light_curves["broadband"]),
                              desc="Processing each detector's spectrum...",
                              disable=(not time_step)):
@@ -364,6 +612,7 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
                         print("Markov Chain Monte Carlo fititng failed, likely due to batman convergence failure.")
                 # Reset planets, etc. to originals.
                 planets, flares, systematics, ld = planets0, flares0, systematics0, ld0
+        '''
 
 
     # Log.

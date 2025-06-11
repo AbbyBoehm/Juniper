@@ -217,8 +217,8 @@ def led(segments, inpt_dict):
                 contrast_image[contrast_image!=0] = 1 # for visualization and comparison to sampling flux model.
                 
                 # Then we need to merge the results of S = Laplacian_image/factor*noise_model - sampling_flux
-                # and contrast_image = Laplacian_image/Fine_structure_model so that we only take where both are 1.
-                S = np.where(S == contrast_image, 1, 0)
+                # and contrast_image = Laplacian_image/Fine_structure_model so that we only take 1s where both are 1.
+                S = np.where(S == contrast_image, S, 0)
 
             # Locate new bad pixels.
             bad_pix_last_frame = -100
@@ -246,7 +246,7 @@ def led(segments, inpt_dict):
             # Make some plots if asked.
             if (plot_step or save_step) and k == 0:
                 # Plot the noise model and fine structure model of the first integration.
-                fig, ax, im = img(noise_model, aspect=5, title="LED Noise Model",
+                fig, ax, im = img(noise_model, aspect=5, vmin=1e-3, vmax=50, title="LED Noise Model",
                                   norm='linear', verbose=inpt_dict["verbose"])
                 if save_step:
                     plt.savefig(os.path.join(inpt_dict["diagnostic_plots"],"S3_spatial-LED_noise-model_N{}_int{}.png".format(iteration_N, k)),
@@ -256,7 +256,7 @@ def led(segments, inpt_dict):
                 plt.close()
 
                 if inpt_dict["fine_structure"]:
-                    fig, ax, im = img(contrast_image, aspect=5, title="LED Fine Structure Model",
+                    fig, ax, im = img(F, aspect=5, title="LED Fine Structure Model",
                                       norm='linear', verbose=inpt_dict["verbose"])
                     if save_step:
                         plt.savefig(os.path.join(inpt_dict["diagnostic_plots"],"S3_spatial-LED_fine-structure-model_N{}_int{}.png".format(iteration_N, k)),
@@ -264,12 +264,22 @@ def led(segments, inpt_dict):
                     if plot_step:
                         plt.show()
                     plt.close()
+                
+                # Also plot what was caught as bad.
+                fig, ax, im = img(S, aspect=5, vmin=0, vmax=1, title="Flagged by LED",
+                                  norm='linear', verbose=inpt_dict["verbose"])
+                if save_step:
+                    plt.savefig(os.path.join(inpt_dict["diagnostic_plots"],"S3_spatial-LED_flags-check_N{}_int{}.png".format(iteration_N, k)),
+                                dpi=300, bbox_inches='tight')
+                if plot_step:
+                    plt.show()
+                plt.close()
 
             # Increment iteration number and check if condition to stop iterating is hit.
             iteration_N += 1
-            if (inpt_dict["n"] != None and iteration_N > inpt_dict["n"]): # if it has hit the iteration cap
+            if (inpt_dict["led_n"] != None and iteration_N > inpt_dict["led_n"]): # if it has hit the iteration cap
                 stop_iterating = True
-            if (inpt_dict["n"] == None and bad_pix_this_frame == bad_pix_last_frame): # if it has stalled out on finding new outliers
+            if (inpt_dict["led_n"] == None and bad_pix_this_frame == bad_pix_last_frame): # if it has stalled out on finding new outliers
                 stop_iterating = True
         
         # Report that the iterations for this frame have stopped.

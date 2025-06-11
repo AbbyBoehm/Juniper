@@ -80,17 +80,27 @@ def full_model(t, planets, flares, systematics, bundled_params=None, fit_or_not=
         system *= expramp
         models["doubleramp"] = expramp
 
-    # Position detrend.
-    if systematics["pos_detrend"]:
-        jitter = systematic_jitter(systematics["xpos"], systematics["ypos"],
-                                   systematics["pos_detrend_coeffs"])
+    # Dispersion position detrend.
+    if systematics["disp_detrend"]:
+        jitter_x = systematic_jitter_disp(systematics["xpos"],
+                                          systematics["disp_detrend_coeffs"])
         # If building an interpolated model, these ones can have size mismatch.
-        if len(jitter) != len(system):
-            jitter = interpolate_model(jitter, system)
-        system *= jitter
-        models["pos_detrend"] = jitter
-        
+        if len(jitter_x) != len(system):
+            jitter_x = interpolate_model(jitter_x, system)
+        system *= jitter_x
+        models["disp_detrend"] = jitter_x
 
+    # Cross-dispersion position detrend.
+    if systematics["spatial_detrend"]:
+        jitter_y = systematic_jitter_crossdisp(systematics["ypos"],
+                                               systematics["spatial_detrend_coeffs"])
+        # If building an interpolated model, these ones can have size mismatch.
+        if len(jitter_y) != len(system):
+            jitter_y = interpolate_model(jitter_y, system)
+        system *= jitter_y
+        models["spatial_detrend"] = jitter_y
+
+    # Width detrend.
     if systematics["width_detrend"]:
         psf = systematic_psf(systematics["width"],
                              systematics["width_detrend_coeffs"])
@@ -165,18 +175,30 @@ def systematic_mirrortilt(t, coeffs):
         flx[coeffs[n][0]:] += coeffs[n][1] # and then after time index [n][0], there is a step of [n][1] which can be up or down
     return flx
 
-def systematic_jitter(xpos, ypos, coeffs):
-    """Returns a polynomial correlated to trace position.
+def systematic_jitter_disp(xpos, coeffs):
+    """Returns a polynomial correlated to trace x position.
 
     Args:
         xpos (np.array): dispersion position with time.
-        ypos (np.array): cross-dispersion position with time.
-        coeffs (list): jitter polynomial fits.
+        coeffs (list): x-jitter polynomial fits.
     
     Returns:
-        np.array: jitter model to be added to Sys(t;A).
+        np.array: x-jitter model to be added to Sys(t;A).
     """
-    jitter = 1 + coeffs[0]*xpos + coeffs[1]*ypos
+    jitter = 1 + coeffs[0]*xpos
+    return jitter
+
+def systematic_jitter_crossdisp(ypos, coeffs):
+    """Returns a polynomial correlated to trace y position.
+
+    Args:
+        ypos (np.array): cross-dispersion position with time.
+        coeffs (list): y-jitter polynomial fits.
+    
+    Returns:
+        np.array: y-jitter model to be added to Sys(t;A).
+    """
+    jitter = 1 + coeffs[0]*ypos
     return jitter
 
 def systematic_psf(widths, coeffs):

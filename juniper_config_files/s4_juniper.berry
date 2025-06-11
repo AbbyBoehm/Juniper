@@ -21,6 +21,7 @@ mask_bad_pix    False                                       # bool. If True, ful
 
 # Step 1a: Box extraction
 aperture        (10,18)                                     # tuple of int. Defines the lower and upper row bounding the extraction aperture.
+com_halfwidth   5                                           # int or None. If not None, ignores aperture argument and instead builds an aperture from the com which extends +/- com_halfwidth pixels from the com.
 
 # Step 1b: Optimum extraction
 aperture_type   'median'                                    # str. Defines the kind of spatial profile P to build for optimum extraction. Options are 'median' (use median integration), 'polyrow' (polynomial fit on rows), 'polycol' (polynomial fit on columns), 'gaussian' (gaussian fit on columns).
@@ -28,7 +29,7 @@ poly_order      7                                           # int. Order of poly
 
 # Step 2: Trimming integrations
 s3_kick_ints    True                                        # bool. If True, checks for frames that were flagged by Stage 3 as bad frames and fully kicks them from the segments.
-trim_ints       [[0,2500],]                                 # list of list of int. Bounds for integration numbers to reject. Useful for trimming the first ~1,000-3,000 integrations, which often suffer from detector settling systematics.
+trim_ints       [[0,2500],]                                 # list of list of int, or False. Bounds for integration numbers to reject. Useful for trimming the first ~1,000-3,000 integrations, which often suffer from detector settling systematics.
 
 # Step 3: Align spectra
 align           True                                        # bool. Whether to align the extracted 1D spectra.

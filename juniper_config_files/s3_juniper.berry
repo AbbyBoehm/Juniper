@@ -16,7 +16,8 @@ rename          None                                        # str. What you want
 
 # Step 1: Mask flagged pixels
 reject_flagged  True                                        # bool. Whether to mask pixels that have been flagged by the jwst pipeline as seen in the data quality array. If False, suppresses all jwst flags in the output data quality array.
-skip_flags      []                                          # list. If there are any flags in the jwst pipeline that you want to disregard (e.g. flag value 4, JUMP_DET), put them in here.
+skip_flags      []                                          # list of str. If you want to mask all but a certain handful of flags (e.g. mask all flags except for "JUMP_DET"), put the flags you **don't** want to mask here.
+target_flags    []                                          # list of str. Conversely, if you only want to mask certain flags (e.g. only mask pixels flagged "DO_NOT_USE"), put those flags here. This will supercede the "skip_flags" argument so leave it empty if you would rather use "skip_flags".
 flag_replace    None                                        # str 'space', str 'time', or None. The method to use for replacing flagged pixels. 'space' spatially filters the bad pixel, 'time' replaces with the median in time, and None leaves as masked.
 flag_sigma      3.0                                         # float. If replacement is 'space', the sigma to use when filtering bad pixels.
 flag_kernel     (31,1)                                      # tuple of odd int. If replacement is 'space', the kernel to use when filtering bad pixels.
@@ -41,6 +42,7 @@ space_method    'led'                                       # str. Options are '
 led_replace     True                                        # bool. If True, replaces outliers with a median filtered model. If False, leaves as masked.
 led_sigma       3.0                                         # float. The sigma to use when filtering bad pixels.
 led_factor      2                                           # int >= 2. The factor to use when subsampling the array. 2 works and is most computationally efficient.
+led_n           2                                           # int. Number of times to do LED on each frame. Enter None to continue performing LED on each frame until no outliers are found.
 fine_structure  True                                        # bool. Whether to build the fine structure model, which further protects the trace from damage during LED.
 contrast_factor 5.0                                         # float. If building a fine structure model, this is effectively the sigma for that model.
 
@@ -52,6 +54,7 @@ space_kernel    (31,1)                                      # tuple of odd int. 
 # Step 4: Subtract background
 subtract_bckg   True                                        # bool. Whether to do integration-level background subtraction. If you ran NSClean in Stage 1, this step is likely unnecessary.
 trace_mask      True                                        # bool. Whether to mask the trace while performing background subtraction.
+trace_com_mask  5                                           # int or None. If not None, identifies the COM of each column and then masks all pixels +/- this value from the COM to build a mask. Overrides other masking methods if not None.
 bckg_rows       [0,1,2,-3,-2,-1]                            # list of int. Indices to define as the background region.
 bckg_sigma      3.0                                         # float. The sigma to use when filtering bad pixels.
 bckg_kernel     (31,1)                                      # tuple of odd int. The kernel to use when filtering bad pixels.

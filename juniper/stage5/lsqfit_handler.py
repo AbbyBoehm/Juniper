@@ -40,12 +40,14 @@ def lsqfit(exp_times, light_curve, errors, wavelengths,
         dict, dict, dict, dict: planets, flares, systematics, and ld updated
         with fitted values.
     """
-    # Copy planets, flares, systematics, and stellar limb darkening in their unmodified state.
-    inpt_planets = planets.copy()
-    inpt_flares = flares.copy()
-    inpt_systematics = systematics.copy()
-    inpt_ld = ld.copy()
-
+    # Copy original dicts to preserve prior info.
+    originals = {}
+    for key in list(planets.keys()):
+        originals[key] = {"planets":planets[key].copy(),
+                          "flares":flares[key].copy(),
+                          "systematics":systematics[key].copy(),
+                          "ld":ld[key].copy()}
+        
     # If you are doing a poly fit, set the first polynomial coefficient better.
     for i,key in enumerate(list(systematics.keys())):
         if systematics[key]["poly"]:
@@ -83,18 +85,21 @@ def lsqfit(exp_times, light_curve, errors, wavelengths,
     # Turn that into an array so scipy will accept it.
     params_array = fit_handler.dict_to_array(bundled_params, fit_or_not)
 
-    # Parse the preserve_timing and preserve_depth args.
+    # Parse the preserve args.
     preserve_timing = inpt_dict["preserve_timing"]
     preserve_depth = inpt_dict["preserve_depth"]
+    preserve_orbit = inpt_dict["preserve_orbit"]
 
     # Now do lsq.
     results = minimize(fit_handler._residuals,
                        x0=params_array,
-                       args=(exp_times, light_curve, errors, bundled_params, fit_or_not, preserve_timing, preserve_depth),
+                       args=(exp_times, light_curve, errors, bundled_params, fit_or_not,
+                             preserve_timing, preserve_depth, preserve_orbit),
                        method=inpt_dict["LSQ_type"],
                        tol=inpt_dict["LSQ_tolerance"],
                        bounds=bounds,
-                       options={"maxiter":inpt_dict["LSQ_iter"]})
+                       options={"maxiter":inpt_dict["LSQ_iter"],
+                                "disp":(inpt_dict["verbose"]==2)})
     
     if inpt_dict["verbose"] == 2:
         print(results.message)
@@ -108,7 +113,12 @@ def lsqfit(exp_times, light_curve, errors, wavelengths,
     # Repack the dict back into planets, flares, systematics, and lds.
     planets, flares, systematics, ld = {}, {}, {}, {}
     for key in list(fitted_dict.keys()):
-        planets[key], flares[key], systematics[key], ld[key] = fit_handler.unpack_params_back_to_dicts(fitted_dict[key])    
+        planets[key], flares[key], systematics[key], ld[key] = fit_handler.unpack_params_back_to_dicts(fitted_dict[key],
+                                                                                                       originals[key])
+        
+    # Repeat preserve calls.
+    planets = fit_handler.preservation(planets,
+                                       preserve_timing, preserve_depth, preserve_orbit)
 
     # Re-initialize the planets to get the updated models into place.
     for i,key in enumerate(list(planets.keys())):
@@ -154,13 +164,15 @@ def lsqfit_one(lc_time, light_curve, errors, waves, planets, flares, systematics
 
     # Check if position detrending is available.
     xpos, ypos, widths = [], [], []
-    if systematics["pos_detrend"]:
+    if systematics["disp_detrend"]:
         xpos = systematics["xpos"]
-        ypos = systematics["ypos"]
-
         # Smooth the positions in case the locators had trouble.
-        xpos = median_timeseries_filter(xpos,sigma=3.0,kernel=31)
-        ypos = median_timeseries_filter(ypos,sigma=3.0,kernel=31)
+        xpos = median_timeseries_filter(xpos,sigma=3.0,kernel=21)
+    
+    if systematics["spatial_detrend"]:
+        ypos = systematics["ypos"]
+        # Smooth the positions in case the locators had trouble.
+        ypos = median_timeseries_filter(ypos,sigma=3.0,kernel=21)
         
     if systematics["width_detrend"]:
         widths = systematics["width"]
@@ -279,13 +291,15 @@ def lsqfit_joint(lc_time, light_curve, errors, waves, planets, flares, systemati
 
     # Check if position detrending is available.
     xpos, ypos, widths = [], [], []
-    if systematics["pos_detrend"]:
+    if systematics["disp_detrend"]:
         xpos = systematics["xpos"]
-        ypos = systematics["ypos"]
-
         # Smooth the positions in case the locators had trouble.
-        xpos = median_timeseries_filter(xpos,sigma=3.0,kernel=31)
-        ypos = median_timeseries_filter(ypos,sigma=3.0,kernel=31)
+        xpos = median_timeseries_filter(xpos,sigma=3.0,kernel=21)
+    
+    if systematics["spatial_detrend"]:
+        ypos = systematics["ypos"]
+        # Smooth the positions in case the locators had trouble.
+        ypos = median_timeseries_filter(ypos,sigma=3.0,kernel=21)
         
     if systematics["width_detrend"]:
         widths = systematics["width"]

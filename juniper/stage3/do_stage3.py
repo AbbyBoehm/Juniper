@@ -68,16 +68,35 @@ def do_stage3(filepaths, outfiles, outdir, steps, plot_dir):
         if steps["time_method"] == "fixed":
             segments = reject_time.iterate_fixed(segments, steps)
 
-        if steps["time_method"] == "free":
+        elif steps["time_method"] == "free":
             segments = reject_time.iterate_free(segments, steps)
+
+        else:
+            if steps["verbose"] >= 1:
+                print("Input time rejection method '{}' was not recognized! Please supply method 'fixed' or 'free'.".format(steps["time_method"]))
+                print("Skipping time rejection...")
         
     # Reject outliers in space.
     if steps["reject_space"]:
         if steps["space_method"] == "led":
             segments = reject_space.led(segments, steps)
         
-        if steps["space_method"] == "smooth":
+        elif steps["space_method"] == "smooth":
             segments = reject_space.smooth(segments, steps)
+        
+        else:
+            if steps["verbose"] >= 1:
+                print("Input spatial rejection method '{}' was not recognized! Please supply method 'led' or 'smooth'.".format(steps["space_method"]))
+                print("Skipping spatial rejection...")
+
+    # Finally, report changes if asked.
+    if steps["verbose"] >= 1:
+        N_pixels = 1
+        for dim in np.shape(segments.dq.values):
+            N_pixels *= dim
+        N_modified = np.count_nonzero(segments.dq.values)
+        print("All outlier rejection processes complete.")
+        print("Percentage of data modified: {:.2f}%".format(100*N_modified/N_pixels))
 
     # Remove background signal.
     if steps["subtract_bckg"]:
@@ -98,7 +117,7 @@ def do_stage3(filepaths, outfiles, outdir, steps, plot_dir):
         ax[1].imshow(segments.data.values[0,:,:],aspect=20,cmap='binary_r',
                      vmin=0,vmax=6000,norm='log')
         if save_step:
-            plt.savefig(os.path.join(steps["diagnostic_plots"],"S3_before-after_f0.png"),
+            plt.savefig(os.path.join(steps["diagnostic_plots"],"S3_before-after_int0.png"),
                         dpi=300, bbox_inches='tight')
         if plot_step:
             plt.show(block=True)

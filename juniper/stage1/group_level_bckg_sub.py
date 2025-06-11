@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from juniper.util.diagnostics import tqdm_translate, plot_translate
-from juniper.util.cleaning import median_spatial_filter, colbycol_bckg, get_trace_mask
+from juniper.util.cleaning import median_spatial_filter, colbycol_bckg, get_trace_mask, get_com_mask
 from juniper.util.plotting import img
 
 def glbs(datamodel, inpt_dict, plot_dir, outfile):
@@ -41,11 +41,17 @@ def glbs(datamodel, inpt_dict, plot_dir, outfile):
         # Obtain the mask that hides the trace using a cleaned version of the very last group in this integration.
         trace_mask = np.zeros_like(data[i,-1,:,:])
         if inpt_dict["mask"]:
-            trace_mask = get_trace_mask(median_spatial_filter(np.copy(data[i,-1,:,:]),
-                                                              sigma=inpt_dict["sigma"],
-                                                              kernel=inpt_dict["kernel"]),
-                                        threshold=inpt_dict["threshold"])
-        
+            if inpt_dict["com_mask"]:
+                trace_mask = get_com_mask(median_spatial_filter(np.copy(data[i,-1,:,:]),
+                                                                sigma=inpt_dict["sigma"],
+                                                                kernel=inpt_dict["kernel"]),
+                                          width=inpt_dict["com_mask"])
+            else:
+                trace_mask = get_trace_mask(median_spatial_filter(np.copy(data[i,-1,:,:]),
+                                                                  sigma=inpt_dict["sigma"],
+                                                                  kernel=inpt_dict["kernel"]),
+                                            threshold=inpt_dict["threshold"])
+            
             if (plot_step or save_step) and i == 0:
                 # Save a diagnostic plot of the first trace mask.
                 fig, ax, im = img(trace_mask, aspect=5, title="1/f trace mask",

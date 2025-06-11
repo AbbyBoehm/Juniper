@@ -40,6 +40,8 @@ def track_pos(segments, inpt_dict):
     # Start tracking.
     bad_k = []
     bad_frame_map = np.zeros_like(segments.data)
+
+    dispersion_position = []
     if inpt_dict["track_disp"]:
         dispersion_position = []
         # Need to make a template.
@@ -111,6 +113,8 @@ def track_pos(segments, inpt_dict):
                     bad_k.append(k)
                     bad_frame_map[k,:,:] = np.ones_like(bad_frame_map[k,:,:]) # the whole frame is flagged for data quality
 
+    crossdispersion_position = []
+    crossdispersion_width = []
     if inpt_dict["track_spatial"]:
         crossdispersion_position = []
         crossdispersion_width = []
@@ -207,5 +211,5 @@ def fit_disp_profile(profile, template):
     Returns:
         float: the position of the profile.
     """
-    shift = cross_correlate(profile, template, tspc=5, hrf=0.005, tfit=9)
+    shift = cross_correlate(profile, template, tspc=50, hrf=0.005, tfit=90)
     return shift

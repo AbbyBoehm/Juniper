@@ -36,7 +36,7 @@ def bundle_planets_flares_systematics_and_ld(planets,flares,systematics,ld):
     for key in systematics.keys():
         if all(special_key not in key for special_key in ("coeffs","xpos","ypos","width")):
             continue
-        if (key == "pos_detrend" or key == "width_detrend"):
+        if (key == "disp_detrend" or key == "spatial_detrend" or key == "width_detrend"):
             continue
         bundled_params[key] = systematics[key]
     
@@ -48,12 +48,15 @@ def bundle_planets_flares_systematics_and_ld(planets,flares,systematics,ld):
 
     return bundled_params
 
-def unpack_params_back_to_dicts(bundled_params):
+def unpack_params_back_to_dicts(bundled_params, originals=None):
     """Slightly less simple function which takes the unified parameters
     dictionary and separates it back into planets, flares, and systematics.
+    Also refills the prior info.
 
     Args:
         bundled_params (dict): contains keys like "rp1", "A1", and "poly_coeffs".
+        originals (dict or None): contains "planets", "systematics", etc. keys and
+        retains priors and bools that are not kept in bundled_params.
 
     Returns:
         dict, dict, dict, dict: the planets, flares, systematics and ld dictionaries rebuilt.
@@ -73,6 +76,11 @@ def unpack_params_back_to_dicts(bundled_params):
         try:
             for key in special_keys:
                 planet[key+str(planet_N)] = bundled_params[key+str(planet_N)] # as long as a planet of this number exists, params_to_fit will have this key
+            
+            # Load in the keys not there.
+            if originals != None:
+                for extra_key in [k for k in list(originals['planets'][planet_name].keys()) if k not in list(planet.keys())]:
+                    planet[extra_key] = originals['planets'][planet_name][extra_key]
             
             # Now add the planet to the planets.
             planets[planet_name] = planet
@@ -99,6 +107,11 @@ def unpack_params_back_to_dicts(bundled_params):
         try:
             for key in special_keys:
                 flare[key+str(flare_ID)] = bundled_params[key+str(flare_ID)] # as long as a flare of this number exists, params_to_fit will have this key
+            
+            # Load in the keys not there.
+            if originals != None:
+                for extra_key in [k for k in list(originals['flares'][flare_ID].keys()) if k not in list(flare.keys())]:
+                    flare[extra_key] = originals['flares'][flare_ID][extra_key]
 
             # Now add the flare to the flares.
             flares[flare_name] = flare
@@ -111,21 +124,29 @@ def unpack_params_back_to_dicts(bundled_params):
             had_KeyError = True
     
     # We found the planets and the flares. Now to parse the systematics.
-    special_keys = ["poly","mirrortilt","pos_detrend","width_detrend","singleramp","doubleramp"]
+    special_keys = ["poly","mirrortilt","disp_detrend","spatial_detrend","width_detrend","singleramp","doubleramp"]
     systematics = {}
     for key in special_keys:
         try:
             systematics[key+"_coeffs"] = bundled_params[key+"_coeffs"]
             systematics[key] = True # if we haven't failed yet, then this must be True.
-            if key == "pos_detrend":
-                for pos_key in ("xpos","ypos"):
-                    systematics[pos_key] = bundled_params[pos_key]
+            if key == "disp_detrend":
+                pos_key = "xpos"
+                systematics[pos_key] = bundled_params[pos_key]
+            if key == "spatial_detrend":
+                pos_key = "ypos"
+                systematics[pos_key] = bundled_params[pos_key]
             if key == "width_detrend":
                 pos_key = "width"
                 systematics[pos_key] = bundled_params[pos_key]
         except:
             # If this failed, then we were not fitting that kind of systematic.
             systematics[key] = False
+    
+    # Load in the keys not there.
+    if originals != None:
+        for extra_key in [k for k in list(originals["systematics"].keys()) if k not in list(systematics.keys())]:
+            systematics[extra_key] = originals["systematics"][extra_key]
 
     # Finally, we need to read the ld info back out.
     special_keys = ["ld_model","fit_lds","ld_initialguess","ld_coeffs","use_exotic","ld_data_path","ld_grid",
@@ -137,6 +158,11 @@ def unpack_params_back_to_dicts(bundled_params):
         except:
             # We expect an exception if ld info was not fit to begin with.
             pass
+    
+    # Load in the keys not there.
+    if originals != None:
+        for extra_key in [k for k in list(originals["ld"].keys()) if k not in list(ld.keys())]:
+            ld[extra_key] = originals["ld"][extra_key]
 
     # And we have now unpacked the params_to_fit dict.
     return planets, flares, systematics, ld
@@ -232,7 +258,7 @@ def dict_to_array(bundled_params, fit_or_not):
                     pass
 
         # Now parse the systematics.
-        system_keys = ["poly","mirrortilt","pos_detrend","width_detrend","singleramp","doubleramp"]
+        system_keys = ["poly","mirrortilt","disp_detrend","spatial_detrend","width_detrend","singleramp","doubleramp"]
         for key in system_keys:
             # There will always be at least coeff1 in any model. So this is a simple
             # way to check that this model is being fitted. If it is being fit, it is True.
@@ -284,7 +310,7 @@ def array_to_dict(params_array, input_param_dict, fit_or_not):
     redicted_params = {}
 
     # We define some keys as requiring special treatment.
-    special_keys = ["poly","mirrortilt","pos_detrend","width_detrend","singleramp","doubleramp"]
+    special_keys = ["poly","mirrortilt","disp_detrend","spatial_detrend","width_detrend","singleramp","doubleramp"]
 
     # We track the params_array index.
     i = 0
@@ -349,10 +375,14 @@ def array_to_dict(params_array, input_param_dict, fit_or_not):
                 redicted_params[superdict_key][new_bundle_key] = bundle
 
             # Fetch some extra info.
-            if special_key == "pos_detrend":
-                # At this time, grab xpos and ypos.
-                for key in ("xpos","ypos"):
-                    redicted_params[superdict_key][key] = input_param_dict[superdict_key][key]
+            if special_key == "disp_detrend":
+                # At this time, grab xpos.
+                key = "xpos"
+                redicted_params[superdict_key][key] = input_param_dict[superdict_key][key]
+            if special_key == "spatial_detrend":
+                # At this time, grab ypos.
+                key = "ypos"
+                redicted_params[superdict_key][key] = input_param_dict[superdict_key][key]
             if special_key == "width_detrend":
                 # At this time, grab xpos and ypos.
                 key = "width"
@@ -371,14 +401,14 @@ def array_to_dict(params_array, input_param_dict, fit_or_not):
                 # When we find False, we grab a value from input_param_dict[superdict_key]['ld_initialguess'].
                 lds_updated = []
                 lds_index = 0
-                for i, bool in enumerate(input_param_dict[superdict_key]['fit_lds']):
+                for j, bool in enumerate(input_param_dict[superdict_key]['fit_lds']):
                     if bool:
                         # It was fit; we take the next value of lds.
                         lds_updated.append(lds[lds_index])
                         lds_index += 1
                     else:
                         # It was not fit: we take the current index i of the initial guess.
-                        lds_updated.append(input_param_dict[superdict_key]['ld_initialguess'][i])
+                        lds_updated.append(input_param_dict[superdict_key]['ld_initialguess'][j])
                 redicted_params[superdict_key][key] = lds_updated
     
     return redicted_params
@@ -399,7 +429,7 @@ def array_to_dict(params_array, input_param_dict, fit_or_not):
     organized_keys = list(params_to_fit.keys())
 
     # Define systematics keys.
-    special_keys = ["poly","mirrortilt","pos_detrend","width_detrend","singleramp","doubleramp"]
+    special_keys = ["poly","mirrortilt","disp_detrend","spatial_detrend","width_detrend","singleramp","doubleramp"]
     for i, key in enumerate(fit_param_keys):
         # Some of these keys will be able to be transferred wholesale.
         # The exceptions are systematics models (must be bundled as "model_coeffs")
@@ -478,15 +508,23 @@ def build_priors_dict(planets, flares, systematics, ld, is_spec=False):
 
         # First, gut every planet inside the superdict.
         special_keys = ["rp","fp","t_prim","t_seco","period","aor","incl","ecc","longitude"]
+        ban_keys = []
         if is_spec:
             # In spectroscopic fits, we only concern ourselves with depth.
-            # Physical system parameters are not to be fit for.
-            special_keys = ["rp","fp"]
+            # Physical system parameters are not to be fit for, so we ban them.
+            ban_keys = [key for key in special_keys if key not in ["rp","fp"]]
+            ban_keys = [i+"_prior" for i in ban_keys]
         special_keys = [i+"_prior" for i in special_keys]
 
         # Parse the planets only within the correct superdict entry.
         for i, planet_name in enumerate(planets[superdict_key].keys()):
+            # Retrieve the right planet to look at.
             planet = planets[superdict_key][planet_name]
+            
+            # We have to make some truncations when dealing with specs.
+            for key in ban_keys:
+                planet[key+str(i+1)] = None                
+
             for key in special_keys:
                 if planet[key+str(i+1)]: # if this is not None, it's being fitted.
                     superdict_prior[key+str(i+1)] = planet[key+str(i+1)]
@@ -509,12 +547,12 @@ def build_priors_dict(planets, flares, systematics, ld, is_spec=False):
                     superdict_fitornot[key+str(i+1)] = False
             
         # We need to unpack systematic info.
-        special_keys = ["poly","mirrortilt","pos_detrend","width_detrend","singleramp","doubleramp"]
+        special_keys = ["poly","mirrortilt","disp_detrend","spatial_detrend","width_detrend","singleramp","doubleramp"]
         for key in special_keys:
             if systematics[superdict_key][key]:
                 # If this systematic is included, we need to put a wicked broad bound on every parameter.
                 for i,coeff in enumerate(systematics[superdict_key][key+"_coeffs"]):
-                    superdict_prior[key+str(i+1)] = [-1e20,1e20]
+                    superdict_prior[key+str(i+1)] = [-1e40,1e40]
                     superdict_fitornot[key+str(i+1)] = True
 
         # And ld info, if applicable.
@@ -575,50 +613,88 @@ def build_bounds(params_priors, priors_type):
                 bounds.append((mean-(5*sigma),mean+(5*sigma)))
     return bounds
 
-def consolidate_multiple_detectors(detectors):
-    """Consolidates params_array across multiple detectors, allowing some to
-    be kept separate while forcing system parameters to be the same.
+def preservation(planets_fit,
+                 preserve_timing=False, preserve_depth=False, preserve_orbit=False):
+    if preserve_timing:
+        # Arbitrarily call the first spectrum's time-related args as absolute.
+        reference_planet = planets_fit['1']
+        abs_times = {}
+        for k, pl_key in enumerate(list(reference_planet.keys())):
+            abs_times[pl_key] = {}
+            for time_key in ('t_prim{}'.format(k+1),'t_seco{}'.format(k+1)):
+                abs_times[pl_key][time_key] = reference_planet[pl_key][time_key]
+        # Now we have taken the t_prim/t_seco args for planet1, planet2, etc. from
+        # the first parallelised spectrum as the absolute. All planets must
+        # now be fixed to that value.
+        for key in list(planets_fit.keys()):
+            for k, pl_key in enumerate(list(reference_planet.keys())):
+                for time_key in ('t_prim{}'.format(k+1),'t_seco{}'.format(k+1)):
+                    # Get spectrum 'key', planet 'pl_key', parameter 'time_key' and lock it.
+                    planets_fit[key][pl_key][time_key] = abs_times[pl_key][time_key]
+    if preserve_depth:
+        # Arbitrarily call the first spectrum's depth-related args as absolute.
+        reference_planet = planets_fit['1']
+        abs_depths = {}
+        for k, pl_key in enumerate(list(reference_planet.keys())):
+            abs_depths[pl_key] = {}
+            for depth_key in ('rp{}'.format(k+1),'fp{}'.format(k+1)):
+                abs_depths[pl_key][depth_key] = reference_planet[pl_key][depth_key]
+        # Now we have taken the rp/fp args for planet1, planet2, etc. from
+        # the first parallelised spectrum as the absolute. All planets must
+        # now be fixed to that value.
+        for key in list(planets_fit.keys()):
+            for k, pl_key in enumerate(list(reference_planet.keys())):
+                for depth_key in ('rp{}'.format(k+1),'fp{}'.format(k+1)):
+                    # Get spectrum 'key', planet 'pl_key', parameter 'depth_key' and lock it.
+                    planets_fit[key][pl_key][depth_key] = abs_depths[pl_key][depth_key]
+    if preserve_orbit:
+        # Arbitrarily call the first spectrum's orbit-related args as absolute.
+        reference_planet = planets_fit['1']
+        abs_orbit = {}
+        for k, pl_key in enumerate(list(reference_planet.keys())):
+            abs_orbit[pl_key] = {}
+            for orbit_key in ('aor{}'.format(k+1),'period{}'.format(k+1),'incl{}'.format(k+1),
+                              'ecc{}'.format(k+1),'longitude{}'.format(k+1)):
+                abs_orbit[pl_key][orbit_key] = reference_planet[pl_key][orbit_key]
+        # Now we have taken the orbit args for planet1, planet2, etc. from
+        # the first parallelised spectrum as the absolute. All planets must
+        # now be fixed to that value.
+        for key in list(planets_fit.keys()):
+            for k, pl_key in enumerate(list(reference_planet.keys())):
+                for orbit_key in ('aor{}'.format(k+1),'period{}'.format(k+1),'incl{}'.format(k+1),
+                                  'ecc{}'.format(k+1),'longitude{}'.format(k+1)):
+                    # Get spectrum 'key', planet 'pl_key', parameter 'orbit_key' and lock it.
+                    planets_fit[key][pl_key][orbit_key] = abs_orbit[pl_key][orbit_key]
+        
+    return planets_fit
 
-    Args:
-        detectors (dict): series of entries describing each detector, which
-        has its own light curve data it is trying to fit.
-
-    Returns:
-        np.array, dict, dict: array-ified version of fitting parameters, and
-        dictionary version, as well as guide to what keys to update.
-    """
-    # Each params_array object has a corresponding fit_param_keys object
-    # which tells us what each parameter is. Parameters like rpN, polyN,
-    # ldN, etc. are allowed to be separated by detector number. But ones
-    # like t_primN, aorN, etc. must be the same.
-    dets = detectors.keys()
-
-    return "WIP!"
-
-def log_likelihood(params_array, params_to_fit, fit_param_keys, time, light_curve, errors,
-                   xpos, ypos, widths):
+def log_likelihood(params_array, bundled_params, fit_or_not, exp_times, light_curve, errors,
+                   preserve_timing=False, preserve_depth=False, preserve_orbit=False):
     """For emcee. Generates log-likelihood of tested model based on residuals.
 
     Args:
         params_array (np.array): the input to emcee and what is being fitted.
-        params_to_fit (dict): the above in dict format, also contains the
-        essential keywords "batman_modelN" and "batman_paramsN" which need
-        to be updated to compute the residuals.
-        fit_param_keys (list of str): used to guide the parameter updates.
-        time (np.array): timestamps of the mid-exposure times for each point.
+        bundled_params (dict): all of the original parameters from planets,
+        flares, systematics, and lds, spewed out into a long dict.
+        fit_or_not (dict): a series of keys explaining which items must be modified.
+        exp_times (np.array): timestamps of the mid-exposure times for each point.
         light_curve (np.array): flux at each point in time.
         errors (np.array): uncertainties on the flux to weight the residuals.
-        xpos (np.array): if detrending w.r.t. position, the dispersion position array.
-        ypos (np.array): if detrending w.r.t. position, the cross-dispersion position array.
-        widths (np.array): if detrending w.r.t. position, the cross-dispersion widths array.
+        preserve_timing (bool): whether or not to force all time-related arguments
+        being fitted to be equal. Useful for parallel fits of simul-events.
+        preserve_depth (bool): whether or not to force all depth-related arguments
+        being fitted to be equal. Useful for parallel fits of multiple visits.
+        preserve_orbit (bool): whether or not to force all orbit-related arguments
+        being fitted to be equal. Useful for parallel fits in nearly all cases.
 
     Returns:
         float: the log-likelihood, metric of how well the model fit the data
         given the uncertainties.
     """
     # This is as simple as calling the residuals.
-    residuals = _residuals(params_array, time, light_curve, errors, params_to_fit, fit_param_keys,
-                           xpos, ypos, widths)
+    residuals = _residuals(params_array, exp_times, light_curve, errors, bundled_params, fit_or_not,
+                           preserve_timing, preserve_depth, preserve_orbit, give_res=False)
+
     # And then multiplying.
     log_l = -0.5*residuals
     return log_l
@@ -650,7 +726,7 @@ def log_prior(params_array, priors, priors_type):
     # For each parameter, check where it falls in the posterior
     log_p = 0
     for param, prior in zip(params_array, priors):
-        log_p += prior_func(param, priors[prior], priors_type)
+        log_p += prior_func(param, prior, priors_type)
     
     # Check outcome.
     if np.isnan(log_p):
@@ -663,27 +739,29 @@ def log_prior(params_array, priors, priors_type):
         # Then it is a nonfinite number and we also don't want it.
         return -np.inf
 
-def log_probability(params_array, params_to_fit, fit_param_keys, time, light_curve, errors,
-                    priors, priors_type, xpos, ypos, widths):
+def log_probability(params_array, bundled_params, fit_or_not, exp_times, light_curve, errors,
+                    priors, priors_type, preserve_timing, preserve_depth, preserve_orbit):
     """For emcee. Generates the log-probability, sum of the log-likelihood
     and log-prior.
 
     Args:
         params_array (np.array): the input to emcee and what is being fitted.
-        params_to_fit (dict): the above in dict format, also contains the
-        essential keywords "batman_modelN" and "batman_paramsN" which need
-        to be updated to compute the residuals.
-        fit_param_keys (list of str): used to guide the parameter updates.
-        time (np.array): timestamps of the mid-exposure times for each point.
+        bundled_params (dict): all of the original parameters from planets,
+        flares, systematics, and lds, spewed out into a long dict.
+        fit_or_not (dict): a series of keys explaining which items must be modified.
+        exp_times (np.array): timestamps of the mid-exposure times for each point.
         light_curve (np.array): flux at each point in time.
         errors (np.array): uncertainties on the flux to weight the residuals.
         priors (np.array): priors on each parameter being fitted.
         priors_type (str): options are "uniform" or "gaussian". Determines
         how log-prior is calculated. For uniform you can get 0 or np.inf,
         while Gaussian priors allow a continuous range of values.
-        xpos (np.array): if detrending w.r.t. position, the dispersion position array.
-        ypos (np.array): if detrending w.r.t. position, the cross-dispersion position array.
-        widths (np.array): if detrending w.r.t. position, the cross-dispersion widths array.
+        preserve_timing (bool): whether or not to force all time-related arguments
+        being fitted to be equal. Useful for parallel fits of simul-events.
+        preserve_depth (bool): whether or not to force all depth-related arguments
+        being fitted to be equal. Useful for parallel fits of multiple visits.
+        preserve_orbit (bool): whether or not to force all orbit-related arguments
+        being fitted to be equal. Useful for parallel fits in nearly all cases.
 
     Returns:
         float: the log-probability, metric of how likely emcee is to accept
@@ -699,8 +777,8 @@ def log_probability(params_array, params_to_fit, fit_param_keys, time, light_cur
         return -np.inf
     
     # Let's go get the log-likelihood then.
-    return log_p + log_likelihood(params_array, params_to_fit, fit_param_keys,
-                                  time, light_curve, errors, xpos, ypos, widths)
+    return log_p + log_likelihood(params_array, bundled_params, fit_or_not, exp_times, light_curve, errors,
+                                  preserve_timing, preserve_depth, preserve_orbit)
 
 def get_result_from_post(ndim, flat_samples):
     params_array = []
@@ -711,7 +789,8 @@ def get_result_from_post(ndim, flat_samples):
     return np.array(params_array), np.array(param_errs_array)
 
 def _residuals(params_array, exp_times, light_curve, errors, bundled_params, fit_or_not,
-               preserve_timing=False, preserve_depth=False, give_res=False):
+               preserve_timing=False, preserve_depth=False, preserve_orbit=False,
+               give_res=False):
     """Computes the residuals between the full model and the given light curve.
 
     Args:
@@ -727,6 +806,8 @@ def _residuals(params_array, exp_times, light_curve, errors, bundled_params, fit
         being fitted to be equal. Useful for parallel fits of simul-events.
         preserve_depth (bool): whether or not to force all depth-related arguments
         being fitted to be equal. Useful for parallel fits of multiple visits.
+        preserve_orbit (bool): whether or not to force all orbit-related arguments
+        being fitted to be equal. Useful for parallel fits in nearly all cases.
         give_res (bool, optional): if asked, return the residuals as an array, not summed.
         Defaults to False.
     
@@ -743,39 +824,9 @@ def _residuals(params_array, exp_times, light_curve, errors, bundled_params, fit
         planets_fit[key], flares_fit[key], systematics_fit[key], ld_fit[key] = unpack_params_back_to_dicts(redicted_params[key])
 
     # Force equals where called for using the preserve arguments.
-    if preserve_timing:
-        # Arbitrarily call the first spectrum's time-related args as absolute.
-        reference_planet = planets_fit['1']
-        abs_times = {}
-        for k, pl_key in enumerate(list(reference_planet.keys())):
-            abs_times[pl_key] = {}
-            for time_key in ('t_prim{}'.format(k+1),'t_seco{}'.format(k+1)):
-                abs_times[pl_key][time_key] = reference_planet[pl_key][time_key]
-        # Now we have taken the t_prim/t_seco args for planet1, planet2, etc. from
-        # the first parallelised spectrum as the absolute. All planets must
-        # now be fixed to that value.
-        for key in list(planets_fit.keys()):
-            for k, pl_key in enumerate(list(reference_planet.keys())):
-                for time_key in ('t_prim{}'.format(k+1),'t_seco{}'.format(k+1)):
-                    # Get spectrum 'key', planet 'pl_key', parameter 'time_key' and lock it.
-                    planets_fit[key][pl_key][time_key] = abs_times[pl_key][time_key]
-    if preserve_depth:
-        # Arbitrarily call the first spectrum's depth-related args as absolute.
-        reference_planet = planets_fit['1']
-        abs_depths = {}
-        for k, pl_key in enumerate(list(reference_planet.keys())):
-            abs_depths[pl_key] = {}
-            for depth_key in ('rp{}'.format(k),'fp{}'.format(k)):
-                abs_depths[pl_key][depth_key] = reference_planet[pl_key][depth_key]
-        # Now we have taken the rp/fp args for planet1, planet2, etc. from
-        # the first parallelised spectrum as the absolute. All planets must
-        # now be fixed to that value.
-        for key in list(planets_fit.keys()):
-            for k, pl_key in enumerate(list(reference_planet.keys())):
-                for depth_key in ('rp{}'.format(k),'fp{}'.format(k)):
-                    # Get spectrum 'key', planet 'pl_key', parameter 'depth_key' and lock it.
-                    planets_fit[key][pl_key][depth_key] = abs_depths[pl_key][depth_key]
-    
+    planets_fit = preservation(planets_fit,
+                               preserve_timing, preserve_depth, preserve_orbit)
+
     # Now redo the flux model calculation for each spectrum,
     # this time supplying redicted_params as an argument.
     sum_residuals = 0
@@ -787,63 +838,12 @@ def _residuals(params_array, exp_times, light_curve, errors, bundled_params, fit
                                               systematics_fit[superdict_key],
                                               bundled_params=redicted_params[superdict_key],
                                               fit_or_not=fit_or_not[superdict_key])
-
         # And compare to the data.
         residuals_full = (model-light_curve[d])/errors[d]
         full_residuals.append(residuals_full)
         sum_residuals += np.sum(residuals_full**2)
-
+    
     if give_res:
         return full_residuals
     else:
         return sum_residuals
-
-def _residuals_multi(params_array, time, light_curve, errors, params_to_fit,
-                     fit_param_keys, xpos, ypos, widths, give_res=False):
-    """Computes the residuals between the full models and the given light curves.
-
-    Args:
-        params_array (np.array): the array-ified version of params_to_fit.
-        time (np.array): mid-exposure time of each point in the light curve.
-        errors (np.array): uncertainties associated with each data point, used
-        in weighting the residuals.
-        light_curve (np.array): flux at each point in the light curve.
-        params_to_fit (dict): the parameters being fitted, in dict form.
-        fit_param_keys (list of str): the keys that are actually getting
-        modified during fitting.
-        xpos (np.array): if detrending w.r.t. position, the dispersion position array.
-        ypos (np.array): if detrending w.r.t. position, the cross-dispersion position array.
-        widths (np.array): if detrending w.r.t. position, the cross-dispersion widths array.
-        give_res (bool, optional): if asked, return the residuals as an array, not summed.
-        Defaults to False.
-    
-    Returns:
-        float or np.array: if not give_res, returns the summed residuals to
-        evaluate the goodness of fit. If give_res, returns the residuals array.
-    """
-    # Turn the array back into a dictionary.
-    redicted_params = array_to_dict(params_array, params_to_fit, fit_param_keys)
-
-    # Now handle each detector separately.
-    residuals_full = {}
-    residuals_sum = 0
-    for detector in range(light_curve.shape[0]):
-        lc = light_curve[detector,:]
-        t = time[detector,:]
-        # Then, separate those back into planets, flares, and systematics.
-        planets_fit, flares_fit, systematics_fit, ld_fit = unpack_params_back_to_dicts(redicted_params,
-                                                                                    xpos, ypos, widths)
-        
-        # Now redo the flux model calculation, this time supplying redicted_params as an argument.
-        model, components = models.full_model(time, planets_fit, flares_fit, systematics_fit,
-                                            params_to_fit=redicted_params, fit_param_keys=fit_param_keys)
-
-        # And compare to the data.
-        residuals = ((model-light_curve)/errors)**2
-        residuals_full["detector"+str(detector+1)] = residuals
-        residuals_sum += np.sum(residuals)
-
-    if give_res:
-        return residuals_full
-    # WIP!
-    return residuals_sum

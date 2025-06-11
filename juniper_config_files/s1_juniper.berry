@@ -78,6 +78,7 @@ do_glbs         True                                        # bool. Whether to p
 glbs_sigma      3.0                                         # float. How aggressively to clean outliers from the background region during glbs.
 glbs_kernel     (31,1)                                      # tuple of odd ints. The cols x rows to span during filtering of the background. Ideally filter over many columns and just one row.
 glbs_mask       True                                        # bool. Whether to mask the trace while computing the background values. Best used with a curving trace.
+glbs_com_mask   5                                           # int or None. If not None, identifies the COM of each column and then masks all pixels +/- this value from the COM to build a mask. Overrides other masking methods if not None.
 glbs_rows       [0,1,2,3,4,5,-6,-5,-4,-3,-2,-1]             # list of ints. Indices to use as the background. Best used with a straight trace.
 glbs_threshold  10000                                       # float. Signal level to use to help facilitate trace masking. If you want to adjust this, you should open the last group of any integration in your dataset and find the lowest value that you would still call part of the trace.
 

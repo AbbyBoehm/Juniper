@@ -6,6 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from juniper.util.diagnostics import tqdm_translate, plot_translate, timer
+from juniper.util.cleaning import get_com_mask
 
 def extract(segments, inpt_dict):
     """Extract the 1D spectral flux using either standard (box) extraction
@@ -50,6 +51,13 @@ def extract(segments, inpt_dict):
                       desc='Building optimum profiles for each frame...',
                       disable=(not time_ints)):
             profiles[i,:,:] = profile
+    # Build com_mask, if applicable.
+    if inpt_dict["com_halfwidth"]:
+        # Build aperture based on where com is.
+        com_mask = get_com_mask(np.nanmedian(segments.data.values, axis=0),
+                                width=inpt_dict["com_halfwidth"])
+        # Invert com_mask so that data is unmasked while background is masked
+        com_mask = np.where(com_mask == 1, 0, 1)
 
     # And populate.
     for i in tqdm(range(oneD_spec.shape[0]),
@@ -63,9 +71,6 @@ def extract(segments, inpt_dict):
 
         # Start building a mask.
         mask = np.zeros_like(d)
-        mask = np.where(np.isnan(w),1,mask) # if the wavelength solution is nan, mask the pixel
-        mask = np.where(w==0,1,mask) # also mask where the wavelength solution is 0 nm, that shouldn't happen
-        mask = np.where(np.isnan(d),1,mask) # and mask any nans in the data itself
         if inpt_dict["wavelengths"]:
             # Mask wavelengths that are too short.
             mask = np.where(w < inpt_dict["wavelengths"][0],1,mask)
@@ -77,9 +82,19 @@ def extract(segments, inpt_dict):
             mask = np.where(dq != 0, 1, mask)
         
         # Mask where is outside of the aperture.
-        lower, upper = inpt_dict["aperture"]
-        mask[0:lower] = 1
-        mask[upper:] = 1
+        if inpt_dict["com_halfwidth"]:
+            # Apply com_mask to data.
+            mask = np.where(com_mask == 1, 1, mask)
+        else:
+            # Aperture is defined by two bounding rows chosen by user.
+            lower, upper = inpt_dict["aperture"]
+            mask[0:lower] = 1
+            mask[upper:] = 1
+
+        # Finally, apply mask to anywhere the wavelength solution or data are off.
+        mask = np.where(np.isnan(w),1,mask) # if the wavelength solution is nan, mask the pixel
+        mask = np.where(w==0,1,mask) # also mask where the wavelength solution is 0 nm, that shouldn't happen
+        mask = np.where(np.isnan(d),1,mask) # and mask any nans in the data itself
 
         # Now apply the mask to the data and sum it on columns.
         d = np.ma.masked_array(d, mask=mask)
@@ -95,6 +110,10 @@ def extract(segments, inpt_dict):
 
         # If we are doing optimum, we must revise our extraction.
         if inpt_dict["extract_method"] == "optimum":
+            # Need to renormalize the profiles to exclude masked regions.
+            profiles[i,:,:] = np.where(mask==1,0,profiles[i,:,:])
+            profiles[i,:,:] = profiles[i,:,:]/np.nansum(profiles[i,:,:], axis=0)
+
             # Need to revise the variance estimates using the standard box spectrum.
             variance = e**2 - d
             variance[variance<=0] = 1e-10
@@ -165,6 +184,16 @@ def extract(segments, inpt_dict):
         plt.title('1D spectrum')
         if save_step:
             plt.savefig(os.path.join(inpt_dict['plot_dir'],'S4_1D_extraction_spectrum_frame{}.png'.format(i)),
+                        dpi=300, bbox_inches='tight')
+        if plot_step:
+            plt.show(block=True)
+        plt.close()
+
+    if (plot_step or save_step):
+        plt.scatter(segments.time,np.sum(oneD_spec,axis=1),color='darkblue')
+        plt.title('Broad-band light curve')
+        if save_step:
+            plt.savefig(os.path.join(inpt_dict['plot_dir'],'S4_1D_extraction_broadband.png'),
                         dpi=300, bbox_inches='tight')
         if plot_step:
             plt.show(block=True)

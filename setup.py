@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(name='juniper-package',
-      version='1.0.4',
+      version='0.1',
       description='JWST exoplanet time-series pipeline',
       long_description="Pipeline for handling James Webb Space Telescope time-series observations of exoplanet transits and eclipses.",
       author='Abby Boehm',
@@ -17,5 +17,5 @@ setup(name='juniper-package',
       python_requires='>=3.8.0',
       install_requires=['scipy>=1.8.0', 'numpy', 'jwst>=1.10.0', 'tqdm',
                         'matplotlib', 'batman-package', 'astropy', 'corner',
-                        'emcee', 'exotic-ld', 'photutils', 'xarray',],
+                        'emcee', 'exotic-ld', 'photutils', 'xarray', 'mc3'],
       zip_safe=False)

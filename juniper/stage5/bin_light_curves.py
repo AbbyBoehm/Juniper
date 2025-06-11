@@ -3,13 +3,13 @@ import time
 from tqdm import tqdm
 
 import numpy as np
-#import xarray as xr
 import matplotlib.pyplot as plt
 from astropy.stats import sigma_clip
 from scipy import signal
 from scipy.optimize import least_squares
 
 from juniper.util.diagnostics import tqdm_translate, plot_translate, timer
+from juniper.util.plotting import plot_allan
 
 def bin_light_curves(spectra, inpt_dict):
     """Bins 1D spectra to return a light curve.
@@ -260,6 +260,15 @@ def bin_light_curves(spectra, inpt_dict):
                         plt.show(block=True)
                     plt.close()
 
+                    # Also, create Allan Variance plot.
+                    fig, ax = allan_variance(spectra["time"][d], bin_spec)#(spectra.time.values[d,:], bin_spec)
+                    if save_ints:
+                        plt.savefig(os.path.join(inpt_dict['plot_dir'],'S5_detector{}_Allan{}um_lc.png'.format(d,np.round(bin_wave,3))),
+                                    dpi=300, bbox_inches='tight')
+                    if plot_ints:
+                        plt.show(block=True)
+                    plt.close()
+
                 # Progress bar update.
                 pbar.update(1)
 
@@ -399,7 +408,8 @@ def bin_light_curves(spectra, inpt_dict):
     #ypos = spectra.ypos.values
     #widths = spectra.widths.values
     #t = spectra.time.values
-    xpos, ypos = spectra["pos"]
+    xpos = spectra["xpos"]
+    ypos = spectra["ypos"]
     widths = spectra["widths"]
     t = spectra["time"]
 
@@ -484,7 +494,8 @@ def bin_light_curves(spectra, inpt_dict):
                     "specwave":specwave,
                     "specbins":specbins,
                     "time":t,
-                    "pos":[xpos,ypos],
+                    "xpos":xpos,
+                    "ypos":ypos,
                     "widths":widths}
     '''
     # Now create an xarray out of this info.
@@ -571,48 +582,21 @@ def allan_variance(time, flx):
         time (_type_): _description_
         flx (_type_): _description_
     """
-    # First, get the oot residuals and std dev.
+    # Get the oot residuals and std dev.
     oot_ind = int(0.25*len(flx))
     norm_flx = flx[:oot_ind]/np.median(flx[:oot_ind])
     res = est_errs(time[:oot_ind],norm_flx)
-    res_std = np.std(res)
     
-    # Now repeatedly bin the residuals down and see how they evolve.
-    bins = [i for i in range(2,len(res)//2 - 2)] # size of the bins
-    bins_retain = []
-    rms = []
-    stderr = []
-    for N in bins:     
-        b_res = time_bin(res, N, 'sum')   
-        if len(b_res) == 1:
-            # Too much binning!
-            pass
-        else:
-            b_rms = get_rms(b_res)
-            b_std = get_GST(b_res, res_std, N)
-            
-            rms.append(b_rms)
-            stderr.append(b_std)
-            bins_retain.append(N)
-    bins = bins_retain
-    
-    # And plot everything.
-    f = 1e-6 # norm factor for ppm
-    fig, ax = plt.subplots(figsize=(5, 5))
-    ax.plot(bins, [i/f for i in stderr], c='red', lw=2.0, label="Gaussian Std Err")
-    ax.plot(bins, [i/f for i in rms], c='k',label='rms',lw=1.5)
-    # Set up plot parmeters nicely and then return.
-    ax.set_xscale('log')
-    ax.set_yscale('log')
-    ax.set_xlabel("bin size [# ints]")
-    ax.set_ylabel("rms [ppm]")
+    # Call plot_allan util.
+    fig, ax = plot_allan(res)
+
     return fig, ax
 
 def est_errs(time, flx):
     try:
         result = least_squares(residuals_,
-                            np.array([1,1,0,1]),
-                            args=(time,flx))
+                               np.array([1,1,0,1]),
+                               args=(time,flx))
     except ValueError:
         plt.scatter(time,flx)
         plt.title("somethin wrong with you")
@@ -624,7 +608,7 @@ def est_errs(time, flx):
 
 def residuals_(fit,x,flx):
     rs = rampslope(x,fit[0],fit[1],fit[2],fit[3])
-    return (flx-rs)**2
+    return (flx-rs)
 
 def rampslope(x,a,b,c,d):
     return a*np.exp(b*(x-x[0])) + c*(x-x[0]) + d

@@ -172,13 +172,13 @@ def save_s3_output(segments, disp_pos, cdisp_pos, cdisp_widths, moved_ints, outf
         seg_details = segments.details[i]
 
         # Plus the new tracking data, if there is any.
-        disp = np.empty_like(time)
+        disp = np.zeros_like(time)
         if disp_pos:
             disp = disp_pos[int_left:int_right]
-        cdisp = np.empty_like(time)
+        cdisp = np.zeros_like(time)
         if cdisp_pos:
             cdisp = cdisp_pos[int_left:int_right]
-        cwidth = np.empty_like(time)
+        cwidth = np.zeros_like(time)
         if cdisp_widths:
             cwidth = cdisp_widths[int_left:int_right]
 
@@ -313,7 +313,8 @@ def stitch_spectra(files, detector_method, time_step, verbose):
         output["errors"] = [err,]
         output["waves"] = [waves,]
         output["shifts"] = [shifts,]
-        output["pos"] = [xpos,ypos]
+        output["xpos"] = [xpos,]
+        output["ypos"] = [ypos,]
         output["widths"] = [widths,]
         output["time"] = [time,]
         output["details"] = [details,]
@@ -404,7 +405,8 @@ def stitch_spectra(files, detector_method, time_step, verbose):
             output["errors"] = errors
             output["waves"] = waves
             output["shifts"] = shifts
-            output["pos"] = [xpos,ypos]
+            output["xpos"] = xpos
+            output["ypos"] = ypos
             output["widths"] = widths
             output["time"] = time
             output["details"] = details
@@ -477,7 +479,8 @@ def stitch_spectra(files, detector_method, time_step, verbose):
             output["errors"] = [con_err,]
             output["waves"] = [con_waves,]
             output["shifts"] = [shifts,]
-            output["pos"] = [xpos,ypos]
+            output["xpos"] = [xpos,]
+            output["ypos"] = [ypos,]
             output["widths"] = [widths,]
             output["time"] = [time,]
             output["details"] = [details[0],]

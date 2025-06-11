@@ -4,6 +4,9 @@ from tqdm import tqdm
 
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.signal import medfilt2d
+
+from jwst.datamodels import dqflags
 
 from juniper.util.cleaning import median_spatial_filter
 from juniper.util.diagnostics import tqdm_translate, plot_translate, timer
@@ -33,13 +36,36 @@ def mask_flags(segments, inpt_dict):
     if time_step:
         t0 = time.time()
 
+    # Create plotting copy of first frame.
+    if (plot_step or save_step):
+        example = segments.data.values[0,:,:]
+
     # Protect certain flags, if asked.
-    if inpt_dict["skip_flags"]:
+    if (inpt_dict["skip_flags"] and not inpt_dict["target_flags"]):
         for flag in tqdm(inpt_dict["skip_flags"],
                          desc='Removing protected flags...',
                          disable=(not time_ints)):
+            # Identify everywhere that this flag is used.
+            thebit=dqflags.interpret_bit_flags(flag,mnemonic_map=dqflags.pixel)
+            indx=np.where((segments.dq.values & thebit) != 0)
+
             # If this flag is not to be considered, 0 it out.
-            segments.dq.values = np.where(segments.dq.values == flag, 0, segments.dq.values)
+            segments.dq.values[indx] = 0 # = np.where(segments.dq.values == flag, 0, segments.dq.values)
+    
+    # Alternatively, only target certain flags.
+    elif inpt_dict["target_flags"]:
+        allthebit = np.empty_like(segments.dq.values)
+        for flag in tqdm(inpt_dict["target_flags"],
+                         desc='Targeting selected flags...',
+                         disable=(not time_ints)):
+            # Identify everywhere that this flag is used.
+            thebit=dqflags.interpret_bit_flags(flag,mnemonic_map=dqflags.pixel)
+            allthebit += thebit
+        # Find all the places that had target flags.
+        indx=np.where((segments.dq.values & allthebit) != 0)
+
+        # If these flags is to be targeted, 0 out everything else.
+        segments.dq.values[indx] = 0 # = np.where(segments.dq.values == flag, 0, segments.dq.values)
 
     # Turn dqflags into mask arrays, and add nan mask.
     dq_mask = np.empty_like(segments.dq.values)
@@ -86,9 +112,15 @@ def mask_flags(segments, inpt_dict):
         # Produce a median-filtered spatial image for each frame.
         replacement = np.empty_like(segments.data.values)
         for k in range(replacement.shape[0]):
+            frame = segments.data[k].values
+            frame[np.isnan(frame)] = 0
+            frame = medfilt2d(frame,inpt_dict["flag_kernel"])
+            replacement[k,:,:] = frame
+            '''
             replacement[k,:,:] = median_spatial_filter(segments.data[k].values,
                                                        inpt_dict["flag_sigma"],
                                                        inpt_dict["flag_kernel"])
+            '''
         # And replace.
         segments.data.values = np.where(dq_mask > 0, replacement, segments.data.values)
 
@@ -98,6 +130,20 @@ def mask_flags(segments, inpt_dict):
             print("Masking flagged pixels with np.ma.masked_array...")
         mask = np.where(dq_mask > 0, 1, 0)
         segments.data.values = np.ma.masked_array(segments.data.values,mask=mask)
+
+    # Show change in first frame after this action.
+    if (plot_step or save_step):
+        fig, ax = plt.subplots(2,1,figsize=(20,5),sharex=True)
+        ax[0].imshow(example,aspect=20,cmap='binary_r',
+                     vmin=0,vmax=6000,norm='log')
+        ax[1].imshow(segments.data.values[0,:,:],aspect=20,cmap='binary_r',
+                     vmin=0,vmax=6000,norm='log')
+        if save_step:
+            plt.savefig(os.path.join(inpt_dict["diagnostic_plots"],"S3_JWST_flags-corrected_int0.png"),
+                            dpi=300, bbox_inches='tight')
+        if plot_step:
+            plt.show(block=True)
+        plt.close()
 
     # In the future, having JWST flag information stored in 1s or 0s rather than even integers will be helpful.
     if inpt_dict["verbose"] == 2:

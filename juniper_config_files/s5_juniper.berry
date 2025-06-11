@@ -42,6 +42,7 @@ scale_errors    True                                        # bool. Whether to f
 
 preserve_timing False                                       # bool. For parallel detector treatment only. Forces all parallel spectral fits to share timing, e.g. fitted values of t_prim, t_seco, etc. Set to True if you are fitting the same event observed with multiple detectors (e.g. nrs1+nrs2 simultaneous observation of one eclipse).
 preserve_depth  False                                       # bool. For parallel detector treatment only. Forces all parallel spectral fits to share depth, e.g. rp if fitting transit, fp if fitting eclipes. Set to True if you are fitting different events observed with one detector (e.g. multiple PRISM visits of the same transiting planet).
+preserve_orbit  False                                       # bool. For parallel detector treatment only. Forces all parallel spectral fits to share orbit parameters, e.g. a/R, inc, longitude, period, ecc. Set to True if you are fitting a star-planet system for which no significant orbit changes are expected, which is usually the case and which is true regardless of number of detectors.
 
 clean_pos       True                                        # bool. For systematics fitting when detrending on position. If True, use median filtering to clean up the fitted disp/cross-disp position of the trace. Recommended to leave on.
 clean_widths    True                                        # bool. For systematics fitting when detrending on trace width. If True, use median filtering to clean up the fitted cross-dispersion width of the trace. Recommended to leave on.
@@ -148,7 +149,8 @@ poly_order      1                                           # float. The order o
 mirrortilt      False                                       # bool. Whether to fit for the specified number of mirror tilt events, which manifest as sudden steps in flux level before and after the tilt.
 n_tilt_events   0                                           # float. The number of tilt events to fit for.
 
-pos_detrend     True                                        # bool. Whether to detrend based on the dispersion position and cross-dispersion position measured in Stage 3.
+disp_detrend    True                                        # bool. Whether to detrend based on the dispersion position measured in Stage 3.
+spatial_detrend True                                        # bool. Whether to detrend based on the cross-dispersion position measured in Stage 3.
 width_detrend   False                                       # bool. Whether to detrend based on the cross-dispersion width measured in Stage 3.
 
 superbias_scale True                                        # bool. Whether to do superbias scaling. WIP!

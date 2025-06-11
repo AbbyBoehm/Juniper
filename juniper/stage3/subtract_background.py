@@ -6,7 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from juniper.util.diagnostics import tqdm_translate, plot_translate, timer
-from juniper.util.cleaning import median_spatial_filter, colbycol_bckg, get_trace_mask
+from juniper.util.cleaning import median_spatial_filter, colbycol_bckg, get_trace_mask, get_com_mask
 from juniper.util.plotting import img
 
 def subtract_background(segments, inpt_dict):
@@ -37,10 +37,16 @@ def subtract_background(segments, inpt_dict):
     # Obtain the mask that hides the trace using the median frame.
     trace_mask = np.zeros_like(segments.data[0,:,:])
     if inpt_dict["trace_mask"]:
-        trace_mask = get_trace_mask(median_spatial_filter(np.median(segments.data.values,axis=0),
-                                                          sigma=inpt_dict["bckg_sigma"],
-                                                          kernel=inpt_dict["bckg_kernel"]),
-                                    threshold=inpt_dict["bckg_threshold"])
+        if inpt_dict["trace_com_mask"]:
+            trace_mask = get_com_mask(median_spatial_filter(np.median(segments.data.values,axis=0),
+                                                            sigma=inpt_dict["bckg_sigma"],
+                                                            kernel=inpt_dict["bckg_kernel"]),
+                                      width=inpt_dict["trace_com_mask"])
+        else:
+            trace_mask = get_trace_mask(median_spatial_filter(np.median(segments.data.values,axis=0),
+                                                            sigma=inpt_dict["bckg_sigma"],
+                                                            kernel=inpt_dict["bckg_kernel"]),
+                                        threshold=inpt_dict["bckg_threshold"])
         
         if (plot_step or save_step):
             # Save a diagnostic plot of the trace mask.

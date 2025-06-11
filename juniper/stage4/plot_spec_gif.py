@@ -76,3 +76,107 @@ def make_gif(oneD_spec, wav_sols, timestamps, inpt_dict):
     # Report time, if asked.
     if time_step:
         timer(time.time()-t0,None,None,None)
+
+
+def make_stack(oneD_spec, wav_sols, timestamps, inpt_dict):
+    """Plots a stack of the extracted spectra over time.
+
+    Args:
+        oneD_spec (_type_): _description_
+        wav_sols (_type_): _description_
+        timestamps (_type_): _description_
+        inpt_dict (_type_): _description_
+    """
+    # Log.
+    if inpt_dict["verbose"] >= 1:
+        print("Creating stack of extracted spectra...")
+
+    # Check tqdm and plotting requests.
+    time_step, time_ints = tqdm_translate(inpt_dict["verbose"])
+    # FIX : i'll figure this out later
+    plot_step, plot_ints = plot_translate(inpt_dict["show_plots"])
+    save_step, save_ints = plot_translate(inpt_dict["save_plots"])
+
+    # Time step, if asked.
+    if time_step:
+        t0 = time.time()
+
+    # create animation
+    fig,ax = plt.subplots(figsize = (5,5))
+
+    # plot all spectra on top of each other
+    for i in range(oneD_spec.shape[0]):
+        ax.plot(wav_sols[i,:],oneD_spec[i,:])
+    ax.set_title('All 1D spectra')
+    ax.set_xlabel('wavelength [um]')
+    ax.set_ylabel('flux [a.u.]')
+    ax.set_xlim(np.nanmin(wav_sols),np.nanmax(wav_sols))
+    ax.set_ylim(0,min(10*np.nanmean(oneD_spec),np.max(oneD_spec)))
+
+    plt.tight_layout()
+
+    # save animation
+    if save_step:
+        plt.savefig(os.path.join(inpt_dict['plot_dir'],'S4_1D_extraction_spectrum.png'),
+                    dpi=300,bbox_inches='tight')
+
+    if plot_step:
+        plt.show(block = True)
+
+    plt.close() # save memory
+
+    # Report time, if asked.
+    if time_step:
+        timer(time.time()-t0,None,None,None)
+
+
+def make_wlc(oneD_spec, wav_sols, timestamps, inpt_dict):
+    """Plots the summed 1D spectrum at each time stamp.
+
+    Args:
+        oneD_spec (_type_): _description_
+        wav_sols (_type_): _description_
+        timestamps (_type_): _description_
+        inpt_dict (_type_): _description_
+    """
+    # Log.
+    if inpt_dict["verbose"] >= 1:
+        print("Creating stack of extracted spectra...")
+
+    # Check tqdm and plotting requests.
+    time_step, time_ints = tqdm_translate(inpt_dict["verbose"])
+    # FIX : i'll figure this out later
+    plot_step, plot_ints = plot_translate(inpt_dict["show_plots"])
+    save_step, save_ints = plot_translate(inpt_dict["save_plots"])
+
+    # Time step, if asked.
+    if time_step:
+        t0 = time.time()
+
+    # create plot
+    fig,ax = plt.subplots(figsize = (5,5))
+
+    # sum each spectrum and plot
+    wlc = []
+    for i in range(oneD_spec.shape[0]):
+        wlc.append(np.sum(oneD_spec[i,:]))
+    ax.scatter(timestamps,wlc,color='k',marker='o')
+    ax.set_title('Broad-band light curve')
+    ax.set_xlabel('time [MJD]')
+    ax.set_ylabel('flux [a.u.]')
+
+    plt.tight_layout()
+
+    # save animation
+    if save_step:
+        plt.savefig(os.path.join(inpt_dict['plot_dir'],'S4_1D_extraction_wlc.png'),
+                    dpi=300,bbox_inches='tight')
+
+    if plot_step:
+        plt.show(block = True)
+
+    plt.close() # save memory
+
+    # Report time, if asked.
+    if time_step:
+        timer(time.time()-t0,None,None,None)

@@ -70,7 +70,7 @@ def s1_to_glbs(s1_config):
         s1_glbs[key] = s1_config[key]
 
     # glbs keys are nearly identical.
-    for key in ("sigma","kernel","mask","rows","threshold"):
+    for key in ("sigma","kernel","mask","com_mask","rows","threshold"):
         s1_glbs[key] = s1_config["glbs_{}".format(key)]
     
     return s1_glbs
@@ -341,18 +341,29 @@ def make_systematics(s5_config, xpos, ypos, widths, event_ID=1):
             coeffs.append([0,0])
         systematics["mirrortilt_coeffs"] = coeffs
 
-    systematics["pos_detrend"] = s5_config["pos_detrend_{}".format(event_ID)]
-    if systematics["pos_detrend"]:
-        # Then we need the positions and detrending coefficients.
+    systematics["disp_detrend"] = s5_config["disp_detrend_{}".format(event_ID)]
+    if systematics["disp_detrend"]:
+        # Then we need the x positions and detrending coefficients.
         systematics["xpos"] = xpos
+        systematics["disp_detrend_coeffs"] = [0,]
+    else:
+        systematics["xpos"] = [0,]
+
+    systematics["spatial_detrend"] = s5_config["spatial_detrend_{}".format(event_ID)]
+    if systematics["spatial_detrend"]:
+        # Then we need the y positions and detrending coefficients.
         systematics["ypos"] = ypos
-        systematics["pos_detrend_coeffs"] = [0,0]
+        systematics["spatial_detrend_coeffs"] = [0,]
+    else:
+        systematics["ypos"] = [0,]
     
     systematics["width_detrend"] = s5_config["width_detrend_{}".format(event_ID)]
     if systematics["width_detrend"]:
         # Then we need the width and detrending coefficient.
         systematics["width"] = widths
         systematics["width_detrend_coeffs"] = [0,]
+    else:
+        systematics["width"] = [0,]
     
     systematics["singleramp"] = s5_config["singleramp_{}".format(event_ID)]
     if systematics["singleramp"]:

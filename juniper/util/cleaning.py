@@ -86,3 +86,33 @@ def get_trace_mask(data, threshold=10000):
     # a small amount, it is definitely trace and must be masked.
     masked_fg = np.ma.masked_where(data - mu > 0.1*sig, data)
     return np.ma.getmask(masked_fg)
+
+def get_com_mask(data, width=5):
+    """Build a com mask using the given 2D data frame.
+
+    Args:
+        data (np.array): 2D array of data.
+        width (int, optional): how many pixels from the COM to declare
+        a pixel outside of the mask.
+    
+    Returns:
+        np.ma.mask: np mask hiding trace pixels.
+    """
+    # Track the COM pixel in each column.
+    pix_centers = np.arange(data.shape[0]) + 0.5
+    COMs = signal.medfilt((np.sum(pix_centers[:,np.newaxis]*np.abs(data),axis=0)/np.sum(np.abs(data),axis=0)),7)
+    integer_COMs = np.around(COMs - 0.5).astype(int)
+
+    # Build a zero array and populate it with 1s where appropriate.
+    trace_mask = np.zeros_like(data)
+
+    for i, center in enumerate(integer_COMs):
+        lb = center-width
+        ub = center+width
+        if lb < 0:
+            lb = 0
+        if ub > trace_mask.shape[0] - 1:
+            ub = trace_mask.shape[0] - 1
+        trace_mask[lb:ub,i] = 1
+
+    return trace_mask
