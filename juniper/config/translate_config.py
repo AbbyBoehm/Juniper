@@ -112,7 +112,7 @@ def s2_to_pipeline(s2_config):
                                      "flagfrac_lower":s2_config["flagfrac_lower"],
                                      "flagfrac_upper":s2_config["flagfrac_upper"],
                                      "kernel_size":s2_config["kernel_size"],
-                                     "save_flagged":s2_config["save_flagged"]} 
+                                     "save_flagged_bkg":s2_config["save_flagged"]} 
     
     s2_pipeline["nsclean"] = {"skip":(not s2_config["do_jwstnsclean"]),
                               "mask_spectral_regions":s2_config["mask_trace"],
@@ -182,12 +182,12 @@ def s2_clean_dict(s2_pipeline, mode):
         dict: s2_pipeline with extraneous tags popped.
     """
     # FIX: need to learn what keys are needed in other modes.
-    if mode == 'NIRSPEC':
+    if 'NIRSPEC' in mode:
         bad_keys = ('badpix_selfcal','msa_flagging','imprint','background',
                     'master_background','straylight','fringe','barshadow',
                     'wfss_contam','residual_fringe','cube_build')
-    elif mode == 'MIRI':
-        bad_keys = ('msa_flagging','nsclean','imprint','extract_2d',
+    elif 'MIRI' in mode: # FIX: p sure that MIRI LRS has even more specific keys, like background is okay for IFUs but not okay for LRS
+        bad_keys = ('msa_flagging','nsclean','imprint','extract_2d','background',
                     'master_background','wavecorr','pathloss','barshadow',
                     'wfss_contam','pixel_replace','resample_spec')
     for key in bad_keys:

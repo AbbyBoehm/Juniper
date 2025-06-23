@@ -3,7 +3,7 @@ import numpy as np
 
 def read_config(path_to_config_file):
     """Parses config files to create a dictionary of inputs.
-    Credit V.A. Boehm from ExoTiC-UVIS.
+    Credit V.A. Boehm from HUSTLE-tools.
 
     Args:
         path_to_config_file (str): Path to the .berry file that is being read.

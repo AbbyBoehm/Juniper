@@ -63,18 +63,18 @@ do_charge_mig   False                                       # bool. Whether to p
 signal_thres    25000                                       # float. If charge migration is performed, this is the threshold at which a pixel gets flagged as DO_NOT_USE.
 
 # Step 1b: MIRI-specific steps
-do_emicorr      False                                       # bool. Whether to perform this step in jwst Detector1Pipeline.
+do_emicorr      False                                       # bool. Whether to perform this step in jwst Detector1Pipeline. Corrects for 390 Hz or other electromagnetic interference (EMI) noise patterns in the raw ramp data.
 
-do_firstframe   False                                       # bool. Whether to perform this step in jwst Detector1Pipeline.
+do_firstframe   False                                       # bool. Whether to perform this step in jwst Detector1Pipeline. Flags the first group of every frame as DO_NOT_USE if the total number of groups per integration is greater than 3.
 
-do_lastframe    False                                       # bool. Whether to perform this step in jwst Detector1Pipeline.
+do_lastframe    False                                       # bool. Whether to perform this step in jwst Detector1Pipeline. Flags the last group of every frame as DO_NOT_USE if the total number of groups in each integration is greater than 2.
 
-do_reset        False                                       # bool. Whether to perform this step in jwst Detector1Pipeline.
+do_reset        False                                       # bool. Whether to perform this step in jwst Detector1Pipeline, which attempts to correct for the reset anomaly effect.
 
 do_rscd         False                                       # bool. Whether to perform this step in jwst Detector1Pipeline.
 
 # Step 2: Group-level background subtraction
-do_glbs         True                                        # bool. Whether to perform this step. Strongly recommend you do - glbs can reduce scatter by thousands of ppm!
+do_glbs         True                                        # bool. Whether to perform this step. For NIRSpec, strongly recommend you do - glbs can reduce scatter by thousands of ppm!
 glbs_sigma      3.0                                         # float. How aggressively to clean outliers from the background region during glbs.
 glbs_kernel     (31,1)                                      # tuple of odd ints. The cols x rows to span during filtering of the background. Ideally filter over many columns and just one row.
 glbs_mask       True                                        # bool. Whether to mask the trace while computing the background values. Best used with a curving trace.

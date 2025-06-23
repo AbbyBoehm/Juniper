@@ -1,5 +1,6 @@
 import time
 
+from astropy.io import fits
 from jwst.pipeline import Spec2Pipeline
 
 from juniper.util.diagnostics import timer
@@ -22,7 +23,7 @@ def wrap(filepath,outfile,outdir,inpt_dict):
     # Delete entries related to verbose, show_plots, and save_plots.
     for key in ("verbose","show_plots","save_plots"):
         s2_steps.pop(key, None)
-
+    
     # Process Spec2Pipeline.
     result = Spec2Pipeline.call(filepath, output_file=outfile, output_dir=outdir,
                                 steps=s2_steps)

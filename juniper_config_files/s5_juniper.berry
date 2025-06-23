@@ -24,6 +24,7 @@ broadband_waves [None,]                                     # list of tuple of f
 reject_bad_cols True                                        # bool. If True, masks contributions from columns deemed too noisy.
 bad_col_thres   0.001                                       # float. Used to control how aggressively we flag columns. The lower the number, the less noisiness we tolerate in our columns.
 clip_outliers   3.0                                         # float or None. If not None, clips outliers from the light curves.
+clip_window     21                                          # odd int or None. if not None and clip_outliers not None, uses a window of this size to calculate the smoothed model when clipping outliers. Leave as None to use a window size 1% of the array size.
 
 # Step 2a: Binning by wavelength
 wave_bins       [np.arange(0.50,6.125,0.125),]              # Either an object that can be parsed as a list (i.e. [1,2,3] or np.arange(1,4,1)), or a str pointing to a text file containing the comma-separated bin edges as the first column. If treating many detectors in parallel, supply one entry per detector as a list.

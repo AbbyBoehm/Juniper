@@ -5,7 +5,7 @@ from astropy.io import fits
 
 from juniper.util.diagnostics import tqdm_translate, plot_translate
 from juniper.config.translate_config import s2_to_pipeline, s2_clean_dict
-from juniper.stage2 import wrap_stage2jwst, correct_curvature
+from juniper.stage2 import wrap_stage2jwst, correct_curvature, miri_wavelength_map, truncate_array
 
 def do_stage2(filepaths, outfiles, outdir, steps, plot_dir):
     """Performs Stage 2 calibration on the given files.
@@ -50,6 +50,8 @@ def do_stage2(filepaths, outfiles, outdir, steps, plot_dir):
         # Check observing mode and remove unneeded tags.
         with fits.open(filepath) as f:
             mode = f[0].header['INSTRUME']
+            if steps["verbose"] >= 1:
+                print("Operating on mode {}. Adjusting input dictionary to match expected keys.".format(mode))
             s2_pipeline = s2_clean_dict(s2_pipeline, mode)
         # Process Spec2Pipeline.
         wrap_stage2jwst.wrap(filepath, outfile, outdir, s2_pipeline)
@@ -59,8 +61,23 @@ def do_stage2(filepaths, outfiles, outdir, steps, plot_dir):
         for key in ("verbose","show_plots","save_plots"):
             s2_curvecorrect[key] = steps[key]
         s2_curvecorrect["diagnostic_plots"] = plot_dir
-        if steps["do_correction"]:
+        if (steps["do_correction"] and "NIRSpec" in mode):
             correct_curvature.correct_curvature(outfile, outdir, s2_curvecorrect)
+        
+        # If MIRI, assign wavelength solution.
+        s2_wavelengthmap = {}
+        for key in ("verbose","show_plots","save_plots"):
+            s2_wavelengthmap[key] = steps[key]
+        if (steps["do_wavemap"] and "MIRI" in mode):
+            miri_wavelength_map.wavemap(outfile, outdir, filepath, s2_wavelengthmap)
+
+        # If desired, truncate the array.
+        s2_truncate = {}
+        for key in ("verbose","show_plots","save_plots","keep_rows","keep_cols"):
+            s2_truncate[key] = steps[key]
+        s2_truncate["diagnostic_plots"] = plot_dir
+        if steps["do_truncate"]:
+            truncate_array.truncate(outfile, outdir, s2_truncate)
         
         if steps["verbose"] == 2:
             print("One iteration complete. Output saved in", outdir, "as file name {}".format(outfile))

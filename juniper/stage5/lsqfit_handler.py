@@ -60,6 +60,7 @@ def lsqfit(exp_times, light_curve, errors, wavelengths,
             ld[key]["wavelength_range"] = np.array([np.min(wavelengths[i]),
                                                     np.max(wavelengths[i])])
             ld[key]["ld_initialguess"] = exotic_handler.get_exotic_coefficients(ld[key])
+            ld[key]["ld_coeffs"] = ld[key]["ld_initialguess"]
 
     # (Re-)Initialize the planets, giving them the ld info they need to talk to batman properly.
     for i,key in enumerate(list(planets.keys())):
@@ -188,6 +189,7 @@ def lsqfit_one(lc_time, light_curve, errors, waves, planets, flares, systematics
         # We need to update our parameters then.
         ld["wavelength_range"] = np.array([np.min(waves), np.max(waves)])
         ld["ld_initialguess"] = exotic_handler.get_exotic_coefficients(ld)
+        ld["ld_coeffs"] = ld["ld_initialguess"]
     
     # (Re-)Initialize the planets, giving them the ld info they need to talk to batman properly.
     planets = batman_handler.batman_init_all_planets(lc_time, planets, ld,
@@ -315,6 +317,7 @@ def lsqfit_joint(lc_time, light_curve, errors, waves, planets, flares, systemati
         # We need to update our parameters then.
         ld["wavelength_range"] = np.array([np.min(waves), np.max(waves)])
         ld["ld_initialguess"] = exotic_handler.get_exotic_coefficients(ld)
+        ld["ld_coeffs"] = ld["ld_initialguess"]
     
     # (Re-)Initialize the planets, giving them the ld info they need to talk to batman properly.
     planets = batman_handler.batman_init_all_planets(lc_time, planets, ld,

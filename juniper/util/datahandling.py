@@ -40,6 +40,17 @@ def stitch_files(files, time_step, verbose):
             # It's Stage 2 output.
             data_i, err_i, int_count_i, wav_i, dq_i, time_i, details_i = read_one_datamodel(file)
             wav_i = [wav_i for i in range(time_i.shape[0])]
+            if details_i[-1] == "MIR_LRS-SLITLESS":
+                # It's MIRI. Rotate it.
+                if verbose == 2:
+                    print("MIRI LRS file found. Rotating arrays...")
+                previous_shape = np.shape(data_i)
+                data_i = np.rot90(data_i,k=3,axes=(1,2))
+                new_shape = np.shape(data_i)
+                err_i = np.rot90(err_i,k=3,axes=(1,2))
+                wav_i = np.rot90(wav_i,k=3,axes=(1,2))
+                dq_i = np.rot90(dq_i,k=3,axes=(1,2))
+                print("Shape changed from {} to {}.".format(previous_shape,new_shape))
             # Placeholder empty arrays.
             disp_i, cdisp_i, cwidth_i, flagged_i = np.zeros_like(time_i), np.zeros_like(time_i), np.zeros_like(time_i), np.zeros_like(time_i)
         elif ".nc" in file:
@@ -110,7 +121,10 @@ def read_one_datamodel(file):
          obs_instrument = f[0].header["INSTRUME"]
          obs_detector = f[0].header["DETECTOR"]
          obs_filter = f[0].header["FILTER"]
-         obs_grating = f[0].header["GRATING"]
+         try:
+            obs_grating = f[0].header["GRATING"]
+         except KeyError:
+             obs_grating = f[0].header["EXP_TYPE"]
          obs_details = [obs_instrument,
                         obs_detector,
                         obs_filter,

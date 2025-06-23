@@ -5,7 +5,7 @@ from tqdm import tqdm
 import numpy as np
 import matplotlib.pyplot as plt
 from astropy.stats import sigma_clip
-from scipy import signal
+from scipy import signal, ndimage
 from scipy.optimize import least_squares
 
 from juniper.util.diagnostics import tqdm_translate, plot_translate, timer
@@ -161,15 +161,11 @@ def bin_light_curves(spectra, inpt_dict):
         broadbins_det = np.array([np.ma.min(broadband_waves),np.ma.max(broadband_waves)])
         # If asked, replace outliers from the curve.
         if inpt_dict["clip_outliers"]:
-            ksize = int(0.01*len(broadband_det))
-            if ksize % 2 == 0:
-                # Make it odd.
-                ksize -= 1
-            if ksize == 0:
-                # If your light curve is that small, you should not be sigma clipping.
-                continue
-            smoothed = signal.medfilt(broadband_det,kernel_size=ksize)
-            broadband_det = np.where(np.abs(broadband_det - smoothed) > inpt_dict["clip_outliers"]*np.ma.std(broadband_det),smoothed,broadband_det)
+            broadband_det, n_changed = running_median_filter(broadband_det,
+                                                             sigma=inpt_dict["clip_outliers"],
+                                                             window=inpt_dict["clip_window"])
+            if inpt_dict["verbose"] == 2:
+                print("Replaced {} outliers in the broadband detector light curve.".format(n_changed))
         # Store both the spectrum and each point's uncertainty.
         broadband.append(broadband_det)
         broaderr.append(broaderr_det)
@@ -230,15 +226,11 @@ def bin_light_curves(spectra, inpt_dict):
 
                 # If asked, replace outliers from the curve.
                 if inpt_dict["clip_outliers"]:
-                    ksize = int(0.01*len(bin_spec))
-                    if ksize % 2 == 0:
-                        # Make it odd.
-                        ksize -= 1
-                    if ksize == 0:
-                        # If your light curve is that small, you should not be sigma clipping.
-                        continue
-                    smoothed = signal.medfilt(bin_spec,kernel_size=ksize)
-                    bin_spec = np.where(np.abs(bin_spec - smoothed) > inpt_dict["clip_outliers"]*np.ma.std(bin_spec),smoothed,bin_spec)
+                    bin_spec, n_changed = running_median_filter(bin_spec,
+                                                             sigma=inpt_dict["clip_outliers"],
+                                                             window=inpt_dict["clip_window"])
+                    if inpt_dict["verbose"] == 2:
+                        print("Replaced {} outliers in the spectroscopic light curve at {:.3F} um.".format(n_changed, bin_wave))
         
                 # Store both the spectrum and each point's uncertainty.
                 spec_det.append(bin_spec)
@@ -287,15 +279,11 @@ def bin_light_curves(spectra, inpt_dict):
 
             # If asked, replace outliers from the curve.
             if inpt_dict["clip_outliers"]:
-                ksize = int(0.01*len(bin_spec))
-                if ksize % 2 == 0:
-                    # Make it odd.
-                    ksize -= 1
-                if ksize == 0:
-                    # If your light curve is that small, you should not be sigma clipping.
-                    continue
-                smoothed = signal.medfilt(bin_spec,kernel_size=ksize)
-                bin_spec = np.where(np.abs(bin_spec - smoothed) > inpt_dict["clip_outliers"]*np.ma.std(bin_spec),smoothed,bin_spec)
+                bin_spec, n_changed = running_median_filter(bin_spec,
+                                                             sigma=inpt_dict["clip_outliers"],
+                                                             window=inpt_dict["clip_window"])
+                if inpt_dict["verbose"] == 2:
+                    print("Replaced {} outliers in the spectroscopic light curve at {:.3F} um.".format(n_changed, bin_wave))
     
             # Store both the spectrum and each point's uncertainty.
             spec_det.append(bin_spec)
@@ -358,15 +346,11 @@ def bin_light_curves(spectra, inpt_dict):
 
                 # If asked, replace outliers from the curve.
                 if inpt_dict["clip_outliers"]:
-                    ksize = int(0.01*len(bin_spec))
-                    if ksize % 2 == 0:
-                        # Make it odd.
-                        ksize -= 1
-                    if ksize == 0:
-                        # If your light curve is that small, you should not be sigma clipping.
-                        continue
-                    smoothed = signal.medfilt(bin_spec,kernel_size=ksize)
-                    bin_spec = np.where(np.abs(bin_spec - smoothed) > inpt_dict["clip_outliers"]*np.ma.std(bin_spec),smoothed,bin_spec)
+                    bin_spec, n_changed = running_median_filter(bin_spec,
+                                                             sigma=inpt_dict["clip_outliers"],
+                                                             window=inpt_dict["clip_window"])
+                    if inpt_dict["verbose"] == 2:
+                        print("Replaced {} outliers in the spectroscopic light curve at {:.3F} um.".format(n_changed, bin_wave))
         
                 # Store both the spectrum and each point's uncertainty.
                 spec_det.append(bin_spec)
@@ -618,3 +602,35 @@ def get_rms(r):
 
 def get_GST(r, res_std, N):
     return res_std * ((len(r)/(N*(len(r)-1)))**0.5)
+
+def running_median_filter(lc,sigma=5.0,window=None):
+    """Uses a running median to filter outliers from a light curve.
+
+    Args:
+        lc (array-like): light curve to be cleaned.
+        sigma (float, optional): The sigma at which to reject outliers.
+        Defaults to 5.0.
+        window (int, optional): The length of the window used to compute
+        the running median. Defaults to None.
+    
+    Returns:
+        array-like: cleaned light curve.
+    """
+    # Make window size, if needed.
+    if window == None:
+        window = int(0.01*len(lc))
+    if window % 2 == 0:
+        # Make it odd.
+        window -= 1
+    
+    # Generate median-filtered light curve.
+    smoothed_lc = ndimage.median_filter(lc,size=window,mode='nearest')
+
+    # And replace outliers.
+    corrected_lc = np.where(np.abs(lc-smoothed_lc)>sigma*np.ma.std(smoothed_lc),
+                            smoothed_lc,lc)
+    
+    # Track number changed.
+    n_changed = np.count_nonzero(np.where(corrected_lc!=lc,1,0))
+    
+    return lc, n_changed

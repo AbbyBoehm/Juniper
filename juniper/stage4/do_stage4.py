@@ -87,11 +87,13 @@ def do_stage4(filepaths, outfile, outdir, steps, plot_dir):
     if steps["sigma"]:
         oneD_spec = clean_spec.clean_spec(oneD_spec, steps)
 
-    # Make diagnostic gif.
+    # Make diagnostic static plots.
     if (plot_step or save_step):
-        plot_spec_gif.make_gif(oneD_spec,wav_sols,time,steps)
         plot_spec_gif.make_stack(oneD_spec,wav_sols,time,steps)
         plot_spec_gif.make_wlc(oneD_spec,wav_sols,time,steps)
+    # Make diagnostic gif.
+    if (plot_ints or save_ints):
+        plot_spec_gif.make_gif(oneD_spec,wav_sols,time,steps)
 
     # Save everything out.
     save_s4_output(oneD_spec, oneD_err, time, wav_sols, shifts,
