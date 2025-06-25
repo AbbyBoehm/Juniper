@@ -476,7 +476,8 @@ def array_to_dict(params_array, input_param_dict, fit_or_not):
     return reorganized_params
     '''
 
-def build_priors_dict(planets, flares, systematics, ld, is_spec=False):
+def build_priors_dict(planets, flares, systematics, ld,
+                      is_spec=False, priors_type='uniform'):
     """Simple function to get the priors on every fitting parameter.
 
     Args:
@@ -488,6 +489,8 @@ def build_priors_dict(planets, flares, systematics, ld, is_spec=False):
         is_spec (bool, optional): whether this is a fit to a spectroscopic
         curve, in which case certain system parameters are to be locked.
         Defaults to False.
+        priors_type (str, optional): options of 'uniform' or 'gaussian'.
+        Defaults to 'uniform'.
     
     Returns:
         dict, dict: each entry is a list of two numbers and this dict will be fed
@@ -552,14 +555,20 @@ def build_priors_dict(planets, flares, systematics, ld, is_spec=False):
             if systematics[superdict_key][key]:
                 # If this systematic is included, we need to put a wicked broad bound on every parameter.
                 for i,coeff in enumerate(systematics[superdict_key][key+"_coeffs"]):
-                    superdict_prior[key+str(i+1)] = [-1e40,1e40]
+                    if priors_type == 'uniform':
+                        superdict_prior[key+str(i+1)] = [-1e40,1e40]
+                    else:
+                        superdict_prior[key+str(i+1)] = [0,1e40]
                     superdict_fitornot[key+str(i+1)] = True
 
         # And ld info, if applicable.
         for i, bool in enumerate(ld[superdict_key]["fit_lds"]):
             # If any of the lds are getting fit, we need a bound on it.
             if bool:
-                superdict_prior["ld"+str(i+1)] = [-10,10]
+                if priors_type == 'uniform':
+                    superdict_prior["ld"+str(i+1)] = [-1e40,1e40]
+                else:
+                    superdict_prior["ld"+str(i+1)] = [0,1e40]
                 superdict_fitornot["ld"+str(i+1)] = True
 
         # And load it all in.

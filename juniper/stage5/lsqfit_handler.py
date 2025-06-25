@@ -55,10 +55,11 @@ def lsqfit(exp_times, light_curve, errors, wavelengths,
 
     # Check if ExoTiC-LD is being used.
     for i,key in enumerate(list(ld.keys())):
+        # A key we only need if using ExoTiC-LD, but the bundler expects it to be present.
+        ld[key]["wavelength_range"] = np.array([np.min(wavelengths[i]),
+                                                np.max(wavelengths[i])])
         if ld[key]["use_exotic"]:
             # We need to update our parameters then.
-            ld[key]["wavelength_range"] = np.array([np.min(wavelengths[i]),
-                                                    np.max(wavelengths[i])])
             ld[key]["ld_initialguess"] = exotic_handler.get_exotic_coefficients(ld[key])
             ld[key]["ld_coeffs"] = ld[key]["ld_initialguess"]
 
@@ -69,7 +70,7 @@ def lsqfit(exp_times, light_curve, errors, wavelengths,
 
     # Build a priors dictionary, and log information about what is getting fit.
     params_priors, fit_or_not = fit_handler.build_priors_dict(planets,flares,systematics,ld,
-                                                              is_spec=is_spec)
+                                                              is_spec=is_spec,priors_type=inpt_dict["priors_type"])
     
     # Then build the lsq bounds object.
     bounds = fit_handler.build_bounds(params_priors, priors_type=inpt_dict["priors_type"])
