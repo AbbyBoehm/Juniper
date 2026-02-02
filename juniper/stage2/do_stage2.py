@@ -61,14 +61,14 @@ def do_stage2(filepaths, outfiles, outdir, steps, plot_dir):
         for key in ("verbose","show_plots","save_plots"):
             s2_curvecorrect[key] = steps[key]
         s2_curvecorrect["diagnostic_plots"] = plot_dir
-        if (steps["do_correction"] and "NIRSpec" in mode):
+        if (steps["do_correction"] and "NIRSPEC".casefold() in mode.casefold()):
             correct_curvature.correct_curvature(outfile, outdir, s2_curvecorrect)
         
         # If MIRI, assign wavelength solution.
         s2_wavelengthmap = {}
         for key in ("verbose","show_plots","save_plots"):
             s2_wavelengthmap[key] = steps[key]
-        if (steps["do_wavemap"] and "MIRI" in mode):
+        if (steps["do_wavemap"] and "MIRI".casefold() in mode.casefold()):
             miri_wavelength_map.wavemap(outfile, outdir, filepath, s2_wavelengthmap)
 
         # If desired, truncate the array.

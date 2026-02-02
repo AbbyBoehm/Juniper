@@ -41,6 +41,10 @@ def full_model(t, planets, flares, systematics, bundled_params=None, fit_or_not=
                                                         fit_or_not=fit_or_not,
                                                         batman_params=[planet["batman_params"+planet_ID],],
                                                         batman_model=[planet["batman_model"+planet_ID],])
+        # Add dilution factor if needed.
+        if systematics["dilution"]:
+            batman_flux = systematic_dilution(batman_flux, systematics["dilution_coeffs"])
+
         # Multiply planet's flux contribution into the full model.
         flx *= batman_flux
         models[planet_name] = batman_flux
@@ -112,6 +116,15 @@ def full_model(t, planets, flares, systematics, bundled_params=None, fit_or_not=
 
     # And fold all together.
     return system*flx, models
+
+def systematic_dilution(flx, coeffs):
+    """Dilutes planet flux due to blended sources.
+
+    Args:
+        flx (np.array): planet flux to be diluted.
+        coeffs (lst of float): the dilution factor.
+    """
+    return (flx*coeffs[0])+(np.median(flx)*(1-coeffs[0]))
 
 def systematic_polynomial(t, coeffs):
     """Returns a polynomial of specified order in time.

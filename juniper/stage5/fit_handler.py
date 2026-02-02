@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 
 from juniper.stage5 import models
 
@@ -124,7 +125,9 @@ def unpack_params_back_to_dicts(bundled_params, originals=None):
             had_KeyError = True
     
     # We found the planets and the flares. Now to parse the systematics.
-    special_keys = ["poly","mirrortilt","disp_detrend","spatial_detrend","width_detrend","singleramp","doubleramp"]
+    special_keys = ["poly","dilution","mirrortilt",
+                    "disp_detrend","spatial_detrend","width_detrend",
+                    "singleramp","doubleramp"]
     systematics = {}
     for key in special_keys:
         try:
@@ -258,7 +261,9 @@ def dict_to_array(bundled_params, fit_or_not):
                     pass
 
         # Now parse the systematics.
-        system_keys = ["poly","mirrortilt","disp_detrend","spatial_detrend","width_detrend","singleramp","doubleramp"]
+        system_keys = ["poly","dilution","mirrortilt",
+                       "disp_detrend","spatial_detrend","width_detrend",
+                       "singleramp","doubleramp"]
         for key in system_keys:
             # There will always be at least coeff1 in any model. So this is a simple
             # way to check that this model is being fitted. If it is being fit, it is True.
@@ -310,7 +315,9 @@ def array_to_dict(params_array, input_param_dict, fit_or_not):
     redicted_params = {}
 
     # We define some keys as requiring special treatment.
-    special_keys = ["poly","mirrortilt","disp_detrend","spatial_detrend","width_detrend","singleramp","doubleramp"]
+    special_keys = ["poly","dilution","mirrortilt",
+                    "disp_detrend","spatial_detrend","width_detrend",
+                    "singleramp","doubleramp"]
 
     # We track the params_array index.
     i = 0
@@ -550,15 +557,21 @@ def build_priors_dict(planets, flares, systematics, ld,
                     superdict_fitornot[key+str(i+1)] = False
             
         # We need to unpack systematic info.
-        special_keys = ["poly","mirrortilt","disp_detrend","spatial_detrend","width_detrend","singleramp","doubleramp"]
+        special_keys = ["poly","dilution","mirrortilt",
+                        "disp_detrend","spatial_detrend","width_detrend",
+                        "singleramp","doubleramp"]
         for key in special_keys:
             if systematics[superdict_key][key]:
                 # If this systematic is included, we need to put a wicked broad bound on every parameter.
                 for i,coeff in enumerate(systematics[superdict_key][key+"_coeffs"]):
-                    if priors_type == 'uniform':
-                        superdict_prior[key+str(i+1)] = [-1e40,1e40]
+                    # Except for dilution, which needs a small [0,1.0001] prior.
+                    if key == "dilution":
+                        superdict_prior[key+str(i+1)] = [0,1.0001]
                     else:
-                        superdict_prior[key+str(i+1)] = [0,1e40]
+                        if priors_type == 'uniform':
+                            superdict_prior[key+str(i+1)] = [-1e40,1e40]
+                        else:
+                            superdict_prior[key+str(i+1)] = [0,1e40]
                     superdict_fitornot[key+str(i+1)] = True
 
         # And ld info, if applicable.
@@ -851,6 +864,26 @@ def _residuals(params_array, exp_times, light_curve, errors, bundled_params, fit
         residuals_full = (model-light_curve[d])/errors[d]
         full_residuals.append(residuals_full)
         sum_residuals += np.sum(residuals_full**2)
+
+        # debug
+        '''
+        print(planets_fit)
+        print(systematics_fit)
+        fig, ax = plt.subplots(2,1)
+        ax[0].errorbar(exp_times[d],light_curve[d],yerr=errors[d],capsize=3,
+                     color='k',ls='none',marker='o')
+        ax[0].plot(exp_times[d],model,color='red')
+        ax[1].errorbar(exp_times[d],residuals_full,yerr=errors[d],capsize=3,
+                     color='k',ls='none',marker='o')
+        ax[1].axhline(y=0,ls='--',color='k',alpha=0.5)
+        sdnr = np.std(residuals_full)
+        for multiplier in (-1,1):
+            ax[1].axhline(y=sdnr*multiplier,ls=':',color='k',alpha=0.25)
+        plt.savefig(f's5_diagnostic_model_plot_{d}.png',
+                    dpi=300,bbox_inches='tight')
+        plt.close()
+        '''
+        
     
     if give_res:
         return full_residuals

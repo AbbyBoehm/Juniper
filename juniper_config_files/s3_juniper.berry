@@ -11,7 +11,7 @@ max_cores       'half'                                      # integer or 'quarte
 verbose         2                                           # Int from 0 to 2. 0 = print nothing. 1 = print some statements. 2 = print every action.
 show_plots      0                                           # Int from 0 to 2. 0 = show nothing. 1 = show some plots. 2 = show all plots.
 save_plots      1                                           # Int from 0 to 2. 0 = save nothing. 1 = save some plots. 2 = save all plots.
-diagnostics     'reduced/diagnostics'                       # str. If save_plots >= 1, diagnostic plots will be written to this folder.
+diagnostics     'diagnostics'                               # str. If save_plots >= 1, diagnostic plots will be written to this folder.
 rename          None                                        # str. What you want to rename the files to. Can be None to keep the default name. Suggestions include naming the files after the target planet and program ID (e.g. 'PLANET-B_ID12345').
 
 # Step 1: Mask flagged pixels
@@ -53,17 +53,17 @@ space_kernel    (31,1)                                      # tuple of odd int. 
 
 # Step 4: Subtract background
 subtract_bckg   True                                        # bool. Whether to do integration-level background subtraction. If you ran NSClean in Stage 1, this step is likely unnecessary.
-trace_mask      True                                        # bool. Whether to mask the trace while performing background subtraction.
-trace_com_mask  5                                           # int or None. If not None, identifies the COM of each column and then masks all pixels +/- this value from the COM to build a mask. Overrides other masking methods if not None.
-bckg_rows       [0,1,2,-3,-2,-1]                            # list of int. Indices to define as the background region.
-bckg_sigma      3.0                                         # float. The sigma to use when filtering bad pixels.
-bckg_kernel     (31,1)                                      # tuple of odd int. The kernel to use when filtering bad pixels.
-bckg_threshold  10000                                       # float. Signal level to use to help facilitate trace masking. If you want to adjust this, you should open an integration in your dataset and find the lowest value that you would still call part of the trace.
+bckg_sigma      3.0                                         # float. How aggressively to clean outliers from the background region during background subtraction.
+bckg_kernel     (31,1)                                      # tuple of odd int. The cols x rows to span during filtering of the background. Recommended to filter over many columns and just one row to avoid trace signal.
+bckg_rows       [0,1,2,-3,-2,-1]                            # list of ints. Row indices to use as the background. Best used with a straight trace. Never ignored unless empty.
+trace_mask      True                                        # bool. Whether to mask the trace while computing the background values. Best used with a curving trace.
+bckg_threshold  10000                                       # float. Median integration's lowest signal level which still confidently constitutes part of the trace, thus sets the minimum value to be masked. Only called if trace_mask is True and trace_com_mask is None.
+trace_com_mask  5                                           # int or None. If not None, identifies the COM of each column and then masks all pixels +/- this value from the COM to build a mask. Only called if trace_mask is True. Overrides bckg_threshold if not None.
 
 # Step 5: Track x, y displacement of trace in space
 track_disp      True                                        # bool. Whether to track frame motion in the dispersion direction.
-reject_disp     True                                        # bool. Whether to reject frames which show significant motion in the dispersion direction.
+reject_disp     True                                        # bool. Whether to reject frames which show significant motion in the dispersion direction. Rejection occurs in Stage 4 if s3_kick_ints in s4_*.berry is set to True.
 track_spatial   True                                        # bool. Whether to track frame motion in the spatial or cross-dispersion direction.
-reject_spatial  True                                        # bool. Whether to reject frames which show significant motion in the spatial or cross-dispersion direction.
+reject_spatial  True                                        # bool. Whether to reject frames which show significant motion in the spatial or cross-dispersion direction. Rejection occurs in Stage 4 if s3_kick_ints in s4_*.berry is set to True.
 
 # ENDPARSE

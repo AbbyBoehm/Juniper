@@ -11,7 +11,7 @@ max_cores       'half'                                      # integer or 'quarte
 verbose         2                                           # Int from 0 to 2. 0 = print nothing. 1 = print some statements. 2 = print every action.
 show_plots      0                                           # Int from 0 to 2. 0 = show nothing. 1 = show some plots. 2 = show all plots.
 save_plots      1                                           # Int from 0 to 2. 0 = save nothing. 1 = save some plots. 2 = save all plots.
-diagnostics     'results/diagnostics'                       # str. If save_plots >= 1, diagnostic plots will be written to this folder.
+diagnostics     'diagnostics'                               # str. If save_plots >= 1, diagnostic plots will be written to this folder.
 rename          None                                        # str. What you want to rename the files to. Can be None to keep the default name. Suggestions include naming the files after the target planet and program ID (e.g. 'PLANET-B_ID12345').
 
 # Step 1: Read in the LSQ and MCMC results.

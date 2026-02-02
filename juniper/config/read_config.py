@@ -25,7 +25,7 @@ def read_config(path_to_config_file):
     flare_prior_keys = [key+"_prior" for key in flare_keys]
     for key in flare_prior_keys:
         flare_keys.append(key)
-    systematics_keys = ["poly","poly_order","mirrortilt","n_tilt_events",
+    systematics_keys = ["poly","poly_order","dilution","mirrortilt","n_tilt_events",
                         "disp_detrend","spatial_detrend","width_detrend","superbias_scale",
                         "singleramp","doubleramp"]
     

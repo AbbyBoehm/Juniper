@@ -11,7 +11,7 @@ max_cores       'half'                                      # integer or 'quarte
 verbose         2                                           # Int from 0 to 2. 0 = print nothing. 1 = print some statements. 2 = print every action.
 show_plots      0                                           # Int from 0 to 2. 0 = show nothing. 1 = show some plots. 2 = show all plots.
 save_plots      1                                           # Int from 0 to 2. 0 = save nothing. 1 = save some plots. 2 = save all plots.
-diagnostics     'extracted/diagnostics'                     # str. If save_plots >= 1, diagnostic plots will be written to this folder.
+diagnostics     'diagnostics'                               # str. If save_plots >= 1, diagnostic plots will be written to this folder.
 rename          None                                        # str. What you want to rename the files to. Can be None to keep the default name. Suggestions include naming the files after the target planet and program ID (e.g. 'PLANET-B_ID12345').
 
 # Step 1: Extract 1D spectrum
@@ -28,14 +28,14 @@ aperture_type   'median'                                    # str. Defines the k
 poly_order      7                                           # int. Order of polynomial to fit, only used for 'polyrow' and 'polycol'.
 
 # Step 2: Trimming integrations
-s3_kick_ints    True                                        # bool. If True, checks for frames that were flagged by Stage 3 as bad frames and fully kicks them from the segments.
-trim_ints       [[0,2500],]                                 # list of list of int, or False. Bounds for integration numbers to reject. Useful for trimming the first ~1,000-3,000 integrations, which often suffer from detector settling systematics.
+s3_kick_ints    True                                        # bool. If True, checks for frames that were flagged by Stage 3 (reject_disp and reject_spatial keys in s3_*.berry) as bad frames and fully kicks them from the segments.
+s4_trim_ints       [[0,2500],]                              # list of list of int, or False. Bounds for integration numbers to reject. Useful for trimming the first ~10% of integrations, which often suffer from detector settling systematics.
 
 # Step 3: Align spectra
 align           True                                        # bool. Whether to align the extracted 1D spectra.
-trim_spec       80                                          # int. How many points to trim from the edges of the spectra. Useful for ensuring meeasured shifts are not dominated by the flux falloff at the edges.
+trim_spec       80                                          # int. How many points to trim from the edges of the spectra. Useful for ensuring measured shifts are not dominated by the flux falloff at the edges.
 high_res_factor 0.0001                                      # float. How finely to interpolate spectra when aligning. The smaller this is, the finer the fit but the longer the runtime.
-trim_fit        80                                          # int. How many points to trim from the edges of the fit. Useful for ensuring meeasured shifts are not dominated by the flux falloff at the edges.
+trim_fit        80                                          # int. How many points to trim from the edges of the fit. Useful for ensuring measured shifts are not dominated by the flux falloff at the edges.
 
 # Step 4: Clean spectra
 sigma           3.5                                         # float. Sigma at which to detect a spectral outlier and replace it with the median in time. Enter None to skip this step.

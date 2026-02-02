@@ -2,8 +2,8 @@ import os
 from tqdm import tqdm
 
 from juniper.util.diagnostics import tqdm_translate, plot_translate
-from juniper.config.translate_config import s1_to_pipeline, s1_to_glbs, s1_to_NSClean
-from juniper.stage1 import group_level_bckg_sub, wrap_stage1jwst, NSClean
+from juniper.config.translate_config import s1_to_pipeline, s1_to_glbs, s1_to_miribckg, s1_to_NSClean
+from juniper.stage1 import group_level_bckg_sub, miri_bckg_sub, wrap_stage1jwst, NSClean
 
 def do_stage1(filepaths, outfiles, outdir, steps, plot_dir):
     """Performs Stage 1 calibration on the given files.
@@ -47,6 +47,11 @@ def do_stage1(filepaths, outfiles, outdir, steps, plot_dir):
         if steps["do_glbs"]:
             s1_glbs = s1_to_glbs(steps)
             datamodel = group_level_bckg_sub.glbs(datamodel, s1_glbs, plot_dir, outfile)
+
+        # Perform MIRI LRS background subtraction.
+        if steps["do_miribckg"]:
+            s1_miribckg = s1_to_miribckg(steps)
+            datamodel = miri_bckg_sub.miribckg(datamodel, dict(s1_pipeline), s1_miribckg, plot_dir, outfile)
 
         # Wrap the last steps of Detector1Pipeline.
         result = wrap_stage1jwst.wrap_back_end(datamodel, s1_pipeline, outfile, outdir)

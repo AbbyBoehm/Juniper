@@ -41,7 +41,10 @@ def truncate(outfile, outdir, inpt_dict):
         c1, c2 = inpt_dict['keep_cols']
         for header in ('SCI','ERR','DQ','WAVELENGTH','VAR_POISSON','VAR_RNOISE'):
             try:
-                fits_file[header].data = fits_file[header].data[:,r1:r2,c1:c2]
+                if header == "WAVELENGTH":
+                    fits_file[header].data = fits_file[header].data[c1:c2,r1:r2]
+                else:
+                    fits_file[header].data = fits_file[header].data[:,c1:c2,r1:r2]
             except KeyError:
                 if inpt_dict["verbose"] >= 1:
                     print("Dataset does not contain header {}.".format(header))

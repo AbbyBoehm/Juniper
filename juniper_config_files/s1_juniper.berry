@@ -11,7 +11,7 @@ max_cores       'half'                                      # integer or 'quarte
 verbose         2                                           # Int from 0 to 2. 0 = print nothing. 1 = print some statements. 2 = print every action.
 show_plots      2                                           # Int from 0 to 2. 0 = show nothing. 1 = show some plots. 2 = show all plots.
 save_plots      2                                           # Int from 0 to 2. 0 = save nothing. 1 = save some plots. 2 = save all plots.
-diagnostics     'rates/diagnostics'                         # str. If save_plots >= 1, diagnostic plots will be written to this folder relative to output (and run_name, if applicable).
+diagnostics     'diagnostics'                               # str. If save_plots >= 1, diagnostic plots will be written to this folder relative to output (and run_name, if applicable).
 
 # Step 1: JWST Detector1Pipeline
 rename          'name'                                      # str. What you want to rename the files to. Can be None to keep the default name. Suggestions include naming the files after the target planet and program ID (e.g. 'PLANET-B_ID12345').
@@ -73,14 +73,19 @@ do_reset        False                                       # bool. Whether to p
 
 do_rscd         False                                       # bool. Whether to perform this step in jwst Detector1Pipeline.
 
-# Step 2: Group-level background subtraction
-do_glbs         True                                        # bool. Whether to perform this step. For NIRSpec, strongly recommend you do - glbs can reduce scatter by thousands of ppm!
-glbs_sigma      3.0                                         # float. How aggressively to clean outliers from the background region during glbs.
-glbs_kernel     (31,1)                                      # tuple of odd ints. The cols x rows to span during filtering of the background. Ideally filter over many columns and just one row.
+# Step 2: Specialized background subtraction routines
+# Step 2a: Group-level background subtraction
+do_glbs         True                                        # bool. Whether to perform this step. Can reduce NIRSpec scatter by thousands of ppm. Not for use with MIRI LRS!
+glbs_sigma      10                                          # float. How aggressively to clean outliers from the background region during glbs.
+glbs_kernel     (31,1)                                      # tuple of odd ints. The cols x rows to span during filtering of the background. Recommended to filter over many columns and just one row to avoid trace signal.
+glbs_rows       [0,1,2,3,4,5,-6,-5,-4,-3,-2,-1]             # list of ints. Row indices to use as the background. Best used with a straight trace. Never ignored unless empty.
 glbs_mask       True                                        # bool. Whether to mask the trace while computing the background values. Best used with a curving trace.
-glbs_com_mask   5                                           # int or None. If not None, identifies the COM of each column and then masks all pixels +/- this value from the COM to build a mask. Overrides other masking methods if not None.
-glbs_rows       [0,1,2,3,4,5,-6,-5,-4,-3,-2,-1]             # list of ints. Indices to use as the background. Best used with a straight trace.
-glbs_threshold  10000                                       # float. Signal level to use to help facilitate trace masking. If you want to adjust this, you should open the last group of any integration in your dataset and find the lowest value that you would still call part of the trace.
+glbs_threshold  10000                                       # float. Median last group's lowest signal level which still confidently constitutes part of the trace, thus sets the minimum value to be masked. Only called if glbs_mask is True and glbs_com_mask is None.
+glbs_com_mask   7                                           # int or None. If not None, identifies the COM of each column and then masks all pixels +/- this value from the COM to build a mask. Only called if glbs_mask is True. Overrides glbs_threshold if not None.
+
+# Step 2b: MIRI LRS group-level background subtraction
+do_miribckg     False                                       # bool. Whether to use a MIRI LRS background exposure (typically taken immediately after the science exposure) to correct the MIRI LRS background.
+miribckg_path   "./"                                        # str. The path to the MIRI LRS background *uncal.fits file.
 
 # Step 3: NSClean
 do_NSClean      True                                        # bool. Whether to perform this step. Cuts down on systematic noise at the integration level.

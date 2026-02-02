@@ -61,8 +61,8 @@ def do_stage4(filepaths, outfile, outdir, steps, plot_dir):
     bad_frames = []
     if steps["s3_kick_ints"]:
         bad_frames = [j for j in segments.flagged[0]]
-    if steps["trim_ints"]:
-        for trim_ints in steps["trim_ints"]:
+    if steps["s4_trim_ints"]:
+        for trim_ints in steps["s4_trim_ints"]:
             trim = range(trim_ints[0],trim_ints[1]+1)
             for i in [j for j in trim if j not in bad_frames]:
                 bad_frames.append(i)

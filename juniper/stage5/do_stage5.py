@@ -298,13 +298,13 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
         for i in range(len(light_curves["specbins"])):
             detector_wavelengths.append(light_curves["specbins"][i])
         detectors_are_same_bins = False
-        if all(np.array_equal(detector_wavelengths[0],dlist) for dlist in detector_wavelengths):
+        if all(np.all(np.abs([a1-a2 for a1, a2 in zip(detector_wavelengths[0],dlist)])<0.1) for dlist in detector_wavelengths):
             detectors_are_same_bins = True
         if steps["verbose"] == 2:
             if detectors_are_same_bins:
-                print("Detectors were found to have matching wavelength bins; treatment will be parallel.")
+                print("Detectors were found to have matching wavelength bins to within 0.1 micron; treatment will be parallel.")
             else:
-                print("Detector wavelengths do not match; treatment will be serial.")
+                print("Detector wavelengths do not match to within 0.1 micron; treatment will be serial.")
 
         if detectors_are_same_bins:
             # Then we can treat this stuff in parallel fit.

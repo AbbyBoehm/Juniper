@@ -154,7 +154,8 @@ def bin_light_curves(spectra, inpt_dict):
         # The broad-band light curve is trivial.
         broadband_det = np.ma.sum(broadband_spectrum,axis=1) # sum on wavelengths to get flux over whole bandpass
         # Broad-band uncertainties sum in quadrature.
-        broaderr_det = np.ma.sqrt(np.ma.sum(np.square(broadband_error),axis=1)) # sum on wavelengths to get error over whole bandpass
+        #broaderr_det = np.ma.sqrt(np.ma.sum(np.square(broadband_error),axis=1)) # sum on wavelengths to get error over whole bandpass
+        broaderr_det = np.ma.sqrt(np.ma.sum(broadband_error**2,axis=1)) # sum on wavelengths to get error over whole bandpass
         # Getting the central wavelength is simple.
         broadwave_det = np.ma.median(broadband_waves)
         # The wavelength bounds is also straightforward.
