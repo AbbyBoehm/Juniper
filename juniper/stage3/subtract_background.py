@@ -197,6 +197,8 @@ def subtract_background(segments, inpt_dict):
                         norm='linear',vmin=vmin,vmax=vmax,aspect='auto')
         cbar = plt.colorbar(mappable=im1,location='bottom',aspect=40)
         cbar.set_label('Flux [DN]')
+        ax.set_xlabel('Column Index [#]')
+        ax.set_ylabel('Integration Number [#]')
         ax.set_title("Median columnal background level")
         
         if save_ints:
