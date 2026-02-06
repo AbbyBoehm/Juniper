@@ -50,13 +50,13 @@ def track_pos(segments, inpt_dict):
         template /= np.max(template) # normalise so peak is at 1
         template = medfilt(template, kernel_size=7)
 
-        # Plot the template.
         if (plot_step or save_step):
-            # Create a plot in time of the measured dispersion positions.
+            # Create a plot in time of the dispersion profile used for cross-correlation.
             plt.figure(figsize=(5,5))
             plt.plot(template)
-            plt.xlabel('dispersion position [pix]')
-            plt.ylabel('normalised flux [a.u.]')
+            plt.xlabel('Dispersion Position [pixels]')
+            plt.ylabel('Normalised Flux [a.u.]')
+            plt.tick_params(which='both',axis='both',direction='in')
             if save_step:
                 plt.savefig(os.path.join(inpt_dict["diagnostic_plots"],"S3_dispersion_template.png"),
                             dpi=300, bbox_inches='tight')
@@ -70,36 +70,25 @@ def track_pos(segments, inpt_dict):
             profile = np.nansum(segments.data.values[k,:,:], axis=0)
             profile = profile/np.max(profile) # normalize amplitude to 1 for ease of fit
             profile = medfilt(profile, kernel_size=7) # filter outliers to reduce their impact on the fit
+            pos = fit_disp_profile(profile,template=template)
+            dispersion_position.append(pos)
+
             # Plot an example..
             if (plot_step or save_step) and k == 0:
-                # Create a plot in time of the measured dispersion positions.
+                # Create a plot of a dispersion correlation example, to show how the template is matched.
                 plt.figure(figsize=(5,5))
-                plt.plot(template, color='k')
-                plt.plot(profile, color='red', ls='--')
-                plt.xlabel('dispersion position [pix]')
-                plt.ylabel('normalised flux [a.u.]')
+                plt.plot(template, color='k',label='Dispersion Template')
+                plt.plot(profile, color='red', ls='--', label='Frame To Correlate')
+                plt.xlabel('Dispersion Position [pixels]')
+                plt.ylabel('Normalised Flux [a.u.]')
+                plt.tick_params(which='both',axis='both',direction='in')
+                plt.legend()
                 if save_step:
                     plt.savefig(os.path.join(inpt_dict["diagnostic_plots"],"S3_dispersion_example.png"),
                                 dpi=300, bbox_inches='tight')
                 if plot_step:
                     plt.show(block=True)
                 plt.close()
-            pos = fit_disp_profile(profile,template=template)
-            dispersion_position.append(pos)
-
-        # Plot the dispersion positions.
-        if (plot_step or save_step):
-            # Create a plot in time of the measured dispersion positions.
-            plt.figure(figsize=(5,5))
-            plt.scatter(segments.time.values, dispersion_position)
-            plt.xlabel('time [bjd]')
-            plt.ylabel('dispersion shift [pix]')
-            if save_step:
-                plt.savefig(os.path.join(inpt_dict["diagnostic_plots"],"S3_dispersion_shifts.png"),
-                            dpi=300, bbox_inches='tight')
-            if plot_step:
-                plt.show(block=True)
-            plt.close()
         
         if inpt_dict["reject_disp"]:
             # Flag any integration with sudden movement.
@@ -112,6 +101,26 @@ def track_pos(segments, inpt_dict):
                     # The frame moved by 3 sigma, kick it.
                     bad_k.append(k)
                     bad_frame_map[k,:,:] = np.ones_like(bad_frame_map[k,:,:]) # the whole frame is flagged for data quality
+        
+        # Plot the dispersion positions.
+        if (plot_step or save_step):
+            # Create a plot in time of the measured dispersion positions.
+            plt.figure(figsize=(5,5))
+            plt.scatter(segments.time.values, dispersion_position, color='k')
+            if inpt_dict["reject_disp"]:
+                # Plot lines marking where things were kicked.
+                plt.axhline(med_disp,ls='--',color='red')
+                for mult in (-1,1):
+                    plt.axhline(med_disp+(mult*3*std_disp),ls=':',color='red')
+            plt.xlabel('Exposure Time [MJD]')
+            plt.ylabel('Dispersion Position [pixels]')
+            plt.tick_params(which='both',axis='both',direction='in')
+            if save_step:
+                plt.savefig(os.path.join(inpt_dict["diagnostic_plots"],"S3_dispersion_positions.png"),
+                            dpi=300, bbox_inches='tight')
+            if plot_step:
+                plt.show(block=True)
+            plt.close()
 
     crossdispersion_position = []
     crossdispersion_width = []
@@ -126,32 +135,6 @@ def track_pos(segments, inpt_dict):
             crossdispersion_position.append(pos)
             crossdispersion_width.append(width)
 
-        # Plot the cross-dispersion positions and widths.
-        if (plot_step or save_step):
-            # Create a plot in time of the measured cross-dispersion positions.
-            plt.figure(figsize=(5,5))
-            plt.scatter(segments.time.values, crossdispersion_position)
-            plt.xlabel('time [bjd]')
-            plt.ylabel('cross-dispersion position [pix]')
-            if save_step:
-                plt.savefig(os.path.join(inpt_dict["diagnostic_plots"],"S3_cross-dispersion_positions.png"),
-                            dpi=300, bbox_inches='tight')
-            if plot_step:
-                plt.show(block=True)
-            plt.close()
-
-            # Create a plot in time of the measured cross-dispersion widths.
-            plt.figure(figsize=(5,5))
-            plt.scatter(segments.time.values, crossdispersion_width)
-            plt.xlabel('time [bjd]')
-            plt.ylabel('cross-dispersion width [pix]')
-            if save_step:
-                plt.savefig(os.path.join(inpt_dict["diagnostic_plots"],"S3_cross-dispersion_widths.png"),
-                            dpi=300, bbox_inches='tight')
-            if plot_step:
-                plt.show(block=True)
-            plt.close()
-
         if inpt_dict["reject_spatial"]:
             # Flag any integration with sudden movement or blooming/defocusing.
             med_cross, std_cross = np.median(crossdispersion_position), np.std(crossdispersion_position)
@@ -164,6 +147,39 @@ def track_pos(segments, inpt_dict):
                     if k not in bad_k:
                         bad_k.append(k)
                         bad_frame_map[k,:,:] = np.ones_like(bad_frame_map[k,:,:]) # the whole frame is flagged for data quality
+        
+        # Plot the cross-dispersion positions and widths.
+        if (plot_step or save_step):
+            # Create a plot in time of the measured cross-dispersion positions.
+            plt.figure(figsize=(5,5))
+            plt.scatter(segments.time.values, crossdispersion_position, color='k')
+            if inpt_dict["reject_spatial"]:
+                # Plot lines marking where things were kicked.
+                plt.axhline(med_cross,ls='--',color='red')
+                for mult in (-1,1):
+                    plt.axhline(med_cross+(mult*3*std_cross),ls=':',color='red')
+            plt.xlabel('Exposure Time [MJD]')
+            plt.ylabel('Cross-Dispersion Position [pixels]')
+            plt.tick_params(which='both',axis='both',direction='in')
+            if save_step:
+                plt.savefig(os.path.join(inpt_dict["diagnostic_plots"],"S3_cross-dispersion_positions.png"),
+                            dpi=300, bbox_inches='tight')
+            if plot_step:
+                plt.show(block=True)
+            plt.close()
+
+            # Create a plot in time of the measured cross-dispersion widths.
+            plt.figure(figsize=(5,5))
+            plt.scatter(segments.time.values, crossdispersion_width, color='k')
+            plt.xlabel('Exposure Time [MJD]')
+            plt.ylabel('Cross-Dispersion Width [pixels]')
+            plt.tick_params(which='both',axis='both',direction='in')
+            if save_step:
+                plt.savefig(os.path.join(inpt_dict["diagnostic_plots"],"S3_cross-dispersion_widths.png"),
+                            dpi=300, bbox_inches='tight')
+            if plot_step:
+                plt.show(block=True)
+            plt.close()
 
     # Update data flags.
     segments.dq.values = np.where(bad_frame_map != 0, 1, segments.dq.values)

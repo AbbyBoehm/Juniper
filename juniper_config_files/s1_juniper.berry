@@ -82,6 +82,7 @@ glbs_rows       [0,1,2,3,4,5,-6,-5,-4,-3,-2,-1]             # list of ints. Row 
 glbs_mask       True                                        # bool. Whether to mask the trace while computing the background values. Best used with a curving trace.
 glbs_threshold  10000                                       # float. Median last group's lowest signal level which still confidently constitutes part of the trace, thus sets the minimum value to be masked. Only called if glbs_mask is True and glbs_com_mask is None.
 glbs_com_mask   7                                           # int or None. If not None, identifies the COM of each column and then masks all pixels +/- this value from the COM to build a mask. Only called if glbs_mask is True. Overrides glbs_threshold if not None.
+glbs_low_contr  False                                       # bool. If True, uses powers to amplify faint trace signal. Useful if the COM locator is struggling to find your trace because of low contrast against a bright background.
 
 # Step 2b: MIRI LRS group-level background subtraction
 do_miribckg     False                                       # bool. Whether to use a MIRI LRS background exposure (typically taken immediately after the science exposure) to correct the MIRI LRS background.

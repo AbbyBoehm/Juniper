@@ -43,7 +43,7 @@ save_bkg        False                                       # bool. Whether to s
 wfss_mmag_bkg   False                                       # float or None. For WFSS only. Magnitude limit for extracting sources.
 
 do_extract_2d   True                                        # bool. Whether to perform this step in jwst Spec2Pipeline. Applies to all NIRSpec modes.
-slit_name       None                                        # str or None. If str, extract from a specific slit. If None, try to extract from all known slits.
+slit_names      None                                        # lst of str, lst of int, or None. If not None, extract from specific slits. If None, try to extract from all known slits.
 tsgrism_height  100                                         # int. Cross-dispersion aperture size.
 wfss_halfheight 100                                         # int. WFSS cross-dispersion aperture half-size.
 wfss_mmag_ext   None                                        # float or None. For WFSS only. Magnitude limit for extracting sources.

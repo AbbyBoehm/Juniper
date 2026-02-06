@@ -35,6 +35,9 @@ def iterate_fixed(segments, inpt_dict):
 
     # Track outliers removed and where they were found.
     bad_pix_map = np.zeros_like(segments.data.values)
+
+    # Track sigma differences for plotting.
+    sig_diffs = np.empty_like(segments.data.values)
     
     # Start iterating.
     for sigma in inpt_dict["fixed_sigmas"]:
@@ -48,6 +51,10 @@ def iterate_fixed(segments, inpt_dict):
         for k in tqdm(range(segments.data.shape[0]),
                       desc='Iterating over sigma=%.2f...'%sigma,
                       disable=(not time_ints)):
+            if sigma == inpt_dict["fixed_sigmas"][0]:
+                # Retain sigma excess.
+                sig_diffs[k,:,:] = np.abs(segments.data.values[k,:,:] - med)/std
+
             # Look for where outliers are in this frame and flag with 1.
             S = np.where(np.abs(segments.data.values[k,:,:] - med) > sigma*std, 1, 0)
 
@@ -84,11 +91,15 @@ def iterate_fixed(segments, inpt_dict):
     segments.dq.values = np.where(bad_pix_map != 0, 1, segments.dq.values)
 
     if (plot_step or save_step):
-        # Create plots of the entire bad_pix_map collapsed in on itself in time.
+        # Create a plot of the entire bad_pix_map collapsed in on itself in time.
         bad_pix_alltime = np.sum(bad_pix_map,axis=0)
-        bad_pix_alltime[bad_pix_alltime>0] = 1
-        fig, ax, im = img(bad_pix_alltime, aspect=5, title='Fixed-iteration DQ flags',
-                          vmin=0, vmax=1, norm='linear', verbose=inpt_dict["verbose"])
+        fig, ax = plt.subplots(figsize=(20,4))
+        im = ax.imshow(bad_pix_alltime/bad_pix_map.shape[0],origin='lower',cmap='viridis',
+                       norm='linear',aspect=5,vmin=0,vmax=0.05)
+        ax.set_title("Fixed-iteration DQ flags")
+        cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=40)
+        cbar.set_label('Fraction of integrations flagged')
+
         if save_step:
             plt.savefig(os.path.join(inpt_dict["diagnostic_plots"],"S3_iterate-fixed_flags.png"),
                         dpi=300, bbox_inches='tight')
@@ -97,16 +108,26 @@ def iterate_fixed(segments, inpt_dict):
         plt.close()
     
     if (plot_ints or save_ints):
-        # Create plots of each frame of the bad_pix_map in time.
-        for i in range(bad_pix_map.shape[0]):
-            fig, ax, im = img(bad_pix_map[i,:,:], aspect=5, title='Fixed-iteration DQ flags',
-                              vmin=0, vmax=1, norm='linear', verbose=inpt_dict["verbose"])
-            if save_step:
-                plt.savefig(os.path.join(inpt_dict["diagnostic_plots"],"S3_iterate-fixed_flags_int{}.png".format(i)),
-                            dpi=300, bbox_inches='tight')
-            if plot_step:
-                plt.show()
-            plt.close()
+        # Create a plot of the maximum sigma difference that pixel felt.
+        fig, ax = plt.subplots(figsize=(20,4))
+        sig_diff = np.empty_like(sig_diffs[0,:,:])
+        for x1 in range(sig_diffs.shape[1]):
+            for x2 in range(sig_diffs.shape[2]):
+                sig_diff[x1,x2] = np.nanmax(sig_diffs[:,x1,x2])
+        
+        vmin, vmax = 0, np.max(sig_diff)
+        im = ax.imshow(sig_diff,origin='lower',cmap='viridis',
+                       norm='linear',aspect=5,vmin=vmin,vmax=vmax)
+        ax.set_title("Maximum sigma difference from median")
+        cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=40)
+        cbar.set_label('Flux [DN]')
+
+        if save_step:
+            plt.savefig(os.path.join(inpt_dict["diagnostic_plots"],"S3_iterate-fixed_biggest-differences.png"),
+                        dpi=300, bbox_inches='tight')
+        if plot_step:
+            plt.show()
+        plt.close()
 
     # Report outliers found.
     if inpt_dict["verbose"] >= 1:
@@ -146,6 +167,9 @@ def iterate_free(segments, inpt_dict):
     bad_pix_map = np.zeros_like(segments.data.values)
     sigma = inpt_dict["free_sigma"]
 
+    # Track sigma differences for plotting.
+    sig_diffs = np.zeros_like(segments.data.values)
+
     # Check force stop iteration condition.
     cut_off = np.inf
     if inpt_dict["free_cutoffs"]:
@@ -165,6 +189,10 @@ def iterate_free(segments, inpt_dict):
                 # Compute median pixel time series and std deviation.
                 med = np.median(segments.data.values[:,i,j])
                 std = np.std(segments.data.values[:,i,j])
+
+                # Look for a bigger sigma outlier.
+                sig_diff = np.abs(segments.data.values[:,i,j]-med)/std
+                sig_diffs[sig_diff>sig_diffs[:,i,j],i,j] = sig_diff
 
                 # Check for outliers.
                 S = np.where(np.abs(segments.data.values[:,i,j]-med) > sigma*std, 1, 0)
@@ -194,11 +222,15 @@ def iterate_free(segments, inpt_dict):
     segments.dq.values = np.where(bad_pix_map != 0, 1, segments.dq.values)
 
     if (plot_step or save_step):
-        # Create plots of the entire bad_pix_map collapsed in on itself in time.
+        # Create a plot of the entire bad_pix_map collapsed in on itself in time.
         bad_pix_alltime = np.sum(bad_pix_map,axis=0)
-        bad_pix_alltime[bad_pix_alltime>0] = 1
-        fig, ax, im = img(bad_pix_alltime, aspect=5, title='Free-iteration DQ flags',
-                          vmin=0, vmax=1, norm='linear', verbose=inpt_dict["verbose"])
+        fig, ax = plt.subplots(figsize=(20,4))
+        im = ax.imshow(bad_pix_alltime/bad_pix_map.shape[0],origin='lower',cmap='viridis',
+                       norm='linear',aspect=5,vmin=0,vmax=0.05)
+        ax.set_title("Free-iteration DQ flags")
+        cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=40)
+        cbar.set_label('Fraction of integrations flagged')
+
         if save_step:
             plt.savefig(os.path.join(inpt_dict["diagnostic_plots"],"S3_iterate-free_flags.png"),
                         dpi=300, bbox_inches='tight')
@@ -207,16 +239,26 @@ def iterate_free(segments, inpt_dict):
         plt.close()
     
     if (plot_ints or save_ints):
-        # Create plots of each frame of the bad_pix_map in time.
-        for i in range(bad_pix_map.shape[0]):
-            fig, ax, im = img(bad_pix_map[i,:,:], aspect=5, title='Free-iteration DQ flags',
-                              vmin=0, vmax=1, norm='linear', verbose=inpt_dict["verbose"])
-            if save_step:
-                plt.savefig(os.path.join(inpt_dict["diagnostic_plots"],"S3_iterate-free_flags_int{}.png".format(i)),
-                            dpi=300, bbox_inches='tight')
-            if plot_step:
-                plt.show()
-            plt.close()
+        # Create a plot of the maximum sigma difference that pixel felt.
+        fig, ax = plt.subplots(figsize=(20,4))
+        sig_diff = np.empty_like(sig_diffs[0,:,:])
+        for x1 in range(sig_diffs.shape[1]):
+            for x2 in range(sig_diffs.shape[2]):
+                sig_diff[x1,x2] = np.nanmax(sig_diffs[:,x1,x2])
+        
+        vmin, vmax = 0, np.max(sig_diff)
+        im = ax.imshow(sig_diff,origin='lower',cmap='viridis',
+                       norm='linear',aspect=5,vmin=vmin,vmax=vmax)
+        ax.set_title("Maximum sigma difference from median")
+        cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=40)
+        cbar.set_label('Flux [DN]')
+
+        if save_step:
+            plt.savefig(os.path.join(inpt_dict["diagnostic_plots"],"S3_iterate-free_biggest-differences.png"),
+                        dpi=300, bbox_inches='tight')
+        if plot_step:
+            plt.show()
+        plt.close()
 
     # Report outliers found.
     if inpt_dict["verbose"] >= 1:

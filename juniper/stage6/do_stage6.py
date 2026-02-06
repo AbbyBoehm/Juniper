@@ -101,10 +101,10 @@ def do_stage6(filepaths, outfile, outdir, steps, plot_dir):
                                                                 steps)
                     
                     if (result['wavelength'] == 'broadband' and save_step):
-                        plt.savefig(os.path.join(plot_dir,'s6_{}_broadbandID{}_fit-res{}.png'.format(outfile,parallel_ID+1,tag)),
+                        plt.savefig(os.path.join(plot_dir,'S6_{}_broadbandID{}_fit-res{}.png'.format(outfile,parallel_ID+1,tag)),
                                     dpi=300,bbox_inches='tight')
                     elif save_ints:
-                        plt.savefig(os.path.join(plot_dir,'s6_{}_{}ID{}_fit-res{}.png'.format(outfile,result['wavelength'],parallel_ID+1,tag)),
+                        plt.savefig(os.path.join(plot_dir,'S6_{}_{}ID{}_fit-res{}.png'.format(outfile,result['wavelength'],parallel_ID+1,tag)),
                                     dpi=300,bbox_inches='tight')
                     if (result['wavelength'] == 'broadband' and plot_step):
                         plt.show(block=True)
@@ -170,10 +170,10 @@ def do_stage6(filepaths, outfile, outdir, steps, plot_dir):
                                                                   steps)
             
                     if (result['wavelength'] == 'broadband' and save_step):
-                        plt.savefig(os.path.join(plot_dir,'s6_{}_broadbandID{}_fit-comps{}.png'.format(outfile,parallel_ID+1,tag)),
+                        plt.savefig(os.path.join(plot_dir,'S6_{}_broadbandID{}_fit-comps{}.png'.format(outfile,parallel_ID+1,tag)),
                                     dpi=300,bbox_inches='tight')
                     elif save_ints:
-                        plt.savefig(os.path.join(plot_dir,'s6_{}_{}ID{}_fit-comps{}.png'.format(outfile,result['wavelength'],parallel_ID+1,tag)),
+                        plt.savefig(os.path.join(plot_dir,'S6_{}_{}ID{}_fit-comps{}.png'.format(outfile,result['wavelength'],parallel_ID+1,tag)),
                                     dpi=300,bbox_inches='tight')
                     if (result['wavelength'] == 'broadband' and plot_step):
                         plt.show(block=True)
@@ -239,10 +239,10 @@ def do_stage6(filepaths, outfile, outdir, steps, plot_dir):
                     fig, ax = plot_allan(residuals)
                     
                     if (result['wavelength'] == 'broadband' and save_step):
-                        plt.savefig(os.path.join(plot_dir,'s6_{}_broadbandID{}_allan-var{}.png'.format(outfile,parallel_ID+1,tag)),
+                        plt.savefig(os.path.join(plot_dir,'S6_{}_broadbandID{}_allan-var{}.png'.format(outfile,parallel_ID+1,tag)),
                                     dpi=300,bbox_inches='tight')
                     elif save_ints:
-                        plt.savefig(os.path.join(plot_dir,'s6_{}_{}ID{}_allan-var{}.png'.format(outfile,result['wavelength'],parallel_ID+1,tag)),
+                        plt.savefig(os.path.join(plot_dir,'S6_{}_{}ID{}_allan-var{}.png'.format(outfile,result['wavelength'],parallel_ID+1,tag)),
                                     dpi=300,bbox_inches='tight')
                     if (result['wavelength'] == 'broadband' and plot_step):
                         plt.show(block=True)
@@ -313,7 +313,7 @@ def do_stage6(filepaths, outfile, outdir, steps, plot_dir):
                                                                 t_interps, lc_interps, residualses,
                                                                 steps)
                     if save_step:
-                        plt.savefig(os.path.join(plot_dir,'s6_{}_waterfall{}_ID{}.png'.format(outfile,tag,parallel_ID+1)),
+                        plt.savefig(os.path.join(plot_dir,'S6_{}_waterfall{}_ID{}.png'.format(outfile,tag,parallel_ID+1)),
                                     dpi=300,bbox_inches='tight')
                     if plot_step:
                         plt.show(block=True)
@@ -383,7 +383,7 @@ def do_stage6(filepaths, outfile, outdir, steps, plot_dir):
                                                                                 planet_errs['planet{}'.format(planet_ID)],
                                                                                 str(planet_ID))
                             # And save.
-                            fname = os.path.join(outdir,'s6_{}_ID{}_planet{}_broadband{}_fit{}.dat'.format(outfile,
+                            fname = os.path.join(outdir,'S6_{}_ID{}_planet{}_broadband{}_fit{}.dat'.format(outfile,
                                                                                                            parallel_ID+1,
                                                                                                            planet_ID,
                                                                                                            steps["spectrum_type"][parallel_ID],
@@ -428,7 +428,7 @@ def do_stage6(filepaths, outfile, outdir, steps, plot_dir):
                                                                                 str(planet_ID))
                                 
                                 if results[key]['wavelength'] == 'broadband':
-                                    fname = os.path.join(plot_dir,'s6_{}_ID{}_planet{}_broadband{}_fit{}.txt'.format(outfile,
+                                    fname = os.path.join(plot_dir,'S6_{}_ID{}_planet{}_broadband{}_fit{}.txt'.format(outfile,
                                                                                                                      parallel_ID+1,
                                                                                                                     planet_ID,
                                                                                                                     steps["spectrum_type"][parallel_ID],
@@ -452,7 +452,7 @@ def do_stage6(filepaths, outfile, outdir, steps, plot_dir):
                                     fig, ax = plot_spectrum.plot_spectrum(waves,depths,errors,
                                                                         bin_f,wave_bounds,steps["spectrum_type"][parallel_ID])
                                     if save_step:
-                                        plt.savefig(os.path.join(plot_dir,'s6_{}_ID{}_planet{}_spectrum{}_fit{}_bin{}.png'.format(outfile,
+                                        plt.savefig(os.path.join(plot_dir,'S6_{}_ID{}_planet{}_spectrum{}_fit{}_bin{}.png'.format(outfile,
                                                                                                                                   parallel_ID+1,
                                                                                                                                   planet_ID,
                                                                                                                                   steps["spectrum_type"][parallel_ID],
@@ -464,7 +464,7 @@ def do_stage6(filepaths, outfile, outdir, steps, plot_dir):
                                     plt.close()
                             
                             # And save.
-                            fname = os.path.join(outdir,'s6_{}_ID{}_planet{}_spectrum{}_fit{}.dat'.format(outfile,
+                            fname = os.path.join(outdir,'S6_{}_ID{}_planet{}_spectrum{}_fit{}.dat'.format(outfile,
                                                                                                           parallel_ID+1,
                                                                                                     planet_ID,
                                                                                                     steps["spectrum_type"][parallel_ID],

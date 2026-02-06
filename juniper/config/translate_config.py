@@ -70,7 +70,7 @@ def s1_to_glbs(s1_config):
         s1_glbs[key] = s1_config[key]
 
     # glbs keys are nearly identical.
-    for key in ("sigma","kernel","mask","com_mask","rows","threshold"):
+    for key in ("sigma","kernel","mask","com_mask","rows","threshold","low_contr"):
         s1_glbs[key] = s1_config["glbs_{}".format(key)]
     
     return s1_glbs
@@ -146,7 +146,7 @@ def s2_to_pipeline(s2_config):
                                  "wfss_mmag_extract":s2_config["wfss_mmag_bkg"]}
     
     s2_pipeline["extract_2d"] = {"skip":(not s2_config["do_extract_2d"]),
-                                 "slit_name":s2_config["slit_name"],
+                                 "slit_names":s2_config["slit_names"],
                                  "tsgrism_extract_height":s2_config["tsgrism_height"],
                                  "wfss_extract_half_height":s2_config["wfss_halfheight"],
                                  "wfss_mmag_extract":s2_config["wfss_mmag_ext"],

@@ -87,20 +87,35 @@ def get_trace_mask(data, threshold=10000):
     masked_fg = np.ma.masked_where(data - mu > 0.1*sig, data)
     return np.ma.getmask(masked_fg)
 
-def get_com_mask(data, width=5):
+def get_com_mask(data, width=5, contrast=False):
     """Build a com mask using the given 2D data frame.
 
     Args:
         data (np.array): 2D array of data.
         width (int, optional): how many pixels from the COM to declare
         a pixel outside of the mask.
+        contrast (bool, optional): a flag warning that this dataset suffers
+        from low contrast between trace and background. Uses powers to
+        amplify trace signal. Defaults to False.
     
     Returns:
         np.ma.mask: np mask hiding trace pixels.
     """
+    # Amplify trace signal if needed.
+    if contrast:
+        data = data**9
+
     # Track the COM pixel in each column.
     pix_centers = np.arange(data.shape[0]) + 0.5
     COMs = signal.medfilt((np.sum(pix_centers[:,np.newaxis]*np.abs(data),axis=0)/np.sum(np.abs(data),axis=0)),7)
+    COMs[np.isnan(COMs)] = 0.5*data.shape[0] # protect against nan columns, especially useful for G395H detector edge.
+
+    # Polyfit to smooth over hiccups.
+    x = np.array([i for i in range(len(COMs))])
+    a,b,c = np.polyfit(x,COMs,deg=2)
+    COMs = a*(x**2) + b*x + c
+
+    # Integerize to use as indices in an array.
     integer_COMs = np.around(COMs - 0.5).astype(int)
 
     # Build a zero array and populate it with 1s where appropriate.

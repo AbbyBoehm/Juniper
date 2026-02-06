@@ -3,6 +3,7 @@ import time
 from tqdm import tqdm
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.colors as colors
 
 from scipy import signal
 from astropy.io import fits
@@ -10,12 +11,13 @@ from astropy.io import fits
 from juniper.util.diagnostics import tqdm_translate, plot_translate, timer
 from juniper.util.plotting import img
 
-def correct_curvature(outfile, outdir, inpt_dict):
+def correct_curvature(outfile, outdir, filenumber, inpt_dict):
     """Checks if the file needs its curvature corrected, and if it does, corrects it.
 
     Args:
         outfile (str): The name of the file we are checking, sans "_calints.fits".
         outdir (str): The directory where the file can be found.
+        filenumber (int): The file number, for plot naming purposes.
         inpt_dict (dict): A dictionary containing instructions for performing this step.
     """
     # Log.
@@ -47,6 +49,62 @@ def correct_curvature(outfile, outdir, inpt_dict):
                                                       verbose=inpt_dict["verbose"],
                                                       outdir=inpt_dict["diagnostic_plots"],
                                                       outfile=outfile)
+            
+            if (plot_step or save_step):
+                # Plot median curve-corrected frame as an example.
+                medframe = np.median(shifted_data,axis=0)
+                # Create symlognorm color map just in case we need it for plotting.
+                lin_threshold = 0.1
+                vmin, vmax = np.percentile(medframe[np.isfinite(medframe)],q=5), np.percentile(medframe[np.isfinite(medframe)],q=95)
+                symlog_norm = colors.SymLogNorm(linthresh=lin_threshold, 
+                                                linscale=1, 
+                                                vmin=vmin,
+                                                vmax=vmax,
+                                                base=10)
+                
+                fig, ax = plt.subplots(figsize=(20, 4))
+                im = ax.imshow(medframe,cmap='viridis',origin='lower',
+                               norm=symlog_norm,aspect=5)
+                cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=40)
+                cbar.set_label("Flux [DN]")
+                ax.set_title("Curvature-corrected median frame")
+
+                if save_step:
+                    plt.savefig(os.path.join(inpt_dict["diagnostic_plots"],"S2_{}_curvature_correction_medianframef{}.png".format(outfile,filenumber)),
+                                dpi=300, bbox_inches='tight')
+                if plot_step:
+                    plt.show(block=True)
+                plt.close()
+                
+            if (plot_ints or save_ints):
+                # Plot the biggest outlier from the median curvature-corrected frame.
+                diffs = [[np.sum(np.sum(shifted_data[i,:,:]-medframe,axis=0),axis=0)] for i in range(shifted_data.shape[0])]
+                bigdiff = diffs.index(max(diffs))
+                mostdeviantframe = shifted_data[bigdiff,:,:]
+
+                # Create symlognorm color map just in case we need it for plotting.
+                lin_threshold = 0.1
+                vmin, vmax = np.percentile(mostdeviantframe[np.isfinite(mostdeviantframe)],q=5), np.percentile(mostdeviantframe[np.isfinite(mostdeviantframe)],q=95)
+                symlog_norm = colors.SymLogNorm(linthresh=lin_threshold, 
+                                                linscale=1, 
+                                                vmin=vmin,
+                                                vmax=vmax,
+                                                base=10)
+                
+                fig, ax = plt.subplots(figsize=(20, 4))
+                im = ax.imshow(mostdeviantframe,cmap='viridis',origin='lower',
+                               norm=symlog_norm,aspect=5)
+                cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=40)
+                cbar.set_label("Flux [DN]")
+                ax.set_title("Curvature-corrected most deviant frame")
+
+                if save_step:
+                    plt.savefig(os.path.join(inpt_dict["diagnostic_plots"],"S2_{}_curvature_correction_mostdeviantframef{}.png".format(outfile,filenumber)),
+                                dpi=300, bbox_inches='tight')
+                if plot_step:
+                    plt.show(block=True)
+                plt.close()
+                
             write_curve_fixed_file(output_file, shifted_data, shifted_wvs)
     # Log.
     if inpt_dict["verbose"] >= 1:
@@ -93,7 +151,8 @@ def fix_curvature(data, wvs, timer, show, save, verbose, outdir, outfile):
         plt.title("Rolls needed to correct frames")
         plt.ylim(-13, 13)
         if save_step:
-            plt.savefig(os.path.join(outdir,"S2_{}_curvature_corrections.png".format(outfile)))
+            plt.savefig(os.path.join(outdir,"S2_{}_curvature_corrections.png".format(outfile)),
+                        dpi=300,bbox_inches='tight')
         if plot_step:
             plt.show(block=True)
         plt.close()
@@ -106,21 +165,7 @@ def fix_curvature(data, wvs, timer, show, save, verbose, outdir, outfile):
     for i in tqdm(range(data.shape[0]),
                   desc='Correcting curvature in each frame...',
                   disable=(not time_ints)):
-        shifted_data[i,:,:] = roll_one_frame(data[i,:,:], rolls)
-        if (plot_step or save_step):
-            if ((not plot_ints and i == 0) or plot_ints or save_ints): # either if just plot/save the first frame, or plot/save all ints
-                fig, ax, im = img(shifted_data[i,:,:],
-                                  aspect=5,
-                                  title="Rolled frame {}".format(i),
-                                  norm='log',
-                                  vmin=0.01,
-                                  vmax=100,
-                                  verbose=verbose)
-                if save_step:
-                    plt.savefig(os.path.join(outdir,"S2_{}_corrected_frame{}.png".format(outfile,i)))
-                if plot_step:
-                    plt.show(block=True)
-                plt.close()    
+        shifted_data[i,:,:] = roll_one_frame(data[i,:,:], rolls) 
     return shifted_data, shifted_wvs
 
 def roll_one_frame(frame, rolls):
@@ -152,14 +197,24 @@ def get_rolls(frame):
     Returns:
         list: int values used to roll traces into alignment.
     """
+    # Track the COM pixel in each column.
     pix_centers = np.arange(frame.shape[0]) + 0.5
     COMs = signal.medfilt((np.sum(pix_centers[:,np.newaxis]*np.abs(frame),axis=0)/np.sum(np.abs(frame),axis=0)),7)
+
+    # Integerize to use as indices in an array.
     integer_COMs = np.around(COMs - 0.5).astype(int)
+
+    # Convert to rolls that move the COMs to the middle of the array.
     new_center = int(frame.shape[0]/2) - 1
     rolls = new_center - integer_COMs
     rolls[COMs<0] = 0
     rolls[COMs>frame.shape[0]] = 0
     rolls = signal.medfilt(rolls,41)
+
+    # Polyfit over the rolls to smooth them a bit more.
+    x = np.array([i for i in range(len(rolls))])
+    a,b,c = np.polyfit(x,rolls,deg=2)
+    rolls = np.around(a*(x**2) + b*x + c).astype(int)
     return rolls
 
 def write_curve_fixed_file(output_file, shifted_data, shifted_wvs):

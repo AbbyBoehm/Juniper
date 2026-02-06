@@ -38,6 +38,10 @@ def smooth(segments, inpt_dict):
     bad_pix_removed = 0
     bad_pix_per_frame = []
 
+    # Retain smoothed models and absolute differences for plotting.
+    smooths = np.empty_like(segments.data.values)
+    abs_diffs = np.empty_like(segments.data.values)
+
     # Iterate over each frame and smooth.
     for k in tqdm(range(segments.data.shape[0]),
                   desc = 'Smoothing outliers from integrations...',
@@ -45,35 +49,13 @@ def smooth(segments, inpt_dict):
         # Build a smoothed model.
         smooth = median_filter(np.copy(segments.data.values[k,:,:]),
                                size=inpt_dict["space_kernel"])
+        smooths[k,:,:] = smooth
         
-        if (plot_step or save_step and k == 0):
-            # Create a plot of the smoothed image.
-            fig, ax = plt.subplots(2,1,figsize=(10,5),sharex=True)
-            ax[0].imshow(segments.data.values[k,:,:],aspect=20,cmap='binary_r',
-                        vmin=0,vmax=6000,norm='log')
-            ax[1].imshow(smooth,aspect=20,cmap='binary_r',
-                        vmin=0,vmax=6000,norm='log')
-            if save_step:
-                plt.savefig(os.path.join(inpt_dict["diagnostic_plots"],"S3_spatial-smoothing_smoothedframe.png"),
-                            dpi=300, bbox_inches='tight')
-            if plot_step:
-                plt.show(block=True)
-            plt.close()
-        
-        # Check for outliers and locate them.
+        # Compare data to smoothed model.
         abs_diff = np.abs(segments.data.values[k,:,:]-smooth)
-        if (plot_step or save_step and k == 0):
-            # Create a plot of the smoothed image.
-            fig, ax = plt.subplots(figsize=(10,5),sharex=True)
-            ax.imshow(abs_diff,aspect=20,cmap='binary_r',
-                      vmin=0,vmax=inpt_dict["space_sigma"]*np.nanmean(abs_diff),norm='log')
-            if save_step:
-                plt.savefig(os.path.join(inpt_dict["diagnostic_plots"],"S3_spatial-smoothing_fracdiff.png"),
-                            dpi=300, bbox_inches='tight')
-            if plot_step:
-                plt.show(block=True)
-            plt.close()
-        #S = np.where(np.abs(segments.data.values[k,:,:]-smooth)>inpt_dict["space_sigma"],1,0)
+        abs_diffs[k,:,:] = abs_diff
+        
+        # Flag outliers on the bad pixel map.
         S = np.where(abs_diff > inpt_dict["space_sigma"]*np.nanmean(abs_diff),1,0)
         bad_pix_map[k,:,:] += S
         bad_pix_this_frame = np.count_nonzero(S)
@@ -100,27 +82,60 @@ def smooth(segments, inpt_dict):
     if (plot_step or save_step):
         # Create plots of the entire bad_pix_map collapsed in on itself in time.
         bad_pix_alltime = np.sum(bad_pix_map,axis=0)
-        bad_pix_alltime[bad_pix_alltime>0] = 1
-        fig, ax, im = img(bad_pix_alltime, aspect=5, title='Spatial smoothing DQ flags',
-                          vmin=0, vmax=1, norm='linear', verbose=inpt_dict["verbose"])
+        fig, ax = plt.subplots(figsize=(20,4))
+        im = ax.imshow(bad_pix_alltime/bad_pix_map.shape[0],origin='lower',cmap='viridis',
+                       norm='linear',aspect=5,vmin=0,vmax=1)
+        ax.set_title("Spatial smoothing DQ flags")
+        cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=40)
+        cbar.set_label('Fraction of integrations flagged')
+
         if save_step:
             plt.savefig(os.path.join(inpt_dict["diagnostic_plots"],"S3_spatial-smoothing_flags.png"),
                         dpi=300, bbox_inches='tight')
         if plot_step:
             plt.show()
         plt.close()
+
+        # Create a plot of the median smoothed model.
+        fig, ax = plt.subplots(figsize=(20,4))
+        medsmooth = np.median(smooths,axis=0)
+        vmin, vmax = np.nanpercentile(medsmooth,q=5), np.nanpercentile(medsmooth,q=95)
+        vmin = max((vmin,0.1))
+        im = ax.imshow(medsmooth,origin='lower',cmap='viridis',
+                       norm='log',aspect=5,vmin=vmin,vmax=vmax)
+        ax.set_title("Median spatially-filtered model")
+        cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=40)
+        cbar.set_label('Flux [DN]')
+
+        if save_step:
+            plt.savefig(os.path.join(inpt_dict["diagnostic_plots"],"S3_spatial-smoothing_med-model.png"),
+                        dpi=300, bbox_inches='tight')
+        if plot_step:
+            plt.show()
+        plt.close()
     
     if (plot_ints or save_ints):
-        # Create plots of each frame of the bad_pix_map in time.
-        for i in range(bad_pix_map.shape[0]):
-            fig, ax, im = img(bad_pix_map[i,:,:], aspect=5, title='Spatial smoothing DQ flags',
-                              vmin=0, vmax=1, norm='linear', verbose=inpt_dict["verbose"])
-            if save_step:
-                plt.savefig(os.path.join(inpt_dict["diagnostic_plots"],"S3_spatial-smoothing_flags_int{}.png".format(i)),
-                            dpi=300, bbox_inches='tight')
-            if plot_step:
-                plt.show()
-            plt.close()
+        # Create a plot of the maximum absolute differences between the data and smoothed model.
+        fig, ax = plt.subplots(figsize=(20,4))
+        abs_diff = np.empty_like(abs_diffs[0,:,:])
+        for x1 in range(abs_diffs.shape[1]):
+            for x2 in range(abs_diffs.shape[2]):
+                abs_diff[x1,x2] = np.nanmax(abs_diffs[:,x1,x2])
+        
+        vmin, vmax = np.nanpercentile(abs_diff,q=5), np.nanpercentile(abs_diff,q=95)
+        vmin = max((vmin,0.1))
+        im = ax.imshow(medsmooth,origin='lower',cmap='viridis',
+                       norm='log',aspect=5,vmin=vmin,vmax=vmax)
+        ax.set_title("Maximum difference between data and model")
+        cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=40)
+        cbar.set_label('Flux [DN]')
+
+        if save_step:
+            plt.savefig(os.path.join(inpt_dict["diagnostic_plots"],"S3_spatial-smoothing_biggest-differences.png"),
+                        dpi=300, bbox_inches='tight')
+        if plot_step:
+            plt.show()
+        plt.close()
 
     # Count outliers and log.
     if inpt_dict["verbose"] >= 1:
@@ -161,6 +176,12 @@ def led(segments, inpt_dict):
     # Track outliers removed and where they were found.
     bad_pix_map = np.zeros_like(segments.data.values)
 
+    # Retain noise models, fine structure models, laplacian images, and absolute differences for plotting.
+    noise_models = np.empty_like(segments.data.values)
+    fine_structure_models = np.empty_like(segments.data.values)
+    contrast_images = np.empty_like(segments.data.values)
+    s_images = np.empty_like(segments.data.values)
+
     # Define the Laplacian kernel.
     l = 0.25*np.array([[0,-1,0],[-1,4,-1],[0,-1,0]])
 
@@ -186,8 +207,12 @@ def led(segments, inpt_dict):
 
             # Build the noise model.
             noise_model = build_noise_model(integration, rn)
+            if iteration_N == 1:
+                noise_models[k,:,:] = noise_model
             if inpt_dict["fine_structure"]:
                 F = build_fine_structure_model(integration)
+                if iteration_N == 1:
+                    fine_structure_models[k,:,:] = F
 
             # Subsample the array.
             subsample, original_shape = subsample_frame(integration,
@@ -205,6 +230,8 @@ def led(segments, inpt_dict):
             
             # Remove sampling flux to protect data from being targeted by LED.
             S = S - median_filter(S, size=5)
+            if iteration_N == 1:
+                s_images[k,:,:] = S
 
             # Spot outliers.
             S[np.abs(S) < inpt_dict["led_sigma"]] = 0 # any not zero after this are rays.
@@ -213,6 +240,8 @@ def led(segments, inpt_dict):
             # If we have a fine structure model, we also need to check the contrast.
             if inpt_dict["fine_structure"]:
                 contrast_image = resample/F
+                if iteration_N == 1:
+                    contrast_images[k,:,:] = contrast_image
                 contrast_image[contrast_image < inpt_dict["contrast_factor"]] = 0 # any not zero after this are rays.
                 contrast_image[contrast_image!=0] = 1 # for visualization and comparison to sampling flux model.
                 
@@ -243,38 +272,6 @@ def led(segments, inpt_dict):
                 integration = np.ma.masked_array(integration,
                                                  mask=bad_pix_map[k,:,:])
 
-            # Make some plots if asked.
-            if (plot_step or save_step) and k == 0:
-                # Plot the noise model and fine structure model of the first integration.
-                fig, ax, im = img(noise_model, aspect=5, vmin=1e-3, vmax=50, title="LED Noise Model",
-                                  norm='linear', verbose=inpt_dict["verbose"])
-                if save_step:
-                    plt.savefig(os.path.join(inpt_dict["diagnostic_plots"],"S3_spatial-LED_noise-model_N{}_int{}.png".format(iteration_N, k)),
-                                dpi=300, bbox_inches='tight')
-                if plot_step:
-                    plt.show()
-                plt.close()
-
-                if inpt_dict["fine_structure"]:
-                    fig, ax, im = img(F, aspect=5, title="LED Fine Structure Model",
-                                      norm='linear', verbose=inpt_dict["verbose"])
-                    if save_step:
-                        plt.savefig(os.path.join(inpt_dict["diagnostic_plots"],"S3_spatial-LED_fine-structure-model_N{}_int{}.png".format(iteration_N, k)),
-                                    dpi=300, bbox_inches='tight')
-                    if plot_step:
-                        plt.show()
-                    plt.close()
-                
-                # Also plot what was caught as bad.
-                fig, ax, im = img(S, aspect=5, vmin=0, vmax=1, title="Flagged by LED",
-                                  norm='linear', verbose=inpt_dict["verbose"])
-                if save_step:
-                    plt.savefig(os.path.join(inpt_dict["diagnostic_plots"],"S3_spatial-LED_flags-check_N{}_int{}.png".format(iteration_N, k)),
-                                dpi=300, bbox_inches='tight')
-                if plot_step:
-                    plt.show()
-                plt.close()
-
             # Increment iteration number and check if condition to stop iterating is hit.
             iteration_N += 1
             if (inpt_dict["led_n"] != None and iteration_N > inpt_dict["led_n"]): # if it has hit the iteration cap
@@ -296,27 +293,72 @@ def led(segments, inpt_dict):
     if (plot_step or save_step):
         # Create plots of the entire bad_pix_map collapsed in on itself in time.
         bad_pix_alltime = np.sum(bad_pix_map,axis=0)
-        bad_pix_alltime[bad_pix_alltime>0] = 1
-        fig, ax, im = img(bad_pix_alltime, aspect=5, title='Laplacian Edge Detection DQ flags',
-                          vmin=0, vmax=1, norm='linear', verbose=inpt_dict["verbose"])
+        fig, ax = plt.subplots(figsize=(20,4))
+        im = ax.imshow(bad_pix_alltime/bad_pix_map.shape[0],origin='lower',cmap='viridis',
+                       norm='linear',aspect=5,vmin=0,vmax=1)
+        ax.set_title("Laplacian Edge Detection DQ flags")
+        cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=40)
+        cbar.set_label('Fraction of integrations flagged')
+
         if save_step:
             plt.savefig(os.path.join(inpt_dict["diagnostic_plots"],"S3_spatial-LED_flags.png"),
                         dpi=300, bbox_inches='tight')
         if plot_step:
             plt.show()
         plt.close()
-    
+
     if (plot_ints or save_ints):
-        # Create plots of each frame of the bad_pix_map in time.
-        for i in range(bad_pix_map.shape[0]):
-            fig, ax, im = img(bad_pix_map[i,:,:], aspect=5, title='Laplacian Edge Detection DQ flags',
-                              vmin=0, vmax=1, norm='linear', verbose=inpt_dict["verbose"])
-            if save_step:
-                plt.savefig(os.path.join(inpt_dict["diagnostic_plots"],"S3_spatial-LED_flags_int{}.png".format(i)),
-                            dpi=300, bbox_inches='tight')
-            if plot_step:
-                plt.show()
-            plt.close()
+        # Create plots of the median noise model, fine structure model, and S images.
+        fig, ax = plt.subplots(figsize=(20,4))
+        medimg = np.median(noise_models,axis=0)
+        vmin, vmax = np.nanpercentile(medimg,q=5), np.nanpercentile(medimg,q=95)
+        vmin = max((vmin,0.1))
+        im = ax.imshow(medimg,origin='lower',cmap='viridis',
+                       norm='log',aspect=5,vmin=vmin,vmax=vmax)
+        ax.set_title("Median noise model")
+        cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=40)
+        cbar.set_label('Flux [DN]')
+
+        if save_step:
+            plt.savefig(os.path.join(inpt_dict["diagnostic_plots"],"S3_spatial-LED_median-noise-model.png"),
+                        dpi=300, bbox_inches='tight')
+        if plot_step:
+            plt.show()
+        plt.close()
+
+        fig, ax = plt.subplots(figsize=(20,4))
+        medimg = np.median(fine_structure_models,axis=0)
+        vmin, vmax = np.nanpercentile(medimg,q=5), np.nanpercentile(medimg,q=95)
+        vmin = max((vmin,0.1))
+        im = ax.imshow(medimg,origin='lower',cmap='viridis',
+                       norm='log',aspect=5,vmin=vmin,vmax=vmax)
+        ax.set_title("Median fine structure model")
+        cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=40)
+        cbar.set_label('Flux [DN]')
+
+        if save_step:
+            plt.savefig(os.path.join(inpt_dict["diagnostic_plots"],"S3_spatial-LED_median-fine-structure-model.png"),
+                        dpi=300, bbox_inches='tight')
+        if plot_step:
+            plt.show()
+        plt.close()
+
+        fig, ax = plt.subplots(figsize=(20,4))
+        medimg = np.median(s_images,axis=0)
+        vmin, vmax = np.nanpercentile(medimg,q=5), np.nanpercentile(medimg,q=95)
+        vmin = max((vmin,0.1))
+        im = ax.imshow(medimg,origin='lower',cmap='viridis',
+                       norm='log',aspect=5,vmin=vmin,vmax=vmax)
+        ax.set_title("Median S")
+        cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=40)
+        cbar.set_label('Flux [DN]')
+
+        if save_step:
+            plt.savefig(os.path.join(inpt_dict["diagnostic_plots"],"S3_spatial-LED_median-S.png"),
+                        dpi=300, bbox_inches='tight')
+        if plot_step:
+            plt.show()
+        plt.close()
 
     # Log.
     if inpt_dict["verbose"] >= 1:

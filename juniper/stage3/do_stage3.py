@@ -111,30 +111,19 @@ def do_stage3(filepaths, outfiles, outdir, steps, plot_dir):
     save_s3_output(segments, disp_pos, cdisp_pos, cdisp_width, moved_ints, outfiles, outdir)
 
     if plot_step or save_step:
-        fig, ax = plt.subplots(2,1,figsize=(10,5),sharex=True)
-        ax[0].imshow(raw_f0,aspect=20,cmap='binary_r',
-                     vmin=0,vmax=6000,norm='log')
-        ax[1].imshow(segments.data.values[0,:,:],aspect=20,cmap='binary_r',
-                     vmin=0,vmax=6000,norm='log')
+        fig, ax = plt.subplots(2,1,figsize=(20,8),sharex=True)
+        vmin, vmax = np.nanpercentile(segments.data[0,:,:],q=5), np.nanpercentile(segments.data[0,:,:],q=95)
+        vmin = max((0.1,vmin))
+        ax[0].imshow(raw_f0,cmap='viridis',origin='lower',aspect='auto',
+                     vmin=vmin,vmax=vmax,norm='log')
+        ax[1].imshow(segments.data.values[0,:,:],cmap='viridis',origin='lower',aspect='auto',
+                     vmin=vmin,vmax=vmax,norm='log')
         if save_step:
             plt.savefig(os.path.join(steps["diagnostic_plots"],"S3_before-after_int0.png"),
                         dpi=300, bbox_inches='tight')
         if plot_step:
             plt.show(block=True)
         plt.close()
-    if plot_ints or save_ints:
-        for k in range(segments.data.values.shape[0]):
-            fig, ax = plt.subplots(2,1,figsize=(10,5),sharex=True)
-            ax[0].imshow(raw_fs[k,:,:],aspect=20,cmap='binary_r',
-                         vmin=0,vmax=6000,norm='log')
-            ax[1].imshow(segments.data.values[k,:,:],aspect=20,cmap='binary_r',
-                         vmin=0,vmax=6000,norm='log')
-            if save_step:
-                plt.savefig(os.path.join(steps["diagnostic_plots"],"S3_before-after_f{}.png".format(k)),
-                            dpi=300, bbox_inches='tight')
-            if plot_step:
-                plt.show(block=True)
-            plt.close()
 
     # Log.
     if steps["verbose"] >= 1:
