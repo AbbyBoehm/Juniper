@@ -2,13 +2,12 @@ import os
 from tqdm import tqdm
 
 import numpy as np
-import xarray as xr
 from astropy.io import fits
 
 from jwst import datamodels as dm
 
 def stitch_files(files, time_step, verbose):
-    """Reads all supplied files and stitches them together into a single array.
+    """Reads all supplied *calints.fits files and stitches them together into a dictionary.
 
     Args:
         files (lst of str): filepaths to files that are to be loaded.
@@ -16,11 +15,11 @@ def stitch_files(files, time_step, verbose):
         verbose (int): from 0 to 2. How much logging to do.
 
     Returns:
-        xarray: loaded data.
+        dict: loaded data.
     """
     # Log.
     if verbose >= 1:
-        print("Stitching data files together for post-processing...")
+        print("Stitching data *calints.fits files together for Stage 3 processing...")
     
     if verbose == 2:
         print("Will stitch together the following files:")
@@ -28,73 +27,63 @@ def stitch_files(files, time_step, verbose):
             print(i, f)
 
     # Initialize some empty lists.
-    data, err, dq, cdisp, disp, cwidth, wav = [], [], [], [], [], [], [] # the data_vars of the xarray
-    time = [] # the coords of the xarray
-    int_count, flagged, details = [], [], [] # the attributes of the array
+    data, err, jwstdq, wav = [], [], [], [], # the data
+    time = [] # the coords
+    int_count, insts, dets, filters, gratings = [], [], [], [], [] # the attributes
 
     # Read in each file.
     for file in tqdm(files,
                      desc = 'Stitching files...',
                      disable=(not time_step)):
-        if ".fits" in file:
-            # It's Stage 2 output.
-            data_i, err_i, int_count_i, wav_i, dq_i, time_i, details_i = read_one_datamodel(file)
-            wav_i = [wav_i for i in range(time_i.shape[0])]
-            if details_i[-1] == "MIR_LRS-SLITLESS":
-                # It's MIRI. Rotate it.
-                if verbose == 2:
-                    print("MIRI LRS file found. Rotating arrays...")
-                previous_shape = np.shape(data_i)
-                data_i = np.rot90(data_i,k=3,axes=(1,2))
-                new_shape = np.shape(data_i)
-                err_i = np.rot90(err_i,k=3,axes=(1,2))
-                wav_i = np.rot90(wav_i,k=3,axes=(1,2))
-                dq_i = np.rot90(dq_i,k=3,axes=(1,2))
-                print("Shape changed from {} to {}.".format(previous_shape,new_shape))
-            # Placeholder empty arrays.
-            disp_i, cdisp_i, cwidth_i, flagged_i = np.zeros_like(time_i), np.zeros_like(time_i), np.zeros_like(time_i), np.zeros_like(time_i)
-        elif ".nc" in file:
-            # It's Stage 3 output.
-            data_i, err_i, int_count_i, wav_i, dq_i, time_i, disp_i, cdisp_i, cwidth_i, flagged_i, details_i = read_one_postproc(file)
-        # Attributes are appended once.
-        int_count.append(int_count_i)
-        flagged.append(flagged_i)
-        details.append(details_i)
+        data_i, err_i, int_count_i, wav_i, jwstdq_i, t_i,\
+            obs_instrument_i, obs_detector_i, obs_filter_i, obs_grating_i = read_one_datamodel(file)
+        wav_i = [wav_i for i in range(t_i.shape[0])] # wavelength solution does not change,
+                                                     # but must be extended across all time
+        if obs_grating_i == "MIR_LRS-SLITLESS":
+            # It's MIRI. Rotate it.
+            if verbose == 2:
+                print("MIRI LRS file found. Rotating arrays...")
+            previous_shape = np.shape(data_i)
+            data_i = np.rot90(data_i,k=3,axes=(1,2))
+            new_shape = np.shape(data_i)
 
-        # Datavars and coords are unpacked.
+            err_i = np.rot90(err_i,k=3,axes=(1,2))
+            wav_i = np.rot90(wav_i,k=3,axes=(1,2))
+            jwstdq_i = np.rot90(jwstdq_i,k=3,axes=(1,2))
+            print("Shape changed from {} to {}.".format(previous_shape,new_shape))
+        
+        # These do not need to be unpacked and can be appended as is.
+        int_count.append(int_count_i)
+        insts.append(obs_instrument_i)
+        dets.append(obs_detector_i)
+        filters.append(obs_filter_i)
+        gratings.append(obs_grating_i)
+
+        # The rest needs to be unpacked.
         for i in range(data_i.shape[0]):
             data.append(data_i[i])
             err.append(err_i[i])
-            dq.append(dq_i[i])
-            time.append(time_i[i])
-            disp.append(disp_i[i])
-            cdisp.append(cdisp_i[i])
-            cwidth.append(cwidth_i[i])
+            jwstdq.append(jwstdq_i[i])
+            time.append(t_i[i])
             wav.append(wav_i[i])
 
-    # Now convert to xarray.
-    segments = xr.Dataset(data_vars=dict(
-                                    data = (["time", "x", "y"], data),
-                                    err = (["time", "x", "y"], err),
-                                    dq = (["time", "x", "y"], dq),
-                                    disp = (["time"], disp),
-                                    cdisp = (["time"], cdisp),
-                                    cwidth = (["time"], cwidth),
-                                    wavelengths = (["time", "x", "y"], wav),
-                                    ),
-                        coords=dict(
-                               time = (["time"], time),
-                               ),
-                        attrs=dict(
-                              integrations = int_count,
-                              flagged = flagged,
-                              details = details,
-                              )
-    )
+    # Now convert to dict.
+    segments = {"data":np.array(data),
+                "err":np.array(err),
+                "badpixmask":np.zeros_like(data),
+                "jwstdq":np.array(jwstdq),
+                "junidq":np.zeros_like(jwstdq),
+                "wavelengths":np.array(wav),
+                "time":np.array(time),
+                "integrations":int_count,
+                "insts":insts,
+                "detectors":dets,
+                "filters":filters,
+                "gratings":gratings,}
 
     # Log.
     if verbose >= 1:
-        print("Files stitched together into xarray.")
+        print("Files stitched together into dictionary.")
     
     return segments
     
@@ -125,43 +114,127 @@ def read_one_datamodel(file):
             obs_grating = f[0].header["GRATING"]
          except KeyError:
              obs_grating = f[0].header["EXP_TYPE"]
-         obs_details = [obs_instrument,
-                        obs_detector,
-                        obs_filter,
-                        obs_grating]
-    return data, err, int_count, wav, dq, t, obs_details
+    
+    return data, err, int_count, wav, dq, t, obs_instrument, obs_detector, obs_filter, obs_grating
 
-def read_one_postproc(file):
-    """Read one post-processing .nc file and return its attributes.
+def stitch_npys(files, time_step, verbose):
+    """Reads all supplied *calints.fits files and stitches them together into a dictionary.
 
     Args:
-        file (str): path to the .nc file you want to read out.
+        files (lst of str): filepaths to files that are to be loaded.
+        time_step (bool): whether to report timing with tqdm.
+        verbose (int): from 0 to 2. How much logging to do.
 
     Returns:
-        np.array, np.array, int, np.array, np.array, np.array, np.array, np.array,
-        np.array, np.array: the data, errors, integration count, wavelength solution,
-        data quality array, exposure mid-times, cross/dispersion positions and widths,
-        and frame numbers flagged for motion.
+        dict: loaded data.
     """
-    segment = xr.open_dataset(file)
-    data = segment.data.values
-    err = segment.err.values
-    int_count = segment.integrations
-    wav = segment.wavelengths.values
-    dq = segment.dq.values
-    time = segment.time.values
-    disp = segment.disp.values
-    cdisp = segment.cdisp.values
-    cwidth = segment.cwidth.values
-    flagged = segment.flagged
-    details = segment.details.values #[segment.instrument,segment.detector,segment.filter,segment.grating]
-    return data, err, int_count, wav, dq, time, disp, cdisp, cwidth, flagged, details
+    # Log.
+    if verbose >= 1:
+        print("Stitching .npy files together for Stage 4 processing...")
+    
+    if verbose == 2:
+        print("Will stitch together the following files:")
+        for i, f in enumerate(files):
+            print(i, f)
 
-def save_s3_output(segments, disp_pos, cdisp_pos, cdisp_widths, moved_ints, outfiles, outdir):
-    """Saves an xarray for every cleaned segment in the stitched-together files.
+    # Initialize some empty lists.
+    data, err, badpixmask, jwstdq, junidq, \
+        cdisp, disp, cwidth, wav = [], [], [], [], [], [], [], [], [] # the data
+    time = [] # the coords
+    int_count, flagged, insts, dets, filters, gratings = [], [], [], [], [], [] # the attributes
+
+    # Read in each file.
+    for file in tqdm(files,
+                     desc = 'Stitching files...',
+                     disable=(not time_step)):
+        data_i, err_i, badpixmask_i, jwstdq_i, junidq_i, \
+            disp_i, cdisp_i, cwidth_i, wav_i, t_i, \
+                flagged_i, int_count_i, obs_instrument_i, obs_detector_i, obs_filter_i, obs_grating_i = read_one_postproc(file)
+
+        # These do not need to be unpacked and can be appended as is.
+        int_count.append(int_count_i)
+        flagged.append(flagged_i)
+        insts.append(obs_instrument_i)
+        dets.append(obs_detector_i)
+        filters.append(obs_filter_i)
+        gratings.append(obs_grating_i)
+
+        # The rest needs to be unpacked.
+        for i in range(data_i.shape[0]):
+            data.append(data_i[i])
+            err.append(err_i[i])
+            badpixmask.append(badpixmask_i[i])
+            jwstdq.append(jwstdq_i[i])
+            junidq.append(junidq_i[i])
+            time.append(t_i[i])
+            disp.append(disp_i[i])
+            cdisp.append(cdisp_i[i])
+            cwidth.append(cwidth_i[i])
+            wav.append(wav_i[i])
+
+    # Now convert to dict.
+    segments = {"data":np.array(data),
+                "err":np.array(err),
+                "badpixmask":np.array(badpixmask),
+                "jwstdq":np.array(jwstdq),
+                "junidq":np.array(junidq),
+                "disp":np.array(disp),
+                "cdisp":np.array(cdisp),
+                "cwidth":np.array(cwidth),
+                "wavelengths":np.array(wav),
+                "time":np.array(time),
+                "integrations":int_count,
+                "flagged":flagged,
+                "insts":insts,
+                "detectors":dets,
+                "filters":filters,
+                "gratings":gratings,}
+
+    # Log.
+    if verbose >= 1:
+        print("Files stitched together into dictionary.")
+    
+    return segments
+
+
+def read_one_postproc(file):
+    """Read one post-processing .npy file and return its attributes.
 
     Args:
-        segments (xarray): the xarray generated by stitch_files.
+        file (str): path to the .npy file you want to read out.
+
+    Returns:
+        np.array, np.array, int, np.array, np.array, np.array, np.array, np.array, \
+        np.array, np.array: the data, errors, integration count, wavelength solution, \
+        data quality array, exposure mid-times, cross/dispersion positions and widths, \
+        and frame numbers flagged for motion.
+    """
+    segment = np.load(file,allow_pickle=True).item()
+    data = segment["data"]
+    err = segment["err"]
+    badpixmask = segment["badpixmask"]
+    int_count = segment["integrations"]
+    wav = segment["wavelengths"]
+    jwstdq = segment["jwstdq"]
+    junidq = segment["junidq"]
+    time = segment["time"]
+    disp = segment["disp"]
+    cdisp = segment["cdisp"]
+    cwidth = segment["cwidth"]
+    flagged = segment["flagged"]
+    insts = segment["insts"]
+    dets = segment["detectors"]
+    filters = segment["filters"]
+    gratings = segment["gratings"]
+    return data, err, badpixmask, jwstdq, junidq, \
+            disp, cdisp, cwidth, wav, time, \
+                flagged, int_count, insts, dets, filters, gratings
+
+def save_s3_output(segments, disp_pos, cdisp_pos, cdisp_widths, moved_ints, outfiles, outdir):
+    """Saves a .npy for every cleaned segment in the stitched-together files.
+
+    Args:
+        segments (dictionary): the dictionary generated by stitch_files.
         disp_pos (list): dispersion positions. Could be an empty list.
         cdisp_pos (list): cross-dispersion positions. Could be an empty list.
         cdisp_widths (list): cross-dispersion widths. Could be an empty list.
@@ -172,18 +245,22 @@ def save_s3_output(segments, disp_pos, cdisp_pos, cdisp_widths, moved_ints, outf
     # For every segment in the array, we need to break it up.
     int_left = 0
     int_right = 0
-    for i, (ints, outfile) in enumerate(zip(segments.integrations, outfiles)):
+    for i, (ints, outfile) in enumerate(zip(segments["integrations"], outfiles)):
         # Get the next limit.
         int_right += ints
 
         # Snip just the data that we need.
-        data = segments.data.values[int_left:int_right,:,:]
-        err = segments.err.values[int_left:int_right,:,:]
-        dq = segments.dq.values[int_left:int_right,:,:]
-        time = segments.time.values[int_left:int_right]
-        wavelengths = segments.wavelengths.values[int_left:int_right,:,:]
-        #instrument, detector, filter, grating = segments.details[i]
-        seg_details = segments.details[i]
+        data = segments["data"][int_left:int_right,:,:]
+        err = segments["err"][int_left:int_right,:,:]
+        badpixmask = segments["badpixmask"][int_left:int_right,:,:]
+        jwstdq = segments["jwstdq"][int_left:int_right,:,:]
+        junidq = segments["junidq"][int_left:int_right,:,:]
+        time = segments["time"][int_left:int_right]
+        wavelengths = segments["wavelengths"][int_left:int_right,:,:]
+        insts = segments["insts"][i]
+        dets = segments["detectors"][i]
+        filters = segments["filters"][i]
+        gratings = segments["gratings"][i]
 
         # Plus the new tracking data, if there is any.
         disp = np.zeros_like(time)
@@ -201,35 +278,34 @@ def save_s3_output(segments, disp_pos, cdisp_pos, cdisp_widths, moved_ints, outf
         if moved_ints:
             moved_int = sorted([j for j in moved_ints if (j >= int_left and j <= int_right)])
 
-        # Now convert to xarray.
-        segment = xr.Dataset(data_vars=dict(
-                                    data=(["time", "x", "y"], data),
-                                    err=(["time", "x", "y"], err),
-                                    dq = (["time", "x", "y"], dq),
-                                    disp = (["time"], disp),
-                                    cdisp = (["time"], cdisp),
-                                    cwidth = (["time"], cwidth),
-                                    wavelengths = (["time", "x", "y"], wavelengths),
-                                    ),
-                        coords=dict(
-                               time = (["time"], time),
-                               details = (["observation_mode"], seg_details),
-                               ),
-                        attrs=dict(
-                              integrations = ints,
-                              flagged = moved_int,
-                              )
-        )
+        # Now convert to dictionary.
+        segment = {"data":data,
+                   "err":err,
+                   "badpixmask":badpixmask,
+                   "jwstdq":jwstdq,
+                   "junidq":junidq,
+                   "time":time,
+                   "wavelengths":wavelengths,
+                   "disp":disp,
+                   "cdisp":cdisp,
+                   "cwidth":cwidth,
+                   "insts":insts,
+                   "detectors":dets,
+                   "filters":filters,
+                   "gratings":gratings,
+                   "integrations":ints,
+                   "flagged":moved_int}
 
-        # And save that segment as a file.
-        segment.to_netcdf(os.path.join(outdir, '{}.nc'.format(outfile)))
+        # And save that segment as a .npy file.
+        np.save(os.path.join(outdir, '{}.npy'.format(outfile)),segment)
 
         # Advance int_left.
         int_left = int_right
 
 def save_s4_output(oneD_spec, oneD_err, time, wav_sols, shifts,
-                   xpos, ypos, widths, details, outfile, outdir):
-    """Saves an xarray for the extracted 1D spectra.
+                   xpos, ypos, widths, insts, dets, filters, gratings,
+                   outfile, outdir):
+    """Saves a .npy for the extracted 1D spectra.
 
     Args:
         oneD_spec (np.array): extracted 1D spectra.
@@ -240,7 +316,10 @@ def save_s4_output(oneD_spec, oneD_err, time, wav_sols, shifts,
         xpos (np.array): dispersion positions for trace.
         ypos (np.array): cross-dispersion positions for trace.
         widths (np.array): cross-dispersion widths for trace.
-        details (list of list): observing details, including instrument, detector, filter, and grating.
+        insts (list of str): instruments used in this observation.
+        dets (list of str): detectors used in this observation.
+        filters (list of str): filters used in this observation.
+        gratings (list of str): gratings used in this observation.
         outfile (str): name of the output file.
         outdir (str): directory to which the .nc file will be saved to.
     """
@@ -248,58 +327,58 @@ def save_s4_output(oneD_spec, oneD_err, time, wav_sols, shifts,
     if len(shifts) == 0:
         shifts = [0 for i in time]
 
-    # Convert to xarray.
-    spectra = xr.Dataset(data_vars=dict(
-                                    spectrum=(["time", "wavelength"], oneD_spec),
-                                    err=(["time", "wavelength"], oneD_err),
-                                    waves=(["time", "wavelength"],wav_sols),
-                                    shifts=(["time"],shifts),
-                                    xpos=(["time"],xpos),
-                                    ypos=(["time"],ypos),
-                                    widths=(["time"],widths),
-                                    ),
-                        coords=dict(
-                               time = (["time"], time),
-                               details = (["observation_mode"], details),
-                               ),
-                        attrs=dict(
-                              )
-    )
+    # Convert to dictionary.
+    spectra = {"spectrum":oneD_spec,
+               "err":oneD_err,
+               "waves":wav_sols,
+               "shifts":shifts,
+               "xpos":xpos,
+               "ypos":ypos,
+               "widths":widths,
+               "time":time,
+               "insts":insts,
+               "detectors":dets,
+               "filters":filters,
+               "gratings":gratings}
 
-    # And save that segment as a file.
-    spectra.to_netcdf(os.path.join(outdir, '{}.nc'.format(outfile)))
+    # And save that segment as a .npy file.
+    np.save(os.path.join(outdir, '{}.npy'.format(outfile)),spectra)
 
 def read_one_spec(file):
-    """Read one 1D spectra .nc file and return its attributes.
+    """Read one 1D spectra .npy file and return its attributes.
 
     Args:
-        file (str): path to the .nc file you want to read out.
+        file (str): path to the .npy file you want to read out.
 
     Returns:
-        np.array, np.array, np.array, np.array, np.array, np.array, np.array,
-        np.array, list: the spectrum, uncertainties, wavelength solutions,
-        alignment shifts, dispersion/cross-dispersion positions and widths,
-        times of mid-exposure for each spectrum, and the observing details
+        np.array, np.array, np.array, np.array, np.array, np.array, np.array, \
+        np.array, list: the spectrum, uncertainties, wavelength solutions, \
+        alignment shifts, dispersion/cross-dispersion positions and widths, \
+        times of mid-exposure for each spectrum, and the observing details \
         which are instrument, detector, filter, and grating.
     """
-    spectra = xr.open_dataset(file)
-    spectrum = spectra.spectrum.values
-    err = spectra.err.values
-    waves = spectra.waves.values
-    shifts = spectra.shifts.values
-    xpos = spectra.xpos.values
-    ypos = spectra.ypos.values
-    widths = spectra.widths.values
-    time = spectra.time.values
-    details = spectra.details.values #[spectra.instrument,spectra.detector,spectra.filter,spectra.grating]
-    return spectrum, err, waves, shifts, xpos, ypos, widths, time, details
+    spectra = np.load(file,allow_pickle=True).item()
+    spectrum = spectra["spectrum"]
+    err = spectra["err"]
+    waves = spectra["waves"]
+    shifts = spectra["shifts"]
+    xpos = spectra["xpos"]
+    ypos = spectra["ypos"]
+    widths = spectra["widths"]
+    time = spectra["time"]
+    insts = spectra["insts"]
+    dets = spectra["detectors"]
+    filters = spectra["filters"]
+    gratings = spectra["gratings"]
+    return spectrum, err, waves, shifts, xpos, ypos, widths, time,\
+        insts, dets, filters, gratings
 
 def stitch_spectra(files, detector_method, time_step, verbose):
-    """Reads in *1Dspec.nc files and concatenates them if needed.
+    """Reads in *1Dspec.npy files and concatenates them if needed.
 
     Args:
-        files (list of str): paths to all *1Dspec.nc files you intend to process.
-        detector_method (str): if not None, how to handle when 1D spectra from
+        files (list of str): paths to all *1Dspec.npy files you intend to process.
+        detector_method (str): if not None, how to handle when 1D spectra from \
         multiple detectors are found.
         time_step (bool): whether to report timing with tqdm.
         verbose (int): from 0 to 2. How much logging to do.
@@ -316,11 +395,12 @@ def stitch_spectra(files, detector_method, time_step, verbose):
         for i, f in enumerate(files):
             print(i, f)
 
-    # If there is just one file, we can take it as an xarray and adjust it to have the detector dim.
+    # If there is just one file, we can take it as a dict and adjust it to have the detector dim.
     if len(files) == 1:
         if verbose >= 1:
             print("Reading out one 1D spectrum...")
-        spectrum, err, waves, shifts, xpos, ypos, widths, time, details = read_one_spec(files[0])
+        spectrum, err, waves, shifts, xpos, ypos, widths, time, \
+             insts, dets, filters, gratings = read_one_spec(files[0])
         # Simply bundle it together in a dictionary.
         output = {}
         output["spectrum"] = [spectrum,]
@@ -331,38 +411,23 @@ def stitch_spectra(files, detector_method, time_step, verbose):
         output["ypos"] = [ypos,]
         output["widths"] = [widths,]
         output["time"] = [time,]
-        output["details"] = [details,]
-        '''
-        spectra = xr.Dataset(data_vars=dict(
-                                    spectrum=(["detector", "time", "wavelength"], [spectrum,]),
-                                    err=(["detector", "time", "wavelength"], [err,]),
-                                    waves=(["detector", "time", "wavelength"],[waves,]),
-                                    shifts=(["detector", "time"],[shifts,]),
-                                    xpos=(["detector", "time"],[xpos,]),
-                                    ypos=(["detector", "time"],[ypos,]),
-                                    widths=(["detector", "time"],[widths,]),
-                                    ),
-                        coords=dict(
-                               time = (["detector","time"], [time,]),
-                               detector = (["detector"], [0,]),
-                               details = (["detector","observation_mode"], [details,]), # this has the form [[INSTRUMENT, DETECTOR, FILTER, GRATING]]
-                               ),
-                        attrs=dict(
-                              )
-                              )
-        '''
+        output["insts"] = [insts,]
+        output["detectors"] = [dets,]
+        output["filters"] = [filters,]
+        output["gratings"] = [gratings,]
 
     else:
         # Initialize some empty lists.
-        spectra, errors, waves, shifts, xpos, ypos, widths = [], [], [], [], [], [], [] # the data_vars of the xarray
-        time = [] # the coords of the xarray
-        details = [] # the attributes of the xarray
+        spectra, errors, waves, shifts, xpos, ypos, widths = [], [], [], [], [], [], [] # the data_vars
+        time = [] # the coords
+        insts, dets, filters, gratings = [], [], [], [], [] # the attributes
 
         # Read in each file.
         for file in tqdm(files,
                         desc = 'Parsing spectral files...',
                         disable=(not time_step)):
-            spectrum_i, err_i, waves_i, shifts_i, xpos_i, ypos_i, widths_i, time_i, details_i = read_one_spec(file)
+            spectrum_i, err_i, waves_i, shifts_i, xpos_i, ypos_i, widths_i, time_i, \
+                insts_i, dets_i, filters_i, gratings_i = read_one_spec(file)
             spectra.append(spectrum_i)
             errors.append(err_i)
             waves.append(waves_i)
@@ -371,47 +436,16 @@ def stitch_spectra(files, detector_method, time_step, verbose):
             ypos.append(ypos_i)
             widths.append(widths_i)
             time.append(time_i)
-            details.append(details_i)
+            insts.append(insts_i)
+            dets.append(dets_i)
+            filters.append(filters_i)
+            gratings.append(gratings_i)
 
         # Now check instructions.
         if detector_method == "parallel":
-            # We do not sum anything. Instead, xarray needs to contain each spectrum separately.
+            # We do not sum anything. Instead, dict needs to contain each spectrum separately.
             if verbose >= 1:
                 print("Parallelising multiple spectra...")
-
-            '''
-            # Since xarrays wig out if the dims aren't the same, we check for incongruities in
-            # dispersion and time.
-            if verbose >= 1:
-                print("Checking for dispersion and integration incongruities...")
-            max_time_axis = max([np.shape(arr)[0] for arr in spectra])
-            max_disp_axis = max([np.shape(arr)[1] for arr in spectra])
-            
-            # Repair time incongruities, which appear in all data.
-            for i in range(len(spectra)):
-                padding_size = abs(spectra[i].shape[0] - max_time_axis)
-                if padding_size != 0:
-                    if verbose >= 1:
-                        print("Time incongruity found in {}th spectrum, correcting...".format(i))
-                    spectra[i] = np.pad(spectra[i], ((0, padding_size), (0, 0)), 'empty')
-                    errors[i] = np.pad(errors[i], ((0, padding_size), (0, 0)), 'empty')
-                    waves[i] = np.pad(waves[i], ((0, padding_size), (0, 0)), 'empty')
-                    shifts[i] = np.pad(shifts[i], ((0, padding_size)), 'empty')
-                    xpos[i] = np.pad(xpos[i], ((0, padding_size)), 'empty')
-                    ypos[i] = np.pad(ypos[i], ((0, padding_size)), 'empty')
-                    widths[i] = np.pad(widths[i], ((0, padding_size)), 'empty')
-                    time[i] = np.pad(time[i], ((0, padding_size)), 'empty')
-            
-            # Repair dispersion incongruities, which appear in spectral data.
-            for i in range(len(spectra)):
-                padding_size = abs(spectra[i].shape[1] - max_disp_axis)
-                if padding_size != 0:
-                    if verbose >= 1:
-                        print("Dispersion incongruity found in {}th spectrum, correcting...".format(i))
-                    spectra[i] = np.pad(spectra[i], ((0, 0), (0, padding_size)), 'empty')
-                    errors[i] = np.pad(errors[i], ((0, 0), (0, padding_size)), 'empty')
-                    waves[i] = np.pad(waves[i], ((0, 0), (0, padding_size)), 'empty')
-            '''
 
             # Simply bundle it together in a dictionary.
             output = {}
@@ -423,41 +457,24 @@ def stitch_spectra(files, detector_method, time_step, verbose):
             output["ypos"] = ypos
             output["widths"] = widths
             output["time"] = time
-            output["details"] = details
-
-            '''
-            spectra = xr.Dataset(data_vars=dict(
-                                    spectrum=(["detector", "time", "wavelength"], spectra),
-                                    err=(["detector", "time", "wavelength"], errors),
-                                    waves=(["detector", "time", "wavelength"],waves),
-                                    shifts=(["detector", "time"],shifts),
-                                    xpos=(["detector", "time"],xpos),
-                                    ypos=(["detector", "time"],ypos),
-                                    widths=(["detector", "time"],widths),
-                                    ),
-                        coords=dict(
-                               time = (["detector","time"], time),
-                               detectors = (["detector"], [i for i in range(len(files))]),
-                               details = (["detector","observation_mode"], details), # this has the form Ndetectors x [[INSTRUMENT, DETECTOR, FILTER, GRATING]]
-                               ),
-                        attrs=dict(
-                              )
-                              )
-            '''
+            output["insts"] = insts
+            output["detectors"] = dets
+            output["filters"] = filters
+            output["gratings"] = gratings
         
         elif detector_method == "join":
             # Check which detectors you are trying to join and warn the user about heinous combos.
             print("Joining multiple spectra...")
-            gratings = [x[-1] for x in details]
+            gratings = [x for x in output["gratings"]]
             if any([gratings[0] != grating for grating in gratings]): # if any grating shows up that does not match the first one
                 if verbose >= 1:
-                    print("Warning: I noticed you are trying to stitch together files that use different dispering elements.")
-                    print("While I commend your bravery, please note that the ''join'' method of combining files")
-                    print("was intended only for single dispersers which span multiple detectors (e.g. G395H)")
-                    print("and the correct method for treating multiple dispersers is ''parallel''.")
-                    print("If you are not using limb darkening models like ExoTiC-LD, this should not crash the code.")
-                    print("(It will still cause some creative and surprising behavior though.)")
-                    print("If you are using limb darkening models, please relaunch Stage 5 with the ''detectors'' keyword set to ''parallel''.")
+                    print("Warning: I noticed you are trying to stitch together files that use different dispering elements. " \
+                          "While I commend your bravery, please note that the ''join'' method of combining files " \
+                          "was intended only for single dispersers which span multiple detectors (e.g. G395H) " \
+                          "and the correct method for treating multiple dispersers is ''parallel''. " \
+                          "If you are not using limb darkening models like ExoTiC-LD, this should not crash the code." \
+                          "(It will still cause some creative and surprising behavior though.)" \
+                          "If you are using limb darkening models, please relaunch Stage 5 with the ''detectors'' keyword set to ''parallel''.")
             
             # For every timestamp, we have to concatenate each 1D spectrum together as well as the wavelength solution.
             con_spec, con_err, con_waves = [], [], []
@@ -497,35 +514,18 @@ def stitch_spectra(files, detector_method, time_step, verbose):
             output["ypos"] = [ypos,]
             output["widths"] = [widths,]
             output["time"] = [time,]
-            output["details"] = [details[0],]
-            '''
-            spectra = xr.Dataset(data_vars=dict(
-                                    spectrum=(["detector", "time", "wavelength"], [con_spec,]),
-                                    err=(["detector", "time", "wavelength"], [con_err,]),
-                                    waves=(["detector", "time", "wavelength"],[con_waves,]),
-                                    shifts=(["detector", "time"],[shifts,]),
-                                    xpos=(["detector", "time"],[xpos,]),
-                                    ypos=(["detector", "time"],[ypos,]),
-                                    widths=(["detector", "time"],[widths,]),
-                                    ),
-                        coords=dict(
-                               time = (["detector", "time"], [time,]),
-                               detectors = (["detector",], [0,]), # there is now just one "detector" which is the joined dataset
-                               details = (["detector","observation_mode"], [details[0],]), # this has the form [[INSTRUMENT, DETECTOR, FILTER, GRATING]]
-                               ),
-                        attrs=dict(
-                              )
-                              )
-            '''
+            output["insts"] = [insts[0],]
+            output["detectors"] = [dets[0],]
+            output["filters"] = [filters[0],]
+            output["gratings"] = [gratings[0],]
 
-    #return spectra
     return output
 
 def read_one_lc(file):
     """Read one light curve .npy file and return its attributes.
 
     Args:
-        file (str): path to the .nc file you want to read out.
+        file (str): path to the .npy file you want to read out.
 
     Returns:
         dict: a dictionary containing the extracted 1D spectrum,
@@ -533,7 +533,6 @@ def read_one_lc(file):
         mid-exposure for each spectrum, and the observing details which are
         instrument, detector, filter, and grating.
     """
-    #curves = xr.open_dataset(file)
     curves = np.load(file,allow_pickle=True)
     
     return curves
@@ -569,10 +568,10 @@ def save_s5_output(planets, planets_err, flares, flares_err,
               "systematic_errs":systematics_err,
               "ld":ld,
               "ld_err":ld_err,
-              "time":time,#np.asarray(time),
-              "light_curve":light_curve,#np.asarray(light_curve),
-              "errors":errors,#np.asarray(errors),
-              "wavelength":wavelength}#np.asarray(wavelength)}
+              "time":time,
+              "light_curve":light_curve,
+              "errors":errors,
+              "wavelength":wavelength}
     
     filename = (os.path.join(outdir, '{}.npy'.format(outfile)))
     np.save(filename,output)

@@ -8,18 +8,17 @@ import matplotlib.colors as colors
 
 from juniper.util.diagnostics import tqdm_translate, plot_translate, timer
 from juniper.util.cleaning import median_spatial_filter, colbycol_bckg, get_trace_mask, get_com_mask
-from juniper.util.plotting import img
 
 def subtract_background(segments, inpt_dict):
     """Performs background subtraction on every integration in segments according to the instructions in inpt_dict.
     Adapted from routine developed by Trevor Foote (tof2@cornell.edu).
 
     Args:
-        segments (xarray): Its segments.data object will have its background removed.
+        segments (dict): Its segments["data"] object will have its background removed.
         inpt_dict (dict): A dictionary containing instructions for performing this step.
 
     Returns:
-        xarray: segments.data with background removed.
+        dict: segments["data"] with background removed.
     """
     # Log.
     if inpt_dict["verbose"] >= 1:
@@ -27,7 +26,6 @@ def subtract_background(segments, inpt_dict):
     
     # Check tqdm and plotting requests.
     time_step, time_ints = tqdm_translate(inpt_dict["verbose"])
-    # FIX : i'll figure this out later
     plot_step, plot_ints = plot_translate(inpt_dict["show_plots"])
     save_step, save_ints = plot_translate(inpt_dict["save_plots"])
 
@@ -35,25 +33,27 @@ def subtract_background(segments, inpt_dict):
     if time_step:
         t0 = time.time()
 
-    # Create symlognorm color map just in case we need it for plotting.
-    lin_threshold = 0.1
-    vmin, vmax = np.nanpercentile(segments.data[:,:,:],q=5), np.nanpercentile(segments.data[:,:,:],q=95)
-    symlog_norm_trace = colors.SymLogNorm(linthresh=lin_threshold, 
-                                          linscale=1, 
-                                          vmin=vmin,
-                                          vmax=vmax,
-                                          base=10)
-    vmin, vmax = np.nanpercentile(segments.data[:,:,:],q=0), np.nanpercentile(segments.data[:,:,:],q=82)
-    symlog_norm_bckgs = colors.SymLogNorm(linthresh=lin_threshold, 
-                                          linscale=1, 
-                                          vmin=vmin,
-                                          vmax=vmax,
-                                          base=10)
+    # Prep for plotting in case we do so.
+    if (plot_step or save_step):
+        # Create symlognorm color map.
+        lin_threshold = 0.1
+        vmin, vmax = np.nanpercentile(segments["data"][:,:,:],q=5), np.nanpercentile(segments["data"][:,:,:],q=95)
+        symlog_norm_trace = colors.SymLogNorm(linthresh=lin_threshold, 
+                                              linscale=1, 
+                                              vmin=vmin,
+                                              vmax=vmax,
+                                              base=10)
+        vmin, vmax = np.nanpercentile(segments["data"][:,:,:],q=0), np.nanpercentile(segments["data"][:,:,:],q=82)
+        symlog_norm_bckgs = colors.SymLogNorm(linthresh=lin_threshold, 
+                                              linscale=1, 
+                                              vmin=vmin,
+                                              vmax=vmax,
+                                              base=10)
 
     # Obtain the mask that hides the trace using the median frame.
-    trace_mask = np.zeros_like(segments.data[0,:,:])
+    trace_mask = np.zeros_like(segments["data"][0,:,:])
     if inpt_dict["trace_mask"]:
-        median_integration = np.median(segments.data.values,axis=0)
+        median_integration = np.median(segments["data"],axis=0)
         if inpt_dict["trace_com_mask"]:
             trace_mask = get_com_mask(median_spatial_filter(median_integration,
                                                             sigma=inpt_dict["bckg_sigma"],
@@ -70,9 +70,9 @@ def subtract_background(segments, inpt_dict):
             trace_mask_inverse = np.ma.masked_array(trace_mask,mask=np.ones_like(trace_mask)-trace_mask)
             fig, ax = plt.subplots(figsize=(20, 4))
             im = ax.imshow(median_integration,cmap='viridis',origin='lower',
-                           norm=symlog_norm_bckgs,aspect=5)
+                           norm=symlog_norm_bckgs,aspect='auto')
             ax.imshow(trace_mask_inverse,cmap='binary_r',origin='lower',
-                      norm=symlog_norm_bckgs,aspect=5)
+                      norm=symlog_norm_bckgs,aspect='auto')
             cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=40)
             cbar.set_label("Flux [DN]")
             ax.set_title("Integration-level 1/f trace mask")
@@ -85,15 +85,15 @@ def subtract_background(segments, inpt_dict):
             plt.close()
         
     # Track backgrounds for plotting, and keep a frame handy for plotting.
-    backgrounds = np.empty_like(segments.data.values[:,:,:])
-    precorrected_data = np.copy(segments.data.values[:,:,:])
+    backgrounds = np.empty_like(segments["data"][:,:,:])
+    precorrected_data = np.copy(segments["data"][:,:,:])
             
     # Iterate over frames.
-    for i in tqdm(range(segments.data.shape[0]),
+    for i in tqdm(range(segments["data"].shape[0]),
                   desc = "Removing 1/f noise from calibrated integrations...",
                   disable=(not time_ints)): # for each integration
         # Correct 1/f noise with integration-level background subtraction for that integration.
-        segments.data.values[i,:,:], backgrounds[i,:,:] = colbycol_bckg(segments.data.values[i,:,:],
+        segments["data"][i,:,:], backgrounds[i,:,:] = colbycol_bckg(segments["data"][i,:,:],
                                                                         inpt_dict["bckg_rows"],
                                                                         trace_mask)
         
@@ -102,11 +102,11 @@ def subtract_background(segments, inpt_dict):
         fig, ax = plt.subplots(figsize=(20,12),nrows=3)
         fig.subplots_adjust(hspace=0.01,wspace=0.01)
         im1 = ax[0].imshow(precorrected_data[0,:,:],cmap='viridis',origin='lower',
-                        norm=symlog_norm_trace,aspect=5)
-        im2 = ax[1].imshow(segments.data.values[0,:,:],cmap='viridis',origin='lower',
-                        norm=symlog_norm_trace,aspect=5)
-        im3 = ax[2].imshow(precorrected_data[0,:,:]-segments.data.values[0,:,:],cmap='viridis',origin='lower',
-                        norm='linear',aspect=5)
+                        norm=symlog_norm_trace,aspect='auto')
+        im2 = ax[1].imshow(segments["data"][0,:,:],cmap='viridis',origin='lower',
+                        norm=symlog_norm_trace,aspect='auto')
+        im3 = ax[2].imshow(precorrected_data[0,:,:]-segments["data"][0,:,:],cmap='viridis',origin='lower',
+                        norm='linear',aspect='auto')
         cbar = plt.colorbar(mappable=im3,orientation='horizontal',aspect=40)
         cbar.set_label("Stripe Flux [DN]")
         ax[0].set_title("Pre-corrected frame")
@@ -136,9 +136,9 @@ def subtract_background(segments, inpt_dict):
 
         fig, ax = plt.subplots(figsize=(20, 4))
         im1 = ax.imshow(median_integration,cmap='viridis',origin='lower',
-                        norm=symlog_norm_trace,aspect=5)
+                        norm=symlog_norm_trace,aspect='auto')
         im2 = ax.imshow(masked_background,cmap='viridis',origin='lower',
-                        norm=symlog_norm_bckgs,aspect=5)
+                        norm=symlog_norm_bckgs,aspect='auto')
         cbar1 = plt.colorbar(mappable=im1,orientation='horizontal',aspect=40)
         cbar1.set_label("Trace Flux [DN]")
         cbar2 = plt.colorbar(mappable=im2,orientation='horizontal',aspect=40)
@@ -163,8 +163,8 @@ def subtract_background(segments, inpt_dict):
             bckg_tseries[i] = np.ma.median(background_region)
         
         fig, ax = plt.subplots(figsize=(12,3))
-        ax.scatter(segments.time.values,bckg_tseries,color='red',alpha=0.5)
-        ax.plot(segments.time.values,bckg_tseries,color='red',ls='--')
+        ax.scatter(segments["time"],bckg_tseries,color='red',alpha=0.5)
+        ax.plot(segments["time"],bckg_tseries,color='red',ls='--')
 
         ax.set_xlabel("Exposure Time [MJD]")
         ax.set_ylabel("Flux [DN]")

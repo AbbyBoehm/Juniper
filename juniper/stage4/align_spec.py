@@ -28,7 +28,6 @@ def align(oneD_spec, oneD_err, wav_sols, oneD_time, inpt_dict):
 
     # Check tqdm and plotting requests.
     time_step, time_ints = tqdm_translate(inpt_dict["verbose"])
-    # FIX : i'll figure this out later
     plot_step, plot_ints = plot_translate(inpt_dict["show_plots"])
     save_step, save_ints = plot_translate(inpt_dict["save_plots"])
 
@@ -67,42 +66,34 @@ def align(oneD_spec, oneD_err, wav_sols, oneD_time, inpt_dict):
         interp_err = interp1d(cpix, oneD_err[i,:], kind='linear', fill_value='extrapolate')
         align_err.append(interp_err(shift_cpix))
         
-        if (plot_ints or save_ints):
-            plt.plot(cpix, oneD_spec[i,:], color='darkred', alpha=0.5)
+    if (plot_ints or save_ints):
+        # Plot a stack of all raw and shifted specs.
+        plt.plot(cpix, oneD_spec[0,:], color='teal', alpha=0.5,label='pre-shifted')
+        plt.plot(shift_cpix, align_spec[0], color='red',alpha=0.75,label='shifted')
+        for i in range(1,oneD_spec.shape[0]):
+            plt.plot(cpix, oneD_spec[i,:], color='teal', alpha=0.5)
             plt.plot(shift_cpix, align_spec[i], color='red',alpha=0.75)
-            plt.xlabel('position [pix]')
-            plt.ylabel('flux [a.u.]')
-            plt.title('Shifted spectrum {}'.format(i))
-            if save_ints:
-                plt.savefig(os.path.join(inpt_dict['plot_dir'],'S4_shifted_spectrum_{}.png'.format(i)),
-                            dpi=300, bbox_inches='tight')
-            if plot_ints:
-                plt.show(block=True)
-            plt.close()
+        plt.xlabel('Cross-dispersion Position [Pixels]')
+        plt.ylabel('Flux [DN]')
+        plt.legend(loc='upper right')
+        plt.title('Shifted spectra')
+        if save_ints:
+            plt.savefig(os.path.join(inpt_dict['plot_dir'],'S4_shifted_spectra.png'),
+                        dpi=300, bbox_inches='tight')
+        if plot_ints:
+            plt.show(block=True)
+        plt.close()
 
     align_spec = np.array(align_spec)
     align_err = np.array(align_err)
 
     if (plot_step or save_step):
         plt.scatter(oneD_time, shifts, color='midnightblue')
-        plt.xlabel('time [mjd]')
-        plt.ylabel('shift [pix]')
+        plt.xlabel("Exposure Time [MJD]")
+        plt.ylabel("Shift [Pixels]")
         plt.title('Cross-correlation shifts')
         if save_step:
             plt.savefig(os.path.join(inpt_dict['plot_dir'],'S4_spectral_shifts.png'),
-                        dpi=300, bbox_inches='tight')
-        if plot_step:
-            plt.show(block=True)
-        plt.close()
-
-        median_shift = np.nanmedian(shifts)
-        plt.scatter(oneD_time, shifts, color='midnightblue')
-        plt.xlabel('time [mjd]')
-        plt.ylabel('shift [pix]')
-        plt.title('Cross-correlation shifts')
-        plt.ylim(median_shift*0.8, median_shift*1.2)
-        if save_step:
-            plt.savefig(os.path.join(inpt_dict['plot_dir'],'S4_spectral_shifts_zoom.png'),
                         dpi=300, bbox_inches='tight')
         if plot_step:
             plt.show(block=True)

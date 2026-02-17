@@ -35,7 +35,6 @@ def do_stage2(filepaths, outfiles, outdir, steps, plot_dir):
     
     # Check tqdm and plotting requests.
     time_step, time_ints = tqdm_translate(steps["verbose"])
-    # FIX : i'll figure this out later
     plot_step, plot_ints = plot_translate(steps["show_plots"])
     save_step, save_plots = plot_translate(steps["save_plots"])
     
@@ -111,9 +110,9 @@ def do_stage2(filepaths, outfiles, outdir, steps, plot_dir):
                 
                 fig, ax = plt.subplots(figsize=(20,8),nrows=2)
                 im = ax[0].imshow(data1[0,:,:],cmap='viridis',origin='lower',
-                                  norm=symlog_norm_1,aspect=5)
+                                  norm=symlog_norm_1,aspect='auto')
                 ax[1].imshow(data2[0,:,:],cmap='viridis',origin='lower',
-                             norm=symlog_norm_2,aspect=5)
+                             norm=symlog_norm_2,aspect='auto')
                 cbar = plt.colorbar(mappable=im,orientation='horizontal',
                                     aspect=40)
                 cbar.set_label("Calibrated Flux [DN]")

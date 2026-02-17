@@ -53,13 +53,21 @@ LSQ_type        ''                                          # str. Scipy.optimiz
 LSQ_tolerance   1e-10                                       # float. Tolerance for scipy LSQ algorithm. The smaller the number, the more tightly it will try to fit.
 LSQ_iter        None                                        # int. If not None, forces LSQ to stop after this many iterations.
 
-use_MCMC        True                                        # bool. Whether to use a Markov Chain Monte Carlo routine to fit parameters with posterior distribution.
+use_MCMC        True                                        # bool. Whether to use an emcee Markov Chain Monte Carlo routine to fit parameters with posterior distribution.
 MCMC_chains     20                                          # int. How many chains to run in parallel.
 MCMC_steps      20000                                       # int. How many steps each chain should take before stopping.
 MCMC_specsteps  5000                                        # int. If not None, use only this many steps for chains in spec curves. They have less parameters to explore so a smaller chain size can be permitted.
 MCMC_burnin     0.20                                        # int > 1 or float < 1. If int, how many steps are regarded as burn-in, independent of MCMC_steps. If float, the fraction of MCMC_steps to be considered burn-in.
 
 priors_type     'uniform'                                   # Str. Options are 'uniform' or 'gaussian'. See priors below for more info. Set this whether you use LSQ, MCMC, or both!
+
+use_nested      True                                        # bool. Whether to use a dynesty Nested Sampler to fit parameters with posterior distribution.
+nested_dynamic  True                                        # bool. If True, use a dynamic nested sampler to adjust live points number on the fly and improve efficiency. If False, use a static nested sampler instead.
+nested_nlive    500                                         # int. Number of live points, or initial number of live points if using a dynamic sampler.
+nested_batch    100                                         # int. If using a dynamic sampler, how many live points should be added at log-likelihood thresholds.
+nested_dlnz     0.05                                        # float. The log(evidence) change at which to add a batch of live points in dynamic mode, or at which to terminate the live points in static mode. (?)
+nested_bounding 'none'                                      # str. How to bound the target distribution. Options are 'none', 'single', 'multi', 'balls', and 'cubes'. See Dynesty docs for details.
+nested_sample   'auto'                                      # str. How to sample within the target distribution. Options are 'auto' to let it pick based on dimensionality, 'uniform', 'rwalk', 'slice', or 'rslice'.
 
 # Step 4: Setting up your star
 # Step 4a: Stellar parameters

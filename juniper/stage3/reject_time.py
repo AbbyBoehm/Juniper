@@ -7,17 +7,17 @@ import matplotlib.pyplot as plt
 from scipy.signal import medfilt
 
 from juniper.util.diagnostics import tqdm_translate, plot_translate, timer
-from juniper.util.plotting import img
 
 def iterate_fixed(segments, inpt_dict):
     """Iterate a fixed number of times at specified sigmas to remove cosmic rays.
 
     Args:
-        segments (xarray): its segments.data data_vars has the integrations and its dq data_vars contains the data quality flags to be updated.
+        segments (dict): Its segments["data"] object has the integrations \
+        and its junidq object contains the data quality flags to be updated.
         inpt_dict (dict): instructions for how to run this step.
 
     Returns:
-        xarray: segments with removed cosmic rays and data quality flags updated.
+        dict: segments with removed cosmic rays and data quality flags updated.
     """
     # Log.
     if inpt_dict["verbose"] >= 1:
@@ -25,7 +25,6 @@ def iterate_fixed(segments, inpt_dict):
 
     # Check tqdm and plotting requests.
     time_step, time_ints = tqdm_translate(inpt_dict["verbose"])
-    # FIX : i'll figure this out later
     plot_step, plot_ints = plot_translate(inpt_dict["show_plots"])
     save_step, save_ints = plot_translate(inpt_dict["save_plots"])
 
@@ -34,29 +33,29 @@ def iterate_fixed(segments, inpt_dict):
         t0 = time.time()
 
     # Track outliers removed and where they were found.
-    bad_pix_map = np.zeros_like(segments.data.values)
+    bad_pix_map = np.zeros_like(segments["data"])
 
     # Track sigma differences for plotting.
-    sig_diffs = np.empty_like(segments.data.values)
+    sig_diffs = np.empty_like(segments["data"])
     
     # Start iterating.
     for sigma in inpt_dict["fixed_sigmas"]:
         # Compute median image and std deviation.
-        med = np.ma.median(segments.data, axis=0)
-        std = np.ma.std(segments.data, axis=0)
+        med = np.ma.median(segments["data"], axis=0)
+        std = np.ma.std(segments["data"], axis=0)
 
         # Track bad pixels in this sigma.
         bad_pix_this_sigma = 0
 
-        for k in tqdm(range(segments.data.shape[0]),
+        for k in tqdm(range(segments["data"].shape[0]),
                       desc='Iterating over sigma=%.2f...'%sigma,
                       disable=(not time_ints)):
             if sigma == inpt_dict["fixed_sigmas"][0]:
                 # Retain sigma excess.
-                sig_diffs[k,:,:] = np.abs(segments.data.values[k,:,:] - med)/std
+                sig_diffs[k,:,:] = np.abs(segments["data"][k,:,:] - med)/std
 
             # Look for where outliers are in this frame and flag with 1.
-            S = np.where(np.abs(segments.data.values[k,:,:] - med) > sigma*std, 1, 0)
+            S = np.where(np.abs(segments["data"][k,:,:] - med) > sigma*std, 1, 0)
 
             # Count outliers and locate them.
             S = np.where(bad_pix_map[k,:,:] == 1, 0, S) # if the pixel was already reported as bad from a previous step, then don't double count.
@@ -73,29 +72,29 @@ def iterate_fixed(segments, inpt_dict):
                     # Cut at edges.
                     if l < 0:
                         l = 0
-                    if r > segments.data.shape[0]:
-                        r = segments.data.shape[0]
-                    correction = np.median(segments.data.values[l:r,:,:],axis=0)
+                    if r > segments["data"].shape[0]:
+                        r = segments["data"].shape[0]
+                    correction = np.median(segments["data"][l:r,:,:],axis=0)
                 # And replace with correction.
-                segments.data.values[k,:,:] = np.where(S == 1, correction, segments.data.values[k,:,:])
+                segments["data"][k,:,:] = np.where(S == 1, correction, segments["data"][k,:,:])
             # Otherwise, just mask the bad pixels.
             else:
-                segments.data.values[k,:,:] = np.ma.masked_array(segments.data.values[k,:,:],
-                                                                 mask=bad_pix_map[k,:,:])
+                segments["badpixmask"][k,:,:] = np.where(bad_pix_map[k,:,:]>0,1,
+                                                         segments["badpixmask"][k,:,:])
             
         # Report how many bad pixels this sigma trimmed.
         if inpt_dict["verbose"] == 2:
             print("Bad pixels flagged at sigma=%.2f: %.0f"%(sigma, bad_pix_this_sigma))
     
     # Update data flags.
-    segments.dq.values = np.where(bad_pix_map != 0, 1, segments.dq.values)
+    segments["junidq"] = np.where(bad_pix_map != 0, 1, segments["junidq"])
 
     if (plot_step or save_step):
         # Create a plot of the entire bad_pix_map collapsed in on itself in time.
         bad_pix_alltime = np.sum(bad_pix_map,axis=0)
         fig, ax = plt.subplots(figsize=(20,4))
         im = ax.imshow(bad_pix_alltime/bad_pix_map.shape[0],origin='lower',cmap='viridis',
-                       norm='linear',aspect=5,vmin=0,vmax=0.05)
+                       norm='linear',aspect='auto',vmin=0,vmax=0.01)
         ax.set_title("Fixed-iteration DQ flags")
         cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=40)
         cbar.set_label('Fraction of integrations flagged')
@@ -115,9 +114,9 @@ def iterate_fixed(segments, inpt_dict):
             for x2 in range(sig_diffs.shape[2]):
                 sig_diff[x1,x2] = np.nanmax(sig_diffs[:,x1,x2])
         
-        vmin, vmax = 0, np.max(sig_diff)
+        vmin, vmax = 0, 1.5*max(inpt_dict["fixed_sigmas"])
         im = ax.imshow(sig_diff,origin='lower',cmap='viridis',
-                       norm='linear',aspect=5,vmin=vmin,vmax=vmax)
+                       norm='linear',aspect='auto',vmin=vmin,vmax=vmax)
         ax.set_title("Maximum sigma difference from median")
         cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=40)
         cbar.set_label('Flux [DN]')
@@ -143,11 +142,12 @@ def iterate_free(segments, inpt_dict):
     """Iterate an unspecified number of times at a fixed sigma to remove cosmic rays.
 
     Args:
-        segments (xarray): its segments.data data_vars has the integrations and its dq data_vars contains the data quality flags to be updated.
+        segments (dict): Its segments["data"] object has the integrations \
+        and its junidq object contains the data quality flags to be updated.
         inpt_dict (dict): instructions for how to run this step.
 
     Returns:
-        xarray: segments with removed cosmic rays and data quality flags updated.
+        dict: segments with removed cosmic rays and data quality flags updated.
     """
     # Log.
     if inpt_dict["verbose"] >= 1:
@@ -155,7 +155,6 @@ def iterate_free(segments, inpt_dict):
 
     # Check tqdm and plotting requests.
     time_step, time_ints = tqdm_translate(inpt_dict["verbose"])
-    # FIX : i'll figure this out later
     plot_step, plot_ints = plot_translate(inpt_dict["show_plots"])
     save_step, save_ints = plot_translate(inpt_dict["save_plots"])
 
@@ -164,11 +163,11 @@ def iterate_free(segments, inpt_dict):
         t0 = time.time()
 
     # Track outliers removed and where they were found, and open sigma once.
-    bad_pix_map = np.zeros_like(segments.data.values)
+    bad_pix_map = np.zeros_like(segments["data"])
     sigma = inpt_dict["free_sigma"]
 
     # Track sigma differences for plotting.
-    sig_diffs = np.zeros_like(segments.data.values)
+    sig_diffs = np.zeros_like(segments["data"])
 
     # Check force stop iteration condition.
     cut_off = np.inf
@@ -176,10 +175,10 @@ def iterate_free(segments, inpt_dict):
         cut_off = inpt_dict["free_cutoffs"]
     
     # Start iterating.
-    for i in tqdm(range(segments.data.shape[1]),
+    for i in tqdm(range(segments["data"].shape[1]),
                   desc='Iterating over pixel time series...',
                   disable=(not time_ints)):
-        for j in range(segments.data.shape[2]):
+        for j in range(segments["data"].shape[2]):
             # Claim outlier found and track steps.
             outliers_found = 1
             step = 0
@@ -187,15 +186,15 @@ def iterate_free(segments, inpt_dict):
             # Then, iterate until no outliers found, or until cut off kicks in.
             while (outliers_found > 0 and step < cut_off):
                 # Compute median pixel time series and std deviation.
-                med = np.median(segments.data.values[:,i,j])
-                std = np.std(segments.data.values[:,i,j])
+                med = np.median(segments["data"][:,i,j])
+                std = np.std(segments["data"][:,i,j])
 
                 # Look for a bigger sigma outlier.
-                sig_diff = np.abs(segments.data.values[:,i,j]-med)/std
+                sig_diff = np.abs(segments["data"][:,i,j]-med)/std
                 sig_diffs[sig_diff>sig_diffs[:,i,j],i,j] = sig_diff
 
                 # Check for outliers.
-                S = np.where(np.abs(segments.data.values[:,i,j]-med) > sigma*std, 1, 0)
+                S = np.where(np.abs(segments["data"][:,i,j]-med) > sigma*std, 1, 0)
 
                 # Count outliers and locate them.
                 S = np.where(bad_pix_map[:,i,j] == 1, 0, S) # if the pixel was already reported as bad from a previous step, then don't double count.
@@ -207,9 +206,13 @@ def iterate_free(segments, inpt_dict):
                     correction = med
                     if inpt_dict["time_replace"] != 'all':
                         # Smooth the pixel's time series over with a running median rather than a median in all time.
-                        correction = medfilt(segments.data.values[:,i,j], kernel_size=(2*inpt_dict["time_replace"]+1))
+                        correction = medfilt(segments["data"][:,i,j], kernel_size=(2*inpt_dict["time_replace"]+1))
                     # And replace with correction.
-                    segments.data.values[:,i,j] = np.where(S == 1, correction, segments.data.values[:,i,j])
+                    segments["data"][:,i,j] = np.where(S == 1, correction, segments["data"][:,i,j])
+                # Otherwise, just mask the bad pixels.
+                else:
+                    segments["badpixmask"][:,i,j] = np.where(bad_pix_map[:,i,j]>0,1,
+                                                            segments["badpixmask"][:,i,j])
 
                 # Advance another step.
                 step += 1     
@@ -219,14 +222,14 @@ def iterate_free(segments, inpt_dict):
                 print("Pixel {}, {} hit iteration limit.".format(i,j))
     
     # Update data flags.
-    segments.dq.values = np.where(bad_pix_map != 0, 1, segments.dq.values)
+    segments["junidq"] = np.where(bad_pix_map != 0, 1, segments["junidq"])
 
     if (plot_step or save_step):
         # Create a plot of the entire bad_pix_map collapsed in on itself in time.
         bad_pix_alltime = np.sum(bad_pix_map,axis=0)
         fig, ax = plt.subplots(figsize=(20,4))
         im = ax.imshow(bad_pix_alltime/bad_pix_map.shape[0],origin='lower',cmap='viridis',
-                       norm='linear',aspect=5,vmin=0,vmax=0.05)
+                       norm='linear',aspect='auto',vmin=0,vmax=0.01)
         ax.set_title("Free-iteration DQ flags")
         cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=40)
         cbar.set_label('Fraction of integrations flagged')
@@ -246,9 +249,9 @@ def iterate_free(segments, inpt_dict):
             for x2 in range(sig_diffs.shape[2]):
                 sig_diff[x1,x2] = np.nanmax(sig_diffs[:,x1,x2])
         
-        vmin, vmax = 0, np.max(sig_diff)
+        vmin, vmax = 0, 1.5*sigma
         im = ax.imshow(sig_diff,origin='lower',cmap='viridis',
-                       norm='linear',aspect=5,vmin=vmin,vmax=vmax)
+                       norm='linear',aspect='auto',vmin=vmin,vmax=vmax)
         ax.set_title("Maximum sigma difference from median")
         cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=40)
         cbar.set_label('Flux [DN]')

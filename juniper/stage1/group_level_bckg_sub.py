@@ -28,27 +28,28 @@ def glbs(datamodel, inpt_dict, plot_dir, outfile):
     
     # Check tqdm and plotting requests.
     time_step, time_ints = tqdm_translate(inpt_dict["verbose"])
-    # FIX : i'll figure this out later
     plot_step, plot_ints = plot_translate(inpt_dict["show_plots"])
     save_step, save_ints = plot_translate(inpt_dict["save_plots"])
 
     # Copy data.
     data = np.copy(datamodel.data)
 
-    # Create symlognorm color map just in case we need it for plotting.
-    lin_threshold = 0.1
-    vmin, vmax = np.percentile(data[:,-1,:,:],q=5), np.percentile(data[:,-1,:,:],q=95)
-    symlog_norm_trace = colors.SymLogNorm(linthresh=lin_threshold, 
-                                          linscale=1, 
-                                          vmin=vmin,
-                                          vmax=vmax,
-                                          base=10)
-    vmin, vmax = np.percentile(data[:,-1,:,:],q=0), np.percentile(data[:,-1,:,:],q=82)
-    symlog_norm_bckgs = colors.SymLogNorm(linthresh=lin_threshold, 
-                                          linscale=1, 
-                                          vmin=vmin,
-                                          vmax=vmax,
-                                          base=10)
+    # Prep for plotting in case we do so.
+    if (plot_step or save_step):
+        # Create symlognorm color map.
+        lin_threshold = 0.1
+        vmin, vmax = np.percentile(data[:,-1,:,:],q=5), np.percentile(data[:,-1,:,:],q=95)
+        symlog_norm_trace = colors.SymLogNorm(linthresh=lin_threshold, 
+                                            linscale=1, 
+                                            vmin=vmin,
+                                            vmax=vmax,
+                                            base=10)
+        vmin, vmax = np.percentile(data[:,-1,:,:],q=0), np.percentile(data[:,-1,:,:],q=82)
+        symlog_norm_bckgs = colors.SymLogNorm(linthresh=lin_threshold, 
+                                            linscale=1, 
+                                            vmin=vmin,
+                                            vmax=vmax,
+                                            base=10)
 
     # If needed, get the trace mask using the median last group.
     trace_mask = np.zeros_like(data[0,0,:,:])
@@ -70,9 +71,9 @@ def glbs(datamodel, inpt_dict, plot_dir, outfile):
             trace_mask_inverse = np.ma.masked_array(trace_mask,mask=np.ones_like(trace_mask)-trace_mask)
             fig, ax = plt.subplots(figsize=(20, 4))
             im = ax.imshow(median_last_group,cmap='viridis',origin='lower',
-                           norm=symlog_norm_bckgs,aspect=5)
+                           norm=symlog_norm_bckgs,aspect='auto')
             ax.imshow(trace_mask_inverse,cmap='binary_r',origin='lower',
-                      norm=symlog_norm_bckgs,aspect=5)
+                      norm=symlog_norm_bckgs,aspect='auto')
             cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=40)
             cbar.set_label("Flux [DN]")
             ax.set_title("Trace mask applied to data")
@@ -101,13 +102,12 @@ def glbs(datamodel, inpt_dict, plot_dir, outfile):
     if (plot_step or save_step):
         # Create a diagnostic plot of the first integration's last group's residuals.
         fig, ax = plt.subplots(figsize=(20,12),nrows=3)
-        fig.subplots_adjust(hspace=0.01,wspace=0.01)
         im1 = ax[0].imshow(precorrected_frame,cmap='viridis',origin='lower',
-                           norm=symlog_norm_trace,aspect=5)
+                           norm=symlog_norm_trace,aspect='auto')
         im2 = ax[1].imshow(datamodel.data[0,-1,:,:],cmap='viridis',origin='lower',
-                           norm=symlog_norm_trace,aspect=5)
+                           norm=symlog_norm_trace,aspect='auto')
         im3 = ax[2].imshow(precorrected_frame-datamodel.data[0,-1,:,:],cmap='viridis',origin='lower',
-                           norm='linear',aspect=5)
+                           norm='linear',aspect='auto')
         cbar = plt.colorbar(mappable=im3,orientation='horizontal',aspect=40)
         cbar.set_label("Stripe Flux [DN]")
         ax[0].set_title("Pre-corrected frame")
@@ -137,9 +137,9 @@ def glbs(datamodel, inpt_dict, plot_dir, outfile):
 
         fig, ax = plt.subplots(figsize=(20, 4))
         im1 = ax.imshow(median_last_group,cmap='viridis',origin='lower',
-                        norm=symlog_norm_trace,aspect=5)
+                        norm=symlog_norm_trace,aspect='auto')
         im2 = ax.imshow(masked_background,cmap='viridis',origin='lower',
-                        norm=symlog_norm_bckgs,aspect=5)
+                        norm=symlog_norm_bckgs,aspect='auto')
         cbar1 = plt.colorbar(mappable=im1,orientation='horizontal',aspect=40)
         cbar1.set_label("Trace Flux [DN]")
         cbar2 = plt.colorbar(mappable=im2,orientation='horizontal',aspect=40)
@@ -173,9 +173,9 @@ def glbs(datamodel, inpt_dict, plot_dir, outfile):
 
             fig, ax = plt.subplots(figsize=(20, 4))
             im1 = ax.imshow(median_group,cmap='viridis',origin='lower',
-                            norm=symlog_norm_trace,aspect=5)
+                            norm=symlog_norm_trace,aspect='auto')
             im2 = ax.imshow(masked_background,cmap='viridis',origin='lower',
-                            norm=symlog_norm_bckgs,aspect=5)
+                            norm=symlog_norm_bckgs,aspect='auto')
             cbar1 = plt.colorbar(mappable=im1,orientation='horizontal',aspect=40)
             cbar1.set_label("Trace Flux [DN]")
             cbar2 = plt.colorbar(mappable=im2,orientation='horizontal',aspect=40)

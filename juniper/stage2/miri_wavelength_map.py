@@ -26,7 +26,6 @@ def wavemap(outfile, outdir, inpt_rateints, inpt_dict):
     
     # Check tqdm and plotting requests.
     time_step, time_ints = tqdm_translate(inpt_dict["verbose"])
-    # FIX : i'll figure this out later
     plot_step, plot_ints = plot_translate(inpt_dict["show_plots"])
     save_step, save_ints = plot_translate(inpt_dict["save_plots"])
 

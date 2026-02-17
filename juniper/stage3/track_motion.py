@@ -8,18 +8,18 @@ import matplotlib.pyplot as plt
 from astropy import modeling
 
 from juniper.util.diagnostics import tqdm_translate, plot_translate, timer
+from juniper.stage2.correct_curvature import fix_curvature
 from juniper.stage4.align_spec import cross_correlate
 
 def track_pos(segments, inpt_dict):
     """Tracks position of trace in each integration.
 
     Args:
-        segments (xarray): its segments DataSet is the integrations which will
-        be tracked.
+        segments (dict): Its segments["data"] object is the integrations which will be tracked.
         inpt_dict (dict): instructions for running this step.
 
     Returns:
-        xarray, list, list, list, list: the segments array with updated data
+        dict, list, list, list, list: the segments array with updated data
         quality flags, and the disp. positions, cross-disp. positions, cross-disp.
         widths, and identified indices of bad frames.
     """
@@ -29,7 +29,6 @@ def track_pos(segments, inpt_dict):
 
     # Check tqdm and plotting requests.
     time_step, time_ints = tqdm_translate(inpt_dict["verbose"])
-    # FIX : i'll figure this out later
     plot_step, plot_ints = plot_translate(inpt_dict["show_plots"])
     save_step, save_ints = plot_translate(inpt_dict["save_plots"])
 
@@ -39,13 +38,13 @@ def track_pos(segments, inpt_dict):
 
     # Start tracking.
     bad_k = []
-    bad_frame_map = np.zeros_like(segments.data)
+    bad_frame_map = np.zeros_like(segments["data"])
 
     dispersion_position = []
     if inpt_dict["track_disp"]:
         dispersion_position = []
         # Need to make a template.
-        collapsed = np.nansum(segments.data.values[:,:,:], axis=1) # collapse all frames on axis 1
+        collapsed = np.nansum(segments["data"][:,:,:], axis=1) # collapse all frames on axis 1
         template = np.median(collapsed, axis=0) # take median in time
         template /= np.max(template) # normalise so peak is at 1
         template = medfilt(template, kernel_size=7)
@@ -64,10 +63,10 @@ def track_pos(segments, inpt_dict):
                 plt.show(block=True)
             plt.close()
 
-        for k in tqdm(range(segments.data.shape[0]),
+        for k in tqdm(range(segments["data"].shape[0]),
                     desc='Fitting trace dispersion position...',
                     disable=(not time_ints)):
-            profile = np.nansum(segments.data.values[k,:,:], axis=0)
+            profile = np.nansum(segments["data"][k,:,:], axis=0)
             profile = profile/np.max(profile) # normalize amplitude to 1 for ease of fit
             profile = medfilt(profile, kernel_size=7) # filter outliers to reduce their impact on the fit
             pos = fit_disp_profile(profile,template=template)
@@ -94,7 +93,7 @@ def track_pos(segments, inpt_dict):
             # Flag any integration with sudden movement.
             med_disp, std_disp = np.median(dispersion_position), np.std(dispersion_position)
 
-            for k in tqdm(range(segments.data.shape[0]),
+            for k in tqdm(range(segments["data"].shape[0]),
                           desc='Identifying trace dispersion position outliers...',
                           disable=(not time_ints)):
                 if np.abs(med_disp - dispersion_position[k]) > 3*std_disp:
@@ -106,7 +105,7 @@ def track_pos(segments, inpt_dict):
         if (plot_step or save_step):
             # Create a plot in time of the measured dispersion positions.
             plt.figure(figsize=(5,5))
-            plt.scatter(segments.time.values, dispersion_position, color='k')
+            plt.scatter(segments["time"], dispersion_position, color='k')
             if inpt_dict["reject_disp"]:
                 # Plot lines marking where things were kicked.
                 plt.axhline(med_disp,ls='--',color='red')
@@ -125,12 +124,24 @@ def track_pos(segments, inpt_dict):
     crossdispersion_position = []
     crossdispersion_width = []
     if inpt_dict["track_spatial"]:
+        # Need to pre-emptively straighten a copy of the data to make this work.
+        straightened_data = np.copy(segments["data"])
+        if any([x in ("G395M","G395H") for x in segments["gratings"]]):
+            if inpt_dict["verbose"] >= 1:
+                print("Disperser produces curved traces; creating straightened copy for cross-dispersion tracking...")
+            straightened_data, _, _, _ = fix_curvature(straightened_data,
+                                                    np.zeros_like(straightened_data),
+                                                    np.zeros_like(straightened_data),
+                                                    np.zeros_like(straightened_data[0,:,:]),
+                                                    (time_step,time_ints), 
+                                                    (False,False), (False,False), 0,
+                                                    None, None)
         crossdispersion_position = []
         crossdispersion_width = []
-        for k in tqdm(range(segments.data.shape[0]),
+        for k in tqdm(range(segments["data"].shape[0]),
                     desc='Fitting trace cross-dispersion position and width...',
                     disable=(not time_ints)):
-            profile = np.nansum(segments.data.values[k,:,:], axis=1)
+            profile = np.nansum(straightened_data[k,:,:], axis=1)
             pos, width = fit_cdisp_profile(profile,guess_pos=profile.shape[0]*0.50,guess_width=1)
             crossdispersion_position.append(pos)
             crossdispersion_width.append(width)
@@ -139,7 +150,7 @@ def track_pos(segments, inpt_dict):
             # Flag any integration with sudden movement or blooming/defocusing.
             med_cross, std_cross = np.median(crossdispersion_position), np.std(crossdispersion_position)
 
-            for k in tqdm(range(segments.data.shape[0]),
+            for k in tqdm(range(segments["data"].shape[0]),
                           desc='Identifying trace cross-dispersion position outliers...',
                           disable=(not time_ints)):
                 if np.abs(med_cross - crossdispersion_position[k]) > 3*std_cross:
@@ -152,7 +163,7 @@ def track_pos(segments, inpt_dict):
         if (plot_step or save_step):
             # Create a plot in time of the measured cross-dispersion positions.
             plt.figure(figsize=(5,5))
-            plt.scatter(segments.time.values, crossdispersion_position, color='k')
+            plt.scatter(segments["time"], crossdispersion_position, color='k')
             if inpt_dict["reject_spatial"]:
                 # Plot lines marking where things were kicked.
                 plt.axhline(med_cross,ls='--',color='red')
@@ -170,7 +181,7 @@ def track_pos(segments, inpt_dict):
 
             # Create a plot in time of the measured cross-dispersion widths.
             plt.figure(figsize=(5,5))
-            plt.scatter(segments.time.values, crossdispersion_width, color='k')
+            plt.scatter(segments["time"], crossdispersion_width, color='k')
             plt.xlabel('Exposure Time [MJD]')
             plt.ylabel('Cross-Dispersion Width [pixels]')
             plt.tick_params(which='both',axis='both',direction='in')
@@ -182,13 +193,13 @@ def track_pos(segments, inpt_dict):
             plt.close()
 
     # Update data flags.
-    segments.dq.values = np.where(bad_frame_map != 0, 1, segments.dq.values)
+    segments["junidq"] = np.where(bad_frame_map != 0, 1, segments["junidq"])
 
     # Report outliers found.
     if inpt_dict["verbose"] >= 1:
         print("Frame tracking complete.")
         if bad_k:
-            print("Total frames rejected for sudden motion: {}".format(len(bad_k)))
+            print("Total frames slated for S4 rejection due to sudden motion: {}".format(len(bad_k)))
 
     # Report time, if asked.
     if time_step:
@@ -227,5 +238,5 @@ def fit_disp_profile(profile, template):
     Returns:
         float: the position of the profile.
     """
-    shift = cross_correlate(profile, template, tspc=50, hrf=0.005, tfit=90)
+    shift = cross_correlate(profile, template, tspc=3, hrf=0.005, tfit=7)
     return shift

@@ -30,7 +30,6 @@ def do_stage3(filepaths, outfiles, outdir, steps, plot_dir):
     
     # Check tqdm and plotting requests.
     time_step, time_ints = tqdm_translate(steps["verbose"])
-    # FIX : i'll figure this out later
     plot_step, plot_ints = plot_translate(steps["show_plots"])
     save_step, save_ints = plot_translate(steps["save_plots"])
     
@@ -47,21 +46,23 @@ def do_stage3(filepaths, outfiles, outdir, steps, plot_dir):
                             verbose=steps["verbose"])
     
     if plot_step or save_step:
-        raw_f0 = np.copy(segments.data.values[0,:,:])
+        raw_f0 = np.copy(segments["data"][0,:,:])
     if plot_ints or save_ints:
-        raw_fs = np.copy(segments.data.values[:,:,:])
+        raw_fs = np.copy(segments["data"][:,:,:])
     
     # Mask data flags.
     if steps["reject_flagged"]:
         if steps["verbose"] >= 1:
             print("JWST flags will be used for this run. Output data quality array will include JWST flag information.")
         segments = reject_flagged.mask_flags(segments, steps)
+        modified_by_reject_flagged = np.count_nonzero(segments["jwstdq"])
 
     # Alternatively, if JWST flags are not of interest, replace them.
     if not steps["reject_flagged"]:
         if steps["verbose"] >= 1:
             print("JWST flags will be ignored for this run. Output data quality array will exclude JWST flag information.")
-        segments.dq.values = np.zeros_like(segments.dq.values)
+        segments["jwstdq"] = np.zeros_like(segments["jwstdq"])
+        modified_by_reject_flagged = 0
         
     # Reject outliers in time.
     if steps["reject_time"]:
@@ -92,11 +93,13 @@ def do_stage3(filepaths, outfiles, outdir, steps, plot_dir):
     # Finally, report changes if asked.
     if steps["verbose"] >= 1:
         N_pixels = 1
-        for dim in np.shape(segments.dq.values):
+        for dim in np.shape(segments["junidq"]):
             N_pixels *= dim
-        N_modified = np.count_nonzero(segments.dq.values)
+        N_modified = np.count_nonzero(segments["junidq"])
         print("All outlier rejection processes complete.")
-        print("Percentage of data modified: {:.2f}%".format(100*N_modified/N_pixels))
+        print("Percentage of data modified by Juniper: {:.2f}%".format(100*N_modified/N_pixels))
+        if steps["reject_flagged"]:
+            print("Percentage modified by Juniper because of JWST flags: {:.2f}%".format(100*modified_by_reject_flagged/N_pixels))
 
     # Remove background signal.
     if steps["subtract_bckg"]:
@@ -112,12 +115,17 @@ def do_stage3(filepaths, outfiles, outdir, steps, plot_dir):
 
     if plot_step or save_step:
         fig, ax = plt.subplots(2,1,figsize=(20,8),sharex=True)
-        vmin, vmax = np.nanpercentile(segments.data[0,:,:],q=5), np.nanpercentile(segments.data[0,:,:],q=95)
-        vmin = max((0.1,vmin))
+        vmin, vmax = np.nanpercentile(segments["data"][0,:,:],q=5), np.nanpercentile(segments["data"][0,:,:],q=95)
+        if vmin <= 0:
+            frame1 = np.copy(segments["data"][0,:,:])
+            pos = frame1[frame1>0]
+            vmin, vmax = np.nanpercentile(pos[np.isfinite(pos)],q=5), np.percentile(pos[np.isfinite(pos)],q=95)
         ax[0].imshow(raw_f0,cmap='viridis',origin='lower',aspect='auto',
                      vmin=vmin,vmax=vmax,norm='log')
-        ax[1].imshow(segments.data.values[0,:,:],cmap='viridis',origin='lower',aspect='auto',
+        ax[0].set_title("Pre-correction integration 0")
+        ax[1].imshow(segments["data"][0,:,:],cmap='viridis',origin='lower',aspect='auto',
                      vmin=vmin,vmax=vmax,norm='log')
+        ax[1].set_title("Post-correction integration 0")
         if save_step:
             plt.savefig(os.path.join(steps["diagnostic_plots"],"S3_before-after_int0.png"),
                         dpi=300, bbox_inches='tight')
@@ -128,3 +136,4 @@ def do_stage3(filepaths, outfiles, outdir, steps, plot_dir):
     # Log.
     if steps["verbose"] >= 1:
         print("Juniper Stage 3 is complete.")
+        

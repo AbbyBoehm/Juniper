@@ -29,13 +29,13 @@ poly_order      7                                           # int. Order of poly
 
 # Step 2: Trimming integrations
 s3_kick_ints    True                                        # bool. If True, checks for frames that were flagged by Stage 3 (reject_disp and reject_spatial keys in s3_*.berry) as bad frames and fully kicks them from the segments.
-s4_trim_ints       [[0,2500],]                              # list of list of int, or False. Bounds for integration numbers to reject. Useful for trimming the first ~10% of integrations, which often suffer from detector settling systematics.
+s4_trim_ints    [[0,2500],]                                 # list of list of int, or False. Bounds for integration numbers to reject. Useful for trimming the first ~10% of integrations, which often suffer from detector settling systematics.
 
 # Step 3: Align spectra
 align           True                                        # bool. Whether to align the extracted 1D spectra.
-trim_spec       80                                          # int. How many points to trim from the edges of the spectra. Useful for ensuring measured shifts are not dominated by the flux falloff at the edges.
-high_res_factor 0.0001                                      # float. How finely to interpolate spectra when aligning. The smaller this is, the finer the fit but the longer the runtime.
-trim_fit        80                                          # int. How many points to trim from the edges of the fit. Useful for ensuring measured shifts are not dominated by the flux falloff at the edges.
+trim_spec       3                                           # int. How many points to trim from the edges of the spectra. Useful for ensuring measured shifts are not dominated by the flux falloff at the edges.
+high_res_factor 0.005                                       # float. How finely to interpolate spectra when aligning. The smaller this is, the finer the fit but the longer the runtime.
+trim_fit        7                                           # int. How many points to trim from the edges of the fit. Useful for ensuring measured shifts are not dominated by the flux falloff at the edges.
 
 # Step 4: Clean spectra
 sigma           3.5                                         # float. Sigma at which to detect a spectral outlier and replace it with the median in time. Enter None to skip this step.

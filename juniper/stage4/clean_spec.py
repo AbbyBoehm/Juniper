@@ -24,7 +24,6 @@ def clean_spec(oneD_spec, inpt_dict):
 
     # Check tqdm and plotting requests.
     time_step, time_ints = tqdm_translate(inpt_dict["verbose"])
-    # FIX : i'll figure this out later
     plot_step, plot_ints = plot_translate(inpt_dict["show_plots"])
     save_step, save_ints = plot_translate(inpt_dict["save_plots"])
 
@@ -32,30 +31,30 @@ def clean_spec(oneD_spec, inpt_dict):
     if time_step:
         t0 = time.time()
 
-    # Track cleaned spectra and load sigma.
-    cleaned_specs = []
+    # Load sigma, and track outliers removed, and reserve pre-cleaned data.
     sigma = inpt_dict["sigma"]
-
-    # Track outliers removed.
     bad_spex_removed = 0
+    pre_cleaned_spec = np.copy(oneD_spec)
+
+    # Do not get stuck endlessly iterating - either stop at N_lim,
+    # or stop when no more are found, whichever happens first.
+    N_lim = 100
+    iter_hit = N_lim
+    outlier_found = True
     
-    # Iterate over spectra.
-    for i in tqdm(range(oneD_spec.shape[0]),
+    # Iterate cleaning.
+    for i in tqdm(range(N_lim),
                   desc='Cleaning spectral outliers...',
                   disable=(not time_ints)):
-        # Iteration stop condition. As long as outliers are being found, we have to keep iterating.
-        outlier_found = True
-        # But also, no need to be stuck endlessly iterating.
-        N_lim = 100
-        n = 0
-        while outlier_found:
-            # Define median spectrum in time.
-            med_spec = np.median(oneD_spec,axis=0)
-            # Get standard deviation of each point.
-            std_spec = np.std(oneD_spec,axis=0)
+        
+        if outlier_found:
+            # Define median spectrum in time, extend to shape of oneD_spec.
+            med_spec = np.array([np.median(oneD_spec,axis=0),]*oneD_spec.shape[0])
+            # Get standard deviation of each point, extend to shape of oneD_spec.
+            std_spec = np.array([np.std(oneD_spec,axis=0),]*oneD_spec.shape[0])
 
             # Flag outliers.
-            S = np.where(np.abs(oneD_spec[i,:]-med_spec) > sigma*std_spec, 1, 0)
+            S = np.where(np.abs(oneD_spec-med_spec) > sigma*std_spec, 1, 0)
 
             # Count outliers found.
             bad_spex_this_step = np.count_nonzero(S)
@@ -64,43 +63,46 @@ def clean_spec(oneD_spec, inpt_dict):
             if bad_spex_this_step == 0:
                 # No more outliers found! We can break the loop now.
                 outlier_found = False
+                iter_hit = i
             
-            # Correct outliers and loop once more.
-            oneD_spec[i,:] = np.where(S == 1, med_spec, oneD_spec[i,:])
+            else:
+                # Correct outliers and loop once more.
+                oneD_spec = np.where(S == 1, med_spec, oneD_spec)
+    if inpt_dict["verbose"] >= 1:
+        print(f"Cleaning iteration stopped after {iter_hit+1} iterations.")
 
-            n += 1
-            if n > N_lim:
-                # We are breaking the loop to save computing time.
-                if inpt_dict["verbose"] >= 1:
-                    print("Hit iteration limit on spec {}.".format(i))
-                outlier_found = False
-        cleaned_specs.append(oneD_spec[i,:])
+    if (plot_step or save_step):
+        # Plot the median cleaned spectrum.
+        plt.plot(np.median(pre_cleaned_spec,axis=0),color='midnightblue',alpha=0.75,ls='-',label='pre-correction')
+        plt.plot(np.median(oneD_spec,axis=0),color='orange',alpha=0.75,ls='--',label='post-correction')
+        plt.xlabel('Position [pix]')
+        plt.ylabel('Flux [DN]')
+        plt.legend(loc='upper right')
+        plt.title('Pre- and post-cleaning median spectrum')
+        if save_step:
+            plt.savefig(os.path.join(inpt_dict['plot_dir'],'S4_cleaned_spec_median.png'),
+                        dpi=300,bbox_inches='tight')
+        if plot_step:
+            plt.show(block=True)
+        plt.close()
 
-        if (plot_step or save_step) and i==0:
-            plt.plot(oneD_spec[i,:],color='midnightblue',alpha=0.5,ls='-')
-            plt.plot(cleaned_specs[i],color='orange',alpha=0.5,ls='--')
-            plt.xlabel('position [pix]')
-            plt.ylabel('flux [a.u.]')
-            plt.title('Cleaned spectrum 0')
-            if save_step:
-                plt.savefig(os.path.join(inpt_dict['plot_dir'],'S4_cleaned_spec_0.png'),
-                            dpi=300,bbox_inches='tight')
-            if plot_step:
-                plt.show(block=True)
-            plt.close()
-
-        if (plot_ints or save_ints):
-            plt.plot(oneD_spec[i,:],color='midnightblue',alpha=0.5,ls='-')
-            plt.plot(cleaned_specs[i],color='orange',alpha=0.5,ls='--')
-            plt.xlabel('position [pix]')
-            plt.ylabel('flux [a.u.]')
-            plt.title('Cleaned spectrum {}'.format(i))
-            if save_step:
-                plt.savefig(os.path.join(inpt_dict['plot_dir'],'S4_cleaned_spec_{}.png'.format(i)),
-                            dpi=300,bbox_inches='tight')
-            if plot_step:
-                plt.show(block=True)
-            plt.close()
+    if (plot_ints or save_ints):
+        # Plot all of the cleaned spectra on top of each other.
+        plt.plot(pre_cleaned_spec[0,:],color='midnightblue',alpha=0.75,ls='-',label='pre-correction')
+        plt.plot(oneD_spec[0,:],color='orange',alpha=0.75,ls='--',label='post-correction')
+        for i in range(1,oneD_spec.shape[0]):
+            plt.plot(pre_cleaned_spec[i,:],color='midnightblue',alpha=0.75,ls='-')
+            plt.plot(oneD_spec[i,:],color='orange',alpha=0.75,ls='--')
+        plt.xlabel('Position [pix]')
+        plt.ylabel('Flux [DN]')
+        plt.legend(loc='upper right')
+        plt.title('Pre- and post-cleaning spectra')
+        if save_step:
+            plt.savefig(os.path.join(inpt_dict['plot_dir'],'S4_cleaned_spec_all.png'),
+                        dpi=300,bbox_inches='tight')
+        if plot_step:
+            plt.show(block=True)
+        plt.close()
 
     # Log.
     if inpt_dict["verbose"] >= 1:
@@ -113,4 +115,4 @@ def clean_spec(oneD_spec, inpt_dict):
     if time_step:
         timer(time.time()-t0,None,None,None)
 
-    return np.array(cleaned_specs)
+    return oneD_spec

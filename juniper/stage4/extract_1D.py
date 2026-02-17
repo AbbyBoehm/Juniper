@@ -28,7 +28,6 @@ def extract(segments, inpt_dict):
 
     # Check tqdm and plotting requests.
     time_step, time_ints = tqdm_translate(inpt_dict["verbose"])
-    # FIX : i'll figure this out later
     plot_step, plot_ints = plot_translate(inpt_dict["show_plots"])
     save_step, save_ints = plot_translate(inpt_dict["save_plots"])
 
@@ -36,13 +35,16 @@ def extract(segments, inpt_dict):
     if time_step:
         t0 = time.time()
 
+    # Retain masks for plotting.
+    extraction_masks = []
+
     # Initialize arrays.
-    oneD_spec = np.empty((segments.data.shape[0],segments.data.shape[2])) # it has shape nints x ncols
-    oneD_err = np.empty((segments.data.shape[0],segments.data.shape[2])) # same shape as oneD_spec
-    wav_sols = np.empty((segments.data.shape[0],segments.data.shape[2])) # same shape as oneD_spec
+    oneD_spec = np.empty((segments["data"].shape[0],segments["data"].shape[2])) # it has shape nints x ncols
+    oneD_err = np.empty((segments["data"].shape[0],segments["data"].shape[2])) # same shape as oneD_spec
+    wav_sols = np.empty((segments["data"].shape[0],segments["data"].shape[2])) # same shape as oneD_spec
 
     # Build profile, if applicable.
-    profiles = np.ones_like(segments.data.values) # neutral weights, if not optimizing.
+    profiles = np.ones_like(segments["data"]) # neutral weights, if not optimizing.
     if inpt_dict["extract_method"] == "optimum":
         # Now we have to actually build real profiles.
         if inpt_dict["aperture_type"] == "median":
@@ -54,7 +56,7 @@ def extract(segments, inpt_dict):
     # Build com_mask, if applicable.
     if inpt_dict["com_halfwidth"]:
         # Build aperture based on where com is.
-        com_mask = get_com_mask(np.nanmedian(segments.data.values, axis=0),
+        com_mask = get_com_mask(np.nanmedian(segments["data"], axis=0),
                                 width=inpt_dict["com_halfwidth"])
         # Invert com_mask so that data is unmasked while background is masked
         com_mask = np.where(com_mask == 1, 0, 1)
@@ -64,10 +66,9 @@ def extract(segments, inpt_dict):
                   desc = 'Extracting spectra from each integration...',
                   disable=(not time_ints)):
         # Get the integration, wavelengths, and data quality.
-        d = segments.data.values[i,:,:]
-        e = segments.err.values[i,:,:]
-        w = segments.wavelengths.values[i,:,:]
-        dq = segments.dq.values[i,:,:]
+        d = segments["data"][i,:,:]
+        e = segments["err"][i,:,:]
+        w = segments["wavelengths"][i,:,:]
 
         # Start building a mask.
         mask = np.zeros_like(d)
@@ -78,8 +79,8 @@ def extract(segments, inpt_dict):
             mask = np.where(w > inpt_dict["wavelengths"][1],1,mask)
 
         if inpt_dict["mask_bad_pix"]:
-            # Mask pixels that were flagged by the data quality array.
-            mask = np.where(dq != 0, 1, mask)
+            # Mask pixels using the bad pix mask.
+            mask = np.where(segments["badpixmask"] != 0, 1, mask)
         
         # Mask where is outside of the aperture.
         if inpt_dict["com_halfwidth"]:
@@ -95,6 +96,8 @@ def extract(segments, inpt_dict):
         mask = np.where(np.isnan(w),1,mask) # if the wavelength solution is nan, mask the pixel
         mask = np.where(w==0,1,mask) # also mask where the wavelength solution is 0 nm, that shouldn't happen
         mask = np.where(np.isnan(d),1,mask) # and mask any nans in the data itself
+
+        extraction_masks.append(mask)
 
         # Now apply the mask to the data and sum it on columns.
         d = np.ma.masked_array(d, mask=mask)
@@ -131,45 +134,25 @@ def extract(segments, inpt_dict):
             e = np.ma.masked_array(optimized_errors, mask=mask)
             oneD_err[i,:] = np.sqrt(np.ma.sum(np.square(e),axis=0))
 
-        if (plot_step or save_step) and i==0:
-            plt.imshow(mask)
-            plt.title('1D extraction mask')
+    if (plot_step or save_step):
+        plt.imshow(np.median(np.array(extraction_masks),axis=0))
+        plt.title('Median 1D extraction mask')
+        if save_step:
+            plt.savefig(os.path.join(inpt_dict['plot_dir'],'S4_1D_extraction_mask_median.png'),
+                        dpi=300, bbox_inches='tight')
+        if plot_step:
+            plt.show(block=True)
+        plt.close()
+
+        if inpt_dict["extract_method"] == "optimum":
+            plt.imshow(np.median(profiles,axis=0), vmin=0, vmax=1)
+            plt.title('1D extraction median optimum profile')
             if save_step:
-                plt.savefig(os.path.join(inpt_dict['plot_dir'],'S4_1D_extraction_mask_frame0.png'),
+                plt.savefig(os.path.join(inpt_dict['plot_dir'],'S4_1D_extraction_profile_median.png'),
                             dpi=300, bbox_inches='tight')
             if plot_step:
                 plt.show(block=True)
             plt.close()
-
-            if inpt_dict["extract_method"] == "optimum":
-                plt.imshow(profiles[i,:,:], vmin=0, vmax=1)
-                plt.title('1D extraction optimum profile')
-                if save_step:
-                    plt.savefig(os.path.join(inpt_dict['plot_dir'],'S4_1D_extraction_profile_frame0.png'),
-                                dpi=300, bbox_inches='tight')
-                if plot_step:
-                    plt.show(block=True)
-                plt.close()
-
-        if (plot_ints or save_ints):
-            plt.imshow(mask)
-            plt.title('1D extraction mask')
-            if save_ints:
-                plt.savefig(os.path.join(inpt_dict['plot_dir'],'S4_1D_extraction_mask_frame{}.png'.format(i)),
-                            dpi=300, bbox_inches='tight')
-            if plot_ints:
-                plt.show(block=True)
-            plt.close()
-
-            if inpt_dict["extract_method"] == "optimum":
-                plt.imshow(profiles[i,:,:], vmin=0, vmax=1)
-                plt.title('1D extraction optimum profile')
-                if save_step:
-                    plt.savefig(os.path.join(inpt_dict['plot_dir'],'S4_1D_extraction_profile_frame{}.png'.format(i)),
-                                dpi=300, bbox_inches='tight')
-                if plot_step:
-                    plt.show(block=True)
-                plt.close()
 
     # Delete any wavelength indices that have wavelength 0.
     wav_ref = wav_sols[0,:] # all wav sols should be same
@@ -179,36 +162,15 @@ def extract(segments, inpt_dict):
     wav_sols = np.delete(wav_sols, bad_indices, axis=1)
 
     if (plot_step or save_step):
-        i = 0
-        plt.plot(wav_sols[i,:],oneD_spec[i,:],color='darkblue')
-        plt.title('1D spectrum')
+        fig,ax = plt.subplots(figsize = (7,5))
+        ax.scatter(segments["time"],np.sum(oneD_spec,axis=1),color='darkblue')
+        ax.set_title('Broad-band light curve')
         if save_step:
-            plt.savefig(os.path.join(inpt_dict['plot_dir'],'S4_1D_extraction_spectrum_frame{}.png'.format(i)),
+            plt.savefig(os.path.join(inpt_dict['plot_dir'],'S4_1D_extraction_broadband-initial.png'),
                         dpi=300, bbox_inches='tight')
         if plot_step:
             plt.show(block=True)
         plt.close()
-
-    if (plot_step or save_step):
-        plt.scatter(segments.time,np.sum(oneD_spec,axis=1),color='darkblue')
-        plt.title('Broad-band light curve')
-        if save_step:
-            plt.savefig(os.path.join(inpt_dict['plot_dir'],'S4_1D_extraction_broadband.png'),
-                        dpi=300, bbox_inches='tight')
-        if plot_step:
-            plt.show(block=True)
-        plt.close()
-
-    if (plot_ints or save_ints):
-        for i in range(oneD_spec.shape[0]):
-            plt.plot(wav_sols[i,:],oneD_spec[i,:],color='darkblue')
-            plt.title('1D spectrum')
-            if save_step:
-                plt.savefig(os.path.join(inpt_dict['plot_dir'],'S4_1D_extraction_spectrum_frame{}.png'.format(i)),
-                            dpi=300, bbox_inches='tight')
-            if plot_step:
-                plt.show(block=True)
-            plt.close()
 
     # Report time, if asked.
     if time_step:
@@ -227,7 +189,7 @@ def optimum_median(segments):
         np.array: the profiles array.
     """
     # Take the median of the segments on time.
-    median_frame = np.nanmedian(segments.data.values, axis=0)
+    median_frame = np.nanmedian(segments["data"], axis=0)
     # Force positivity.
     median_frame[median_frame < 0] = 0
     # And normalize.

@@ -7,17 +7,16 @@ import matplotlib.pyplot as plt
 from scipy.ndimage import median_filter
 
 from juniper.util.diagnostics import tqdm_translate, plot_translate, timer
-from juniper.util.plotting import img
 
 def smooth(segments, inpt_dict):
     """Uses median filtering to smooth outliers.
 
     Args:
-        segments (xarray): its segments.data is the data to remove outliers from.
+        segments (dict): Its segments["data"] object is the data to remove outliers from.
         inpt_dict (dict): instructions for running this step.
 
     Returns:
-        xarray: segments.data with spatial outliers removed by median filtering.
+        dict: segments with spatial outliers removed by median filtering.
     """
     # Log.
     if inpt_dict["verbose"] >= 1:
@@ -25,7 +24,6 @@ def smooth(segments, inpt_dict):
 
     # Check tqdm and plotting requests.
     time_step, time_ints = tqdm_translate(inpt_dict["verbose"])
-    # FIX : i'll figure this out later
     plot_step, plot_ints = plot_translate(inpt_dict["show_plots"])
     save_step, save_ints = plot_translate(inpt_dict["save_plots"])
 
@@ -34,25 +32,25 @@ def smooth(segments, inpt_dict):
         t0 = time.time()
 
     # Track outliers removed and where they were found.
-    bad_pix_map = np.zeros_like(segments.data.values)
+    bad_pix_map = np.zeros_like(segments["data"])
     bad_pix_removed = 0
     bad_pix_per_frame = []
 
     # Retain smoothed models and absolute differences for plotting.
-    smooths = np.empty_like(segments.data.values)
-    abs_diffs = np.empty_like(segments.data.values)
+    smooths = np.empty_like(segments["data"])
+    abs_diffs = np.empty_like(segments["data"])
 
     # Iterate over each frame and smooth.
-    for k in tqdm(range(segments.data.shape[0]),
+    for k in tqdm(range(segments["data"].shape[0]),
                   desc = 'Smoothing outliers from integrations...',
                   disable=(not time_ints)):
         # Build a smoothed model.
-        smooth = median_filter(np.copy(segments.data.values[k,:,:]),
+        smooth = median_filter(np.copy(segments["data"][k,:,:]),
                                size=inpt_dict["space_kernel"])
         smooths[k,:,:] = smooth
         
         # Compare data to smoothed model.
-        abs_diff = np.abs(segments.data.values[k,:,:]-smooth)
+        abs_diff = np.abs(segments["data"][k,:,:]-smooth)
         abs_diffs[k,:,:] = abs_diff
         
         # Flag outliers on the bad pixel map.
@@ -66,14 +64,14 @@ def smooth(segments, inpt_dict):
 
         # And replace if asked.
         if inpt_dict["space_replace"]:
-            segments.data.values[k,:,:] = np.where(S == 1, smooth, segments.data.values[k,:,:])
+            segments["data"][k,:,:] = np.where(S == 1, smooth, segments["data"][k,:,:])
         # Otherwise, just mask the bad pixels.
         else:
-            segments.data.values[k,:,:] = np.ma.masked_array(segments.data.values[k,:,:],
-                                                                mask=bad_pix_map[k,:,:])
+            segments["badpixmask"][k,:,:] = np.where(bad_pix_map[k,:,:]>0,1,
+                                                     segments["badpixmask"][k,:,:])
             
     # Update data flags.
-    segments.dq.values = np.where(bad_pix_map != 0, 1, segments.dq.values)
+    segments["junidq"] = np.where(bad_pix_map != 0, 1, segments["junidq"])
 
     if inpt_dict["verbose"] == 2:
         print("Median outliers found in each frame: {} +/- {}".format(int(np.median(bad_pix_per_frame)),
@@ -84,7 +82,7 @@ def smooth(segments, inpt_dict):
         bad_pix_alltime = np.sum(bad_pix_map,axis=0)
         fig, ax = plt.subplots(figsize=(20,4))
         im = ax.imshow(bad_pix_alltime/bad_pix_map.shape[0],origin='lower',cmap='viridis',
-                       norm='linear',aspect=5,vmin=0,vmax=1)
+                       norm='linear',aspect='auto',vmin=0,vmax=1)
         ax.set_title("Spatial smoothing DQ flags")
         cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=40)
         cbar.set_label('Fraction of integrations flagged')
@@ -100,9 +98,11 @@ def smooth(segments, inpt_dict):
         fig, ax = plt.subplots(figsize=(20,4))
         medsmooth = np.median(smooths,axis=0)
         vmin, vmax = np.nanpercentile(medsmooth,q=5), np.nanpercentile(medsmooth,q=95)
-        vmin = max((vmin,0.1))
+        if vmin <= 0:
+            pos = medsmooth[medsmooth>0]
+            vmin, vmax = np.nanpercentile(pos[np.isfinite(pos)],q=5), np.percentile(pos[np.isfinite(pos)],q=95)
         im = ax.imshow(medsmooth,origin='lower',cmap='viridis',
-                       norm='log',aspect=5,vmin=vmin,vmax=vmax)
+                       norm='log',aspect='auto',vmin=vmin,vmax=vmax)
         ax.set_title("Median spatially-filtered model")
         cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=40)
         cbar.set_label('Flux [DN]')
@@ -123,9 +123,11 @@ def smooth(segments, inpt_dict):
                 abs_diff[x1,x2] = np.nanmax(abs_diffs[:,x1,x2])
         
         vmin, vmax = np.nanpercentile(abs_diff,q=5), np.nanpercentile(abs_diff,q=95)
-        vmin = max((vmin,0.1))
+        if vmin <= 0:
+            pos = abs_diff[abs_diff>0]
+            vmin, vmax = np.nanpercentile(pos[np.isfinite(pos)],q=5), np.percentile(pos[np.isfinite(pos)],q=95)
         im = ax.imshow(medsmooth,origin='lower',cmap='viridis',
-                       norm='log',aspect=5,vmin=vmin,vmax=vmax)
+                       norm='log',aspect='auto',vmin=vmin,vmax=vmax)
         ax.set_title("Maximum difference between data and model")
         cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=40)
         cbar.set_label('Flux [DN]')
@@ -153,11 +155,11 @@ def led(segments, inpt_dict):
     the median of the surrounding 3x3 kernel.
 
     Args:
-        segments (xarray): its segments.data is the data to remove outliers from.
+        segments (dict): Its segments["data"] object is the data to remove outliers from.
         inpt_dict (dict): instructions for running this step.
 
     Returns:
-        xarray: segments.data with spatial outliers removed by Laplacian Edge Detection.
+        dict: segments with spatial outliers removed by Laplacian Edge Detection.
     """
     # Log.
     if inpt_dict["verbose"] >= 1:
@@ -165,7 +167,6 @@ def led(segments, inpt_dict):
 
     # Check tqdm and plotting requests.
     time_step, time_ints = tqdm_translate(inpt_dict["verbose"])
-    # FIX : i'll figure this out later
     plot_step, plot_ints = plot_translate(inpt_dict["show_plots"])
     save_step, save_ints = plot_translate(inpt_dict["save_plots"])
 
@@ -174,24 +175,26 @@ def led(segments, inpt_dict):
         t0 = time.time()
 
     # Track outliers removed and where they were found.
-    bad_pix_map = np.zeros_like(segments.data.values)
+    bad_pix_map = np.zeros_like(segments["data"])
+    pixels_treated_per_frame = []
+    iterations_needed_per_frame = []
 
     # Retain noise models, fine structure models, laplacian images, and absolute differences for plotting.
-    noise_models = np.empty_like(segments.data.values)
-    fine_structure_models = np.empty_like(segments.data.values)
-    contrast_images = np.empty_like(segments.data.values)
-    s_images = np.empty_like(segments.data.values)
+    noise_models = np.empty_like(segments["data"])
+    fine_structure_models = np.empty_like(segments["data"])
+    contrast_images = np.empty_like(segments["data"])
+    s_images = np.empty_like(segments["data"])
 
     # Define the Laplacian kernel.
     l = 0.25*np.array([[0,-1,0],[-1,4,-1],[0,-1,0]])
 
     # Iterate over each frame one at a time until the iteration stop condition is met by each frame.
-    for k in tqdm(range(segments.data.shape[0]),
+    for k in tqdm(range(segments["data"].shape[0]),
                   desc = 'Running LED on integrations...',
                   disable=(not time_ints)):
         # Get the frame and errors as np.array objects so we can operate on them.
-        integration = segments.data[k].values
-        errs = segments.err[k].values
+        integration = segments["data"][k]
+        errs = segments["err"][k]
 
         # Track outliers flagged in this frame and iterations performed.
         bad_pix_removed = 0
@@ -259,18 +262,14 @@ def led(segments, inpt_dict):
             bad_pix_this_frame = np.count_nonzero(S)
             bad_pix_removed += bad_pix_this_frame
 
-            # Report progress.
-            if inpt_dict["verbose"] == 2:
-                print("Bad pixels caught on iteration %.0f: %.0f" % (iteration_N, bad_pix_this_frame))
-
             # Correct frames, if asked.
             if inpt_dict["led_replace"]:
                 med_filter_image = median_filter(integration,size=5)
                 integration = np.where(S != 0, med_filter_image, integration)
             # Otherwise, just mask the bad pixels.
             else:
-                integration = np.ma.masked_array(integration,
-                                                 mask=bad_pix_map[k,:,:])
+                segments["badpixmask"][k,:,:] = np.where(bad_pix_map[k,:,:]>0,1,
+                                                         segments["badpixmask"][k,:,:])
 
             # Increment iteration number and check if condition to stop iterating is hit.
             iteration_N += 1
@@ -279,23 +278,32 @@ def led(segments, inpt_dict):
             if (inpt_dict["led_n"] == None and bad_pix_this_frame == bad_pix_last_frame): # if it has stalled out on finding new outliers
                 stop_iterating = True
         
-        # Report that the iterations for this frame have stopped.
-        if inpt_dict["verbose"] == 2:
-            print("Finished cleaning frame %.0f in %.0f iterations." % (k, iteration_N-1))
-            print("Total pixels corrected: %.0f out of %.0f" % (bad_pix_removed, S.shape[0]*S.shape[1]))
+        # Log cleaning info after the iterations for this frame have stopped.
+        pixels_treated_per_frame.append(bad_pix_removed)
+        iterations_needed_per_frame.append(iteration_N-1)
+
         # And replace the xarray datasets if asked.
         if inpt_dict["space_replace"]:
-            segments.data.values[k] = np.where(segments.data[k].values != integration,integration,segments.data.values[k])
+            segments["data"][k] = np.where(segments["data"][k] != integration,integration,segments["data"][k])
+    
+    # Report results of cleaning.
+    if inpt_dict["verbose"] >= 1:
+        print("All LED iterations complete.")
+        print("Median percentage of data cleaned by LED: {:.3f}%".format(100*np.median(pixels_treated_per_frame)/(S.shape[0]*S.shape[1])))
+    if inpt_dict["verbose"] == 2:
+        print("Highest and lowest number of pixels treated in a frame: {:.0f} and {:.0f}".format(np.min(pixels_treated_per_frame),
+                                                                                                 np.max(pixels_treated_per_frame)))
+        print("Typical number of iterations needed: {:.0f}".format(np.median(iterations_needed_per_frame)))
 
     # Update data flags.
-    segments.dq.values = np.where(bad_pix_map != 0, 1, segments.dq.values)
+    segments["junidq"] = np.where(bad_pix_map != 0, 1, segments["junidq"])
 
     if (plot_step or save_step):
         # Create plots of the entire bad_pix_map collapsed in on itself in time.
         bad_pix_alltime = np.sum(bad_pix_map,axis=0)
         fig, ax = plt.subplots(figsize=(20,4))
         im = ax.imshow(bad_pix_alltime/bad_pix_map.shape[0],origin='lower',cmap='viridis',
-                       norm='linear',aspect=5,vmin=0,vmax=1)
+                       norm='linear',aspect='auto',vmin=0,vmax=1)
         ax.set_title("Laplacian Edge Detection DQ flags")
         cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=40)
         cbar.set_label('Fraction of integrations flagged')
@@ -312,9 +320,11 @@ def led(segments, inpt_dict):
         fig, ax = plt.subplots(figsize=(20,4))
         medimg = np.median(noise_models,axis=0)
         vmin, vmax = np.nanpercentile(medimg,q=5), np.nanpercentile(medimg,q=95)
-        vmin = max((vmin,0.1))
+        if vmin <= 0:
+            pos = medimg[medimg>0]
+            vmin, vmax = np.nanpercentile(pos[np.isfinite(pos)],q=5), np.percentile(pos[np.isfinite(pos)],q=95)
         im = ax.imshow(medimg,origin='lower',cmap='viridis',
-                       norm='log',aspect=5,vmin=vmin,vmax=vmax)
+                       norm='log',aspect='auto',vmin=vmin,vmax=vmax)
         ax.set_title("Median noise model")
         cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=40)
         cbar.set_label('Flux [DN]')
@@ -329,9 +339,11 @@ def led(segments, inpt_dict):
         fig, ax = plt.subplots(figsize=(20,4))
         medimg = np.median(fine_structure_models,axis=0)
         vmin, vmax = np.nanpercentile(medimg,q=5), np.nanpercentile(medimg,q=95)
-        vmin = max((vmin,0.1))
+        if vmin <= 0:
+            pos = medimg[medimg>0]
+            vmin, vmax = np.nanpercentile(pos[np.isfinite(pos)],q=5), np.percentile(pos[np.isfinite(pos)],q=95)
         im = ax.imshow(medimg,origin='lower',cmap='viridis',
-                       norm='log',aspect=5,vmin=vmin,vmax=vmax)
+                       norm='log',aspect='auto',vmin=vmin,vmax=vmax)
         ax.set_title("Median fine structure model")
         cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=40)
         cbar.set_label('Flux [DN]')
@@ -346,9 +358,11 @@ def led(segments, inpt_dict):
         fig, ax = plt.subplots(figsize=(20,4))
         medimg = np.median(s_images,axis=0)
         vmin, vmax = np.nanpercentile(medimg,q=5), np.nanpercentile(medimg,q=95)
-        vmin = max((vmin,0.1))
+        if vmin <= 0:
+            pos = medimg[medimg>0]
+            vmin, vmax = np.nanpercentile(pos[np.isfinite(pos)],q=5), np.percentile(pos[np.isfinite(pos)],q=95)
         im = ax.imshow(medimg,origin='lower',cmap='viridis',
-                       norm='log',aspect=5,vmin=vmin,vmax=vmax)
+                       norm='log',aspect='auto',vmin=vmin,vmax=vmax)
         ax.set_title("Median S")
         cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=40)
         cbar.set_label('Flux [DN]')
@@ -374,7 +388,7 @@ def build_noise_model(data_frame, readnoise):
     """Builds a noise model for the given data frame, following van Dokkum 2001 methods.
 
     Args:
-        data_frame (np.array): Integration from the segments.data DataSet, used to build the noise model.
+        data_frame (np.array): Integration from the segments["data"] array, used to build the noise model.
         readnoise (float): Readnoise estimated to be in the data frame.
 
     Returns:
@@ -388,7 +402,7 @@ def subsample_frame(data_frame, factor=2):
     """Subsamples the input frame by the given subsampling factor.
 
     Args:
-        data_frame (np.array): Integration from the segments.data DataSet.
+        data_frame (np.array): Integration from the segments["data"] array.
         factor (int, optional): int >= 2. Factor by which to subsample the array. Defaults to 2.
 
     Returns:
@@ -416,7 +430,7 @@ def resample_frame(data_frame, original_shape):
     """Resamples a subsampled array back to the original shape.
 
     Args:
-        data_frame (np.array): Subsampled integration from the segments.data DataSet.
+        data_frame (np.array): Subsampled integration from the segments["data"] array.
         original_shape (tuple of int): Original shape of the subsampled array.
 
     Returns:

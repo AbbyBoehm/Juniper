@@ -200,9 +200,9 @@ def run_pipeline(config_folder,stages=(1,2,3,4,5,6,)):
             os.makedirs(diagnosticplots_dir)
 
         # Find files.
-        files = sorted(glob.glob(os.path.join(input_dir,"*reduced.nc")))
+        files = sorted(glob.glob(os.path.join(input_dir,"*reduced.npy")))
         fnames = [str.split(f,sep='/')[-1] for f in files]
-        outfile = [str.replace(f,'_reduced.nc','_1Dspec') for f in fnames][0] # use default names and change reduced to 1Dspec, that's all.
+        outfile = [str.replace(f,'_reduced.npy','_1Dspec') for f in fnames][0] # use default names and change reduced to 1Dspec, that's all.
         if s4_config["rename"]:
             # Set up new outfile names and also change reduced to 1Dspec.
             outfile = '{}_1Dspec'.format(s4_config["rename"])
@@ -252,11 +252,11 @@ def run_pipeline(config_folder,stages=(1,2,3,4,5,6,)):
         # Find files.
         files = []
         for input_dir in input_dirs:
-            subfiles = sorted(glob.glob(os.path.join(input_dir,"*1Dspec.nc")))
+            subfiles = sorted(glob.glob(os.path.join(input_dir,"*1Dspec.npy")))
             for subfile in subfiles:
                 files.append(subfile) # collect all 1D spec together
             fnames = [str.split(f,sep='/')[-1] for f in subfiles]
-            outfile = [str.replace(f,'_1Dspec.nc','_fits') for f in fnames][0] # use default name. There's only one file to be output here.
+            outfile = [str.replace(f,'_1Dspec.npy','_fits') for f in fnames][0] # use default name. There's only one file to be output here.
             if s5_config["rename"]:
                 # Set up new outfile name.
                 outfile = '{}_fits'.format(s5_config["rename"])

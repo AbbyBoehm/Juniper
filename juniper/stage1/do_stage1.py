@@ -26,7 +26,6 @@ def do_stage1(filepaths, outfiles, outdir, steps, plot_dir):
     
     # Check tqdm and plotting requests.
     time_step, time_ints = tqdm_translate(steps["verbose"])
-    # FIX : i'll figure this out later
     plot_step, plot_ints = plot_translate(steps["show_plots"])
     save_step, save_plots = plot_translate(steps["save_plots"])
     

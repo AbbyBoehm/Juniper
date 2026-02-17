@@ -30,7 +30,6 @@ def miribckg(datamodel, steps, inpt_dict, plot_dir, outfile):
     
     # Check tqdm and plotting requests.
     time_step, time_ints = tqdm_translate(inpt_dict["verbose"])
-    # FIX : i'll figure this out later
     plot_step, plot_ints = plot_translate(inpt_dict["show_plots"])
     save_step, save_ints = plot_translate(inpt_dict["save_plots"])
 
@@ -41,7 +40,7 @@ def miribckg(datamodel, steps, inpt_dict, plot_dir, outfile):
         bckg = np.median(bckg,axis=0) # axis 0 is integrations
         if (plot_step or save_step):
                 # Save a diagnostic plot of the first trace mask.
-                fig, ax, im = img(bckg[0,:,:], aspect=5, title="Int 0 bckg",
+                fig, ax, im = img(bckg[0,:,:], aspect='auto', title="Int 0 bckg",
                                   norm='log',verbose=inpt_dict["verbose"])
                 if save_step:
                     plt.savefig(os.path.join(plot_dir,"S1_{}_miribckg_example.png".format(outfile)),
@@ -64,7 +63,7 @@ def miribckg(datamodel, steps, inpt_dict, plot_dir, outfile):
                       disable=(not time_ints)): # for each group
             if (plot_step or save_step) and g == 0 and i == 0:
                 # Plot and/or save the pre-sub first int's first group as an example.
-                fig, ax, im = img(datamodel.data[i,g,:,:], aspect=5, title="Group {}, int {} before sub".format(g, i),
+                fig, ax, im = img(datamodel.data[i,g,:,:], aspect='auto', title="Group {}, int {} before sub".format(g, i),
                                   norm='linear',verbose=inpt_dict["verbose"])
                 if save_step:
                     plt.savefig(os.path.join(plot_dir,"S1_{}_miribckg_pre-sub_g{}_i{}.png".format(outfile,g,i)),
@@ -74,7 +73,7 @@ def miribckg(datamodel, steps, inpt_dict, plot_dir, outfile):
                 plt.close()
             if (plot_ints or save_ints):
                 # Plot and/or save every pre-sub group to be thorough.
-                fig, ax, im = img(datamodel.data[i,g,:,:], aspect=5, title="Group {}, int {} before sub".format(g, i),
+                fig, ax, im = img(datamodel.data[i,g,:,:], aspect='auto', title="Group {}, int {} before sub".format(g, i),
                                   norm='linear',verbose=inpt_dict["verbose"])
                 if save_ints:
                     plt.savefig(os.path.join(plot_dir,"S1_{}_miribckg_pre-sub_g{}_i{}.png".format(outfile,g,i)),
@@ -88,7 +87,7 @@ def miribckg(datamodel, steps, inpt_dict, plot_dir, outfile):
             
             if (plot_step or save_step) and g == 0 and i == 0:
                 # Plot and/or save the post-sub first int's first group as an example.
-                fig, ax, im = img(datamodel.data[i,g,:,:], aspect=5, title="Group {}, int {} after sub".format(g, i),
+                fig, ax, im = img(datamodel.data[i,g,:,:], aspect='auto', title="Group {}, int {} after sub".format(g, i),
                                   norm='linear',verbose=inpt_dict["verbose"])
                 if save_step:
                     plt.savefig(os.path.join(plot_dir,"S1_{}_miribckg_post-sub_g{}_i{}.png".format(outfile,g,i)),
@@ -98,7 +97,7 @@ def miribckg(datamodel, steps, inpt_dict, plot_dir, outfile):
                 plt.close()
             if (plot_ints or save_ints):
                 # Plot and/or save every post-sub group to be thorough.
-                fig, ax, im = img(datamodel.data[i,g,:,:], aspect=5, title="Group {}, int {} after sub".format(g, i),
+                fig, ax, im = img(datamodel.data[i,g,:,:], aspect='auto', title="Group {}, int {} after sub".format(g, i),
                                   norm='linear',verbose=inpt_dict["verbose"])
                 if save_ints:
                     plt.savefig(os.path.join(plot_dir,"S1_{}_miribckg_post-sub_g{}_i{}.png".format(outfile,g,i)),

@@ -26,7 +26,6 @@ def correct_curvature(outfile, outdir, filenumber, inpt_dict):
     
     # Check tqdm and plotting requests.
     time_step, time_ints = tqdm_translate(inpt_dict["verbose"])
-    # FIX : i'll figure this out later
     plot_step, plot_ints = plot_translate(inpt_dict["show_plots"])
     save_step, save_ints = plot_translate(inpt_dict["save_plots"])
 
@@ -41,15 +40,17 @@ def correct_curvature(outfile, outdir, filenumber, inpt_dict):
         if grating in ("G395M","G395H"):
             if inpt_dict["verbose"] == 2:
                 print("{} grating detected, correcting for trace curvature...".format(grating))
-            shifted_data, shifted_wvs = fix_curvature(file['SCI'].data,
-                                                      file['WAVELENGTH'].data,
-                                                      timer=[time_step,time_ints],
-                                                      show=[plot_step,plot_ints],
-                                                      save=[save_step,save_ints],
-                                                      verbose=inpt_dict["verbose"],
-                                                      outdir=inpt_dict["diagnostic_plots"],
-                                                      outfile=outfile)
-            
+            shifted_data, shifted_err, shifted_dq, shifted_wvs = fix_curvature(file['SCI'].data,
+                                                                               file['ERR'].data,
+                                                                               file['DQ'].data,
+                                                                               file['WAVELENGTH'].data,
+                                                                               timer=[time_step,time_ints],
+                                                                               show=[plot_step,plot_ints],
+                                                                               save=[save_step,save_ints],
+                                                                               verbose=inpt_dict["verbose"],
+                                                                               outdir=inpt_dict["diagnostic_plots"],
+                                                                               outfile=outfile)
+                                        
             if (plot_step or save_step):
                 # Plot median curve-corrected frame as an example.
                 medframe = np.median(shifted_data,axis=0)
@@ -64,7 +65,7 @@ def correct_curvature(outfile, outdir, filenumber, inpt_dict):
                 
                 fig, ax = plt.subplots(figsize=(20, 4))
                 im = ax.imshow(medframe,cmap='viridis',origin='lower',
-                               norm=symlog_norm,aspect=5)
+                               norm=symlog_norm,aspect='auto')
                 cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=40)
                 cbar.set_label("Flux [DN]")
                 ax.set_title("Curvature-corrected median frame")
@@ -93,7 +94,7 @@ def correct_curvature(outfile, outdir, filenumber, inpt_dict):
                 
                 fig, ax = plt.subplots(figsize=(20, 4))
                 im = ax.imshow(mostdeviantframe,cmap='viridis',origin='lower',
-                               norm=symlog_norm,aspect=5)
+                               norm=symlog_norm,aspect='auto')
                 cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=40)
                 cbar.set_label("Flux [DN]")
                 ax.set_title("Curvature-corrected most deviant frame")
@@ -105,7 +106,8 @@ def correct_curvature(outfile, outdir, filenumber, inpt_dict):
                     plt.show(block=True)
                 plt.close()
                 
-            write_curve_fixed_file(output_file, shifted_data, shifted_wvs)
+            write_curve_fixed_file(output_file, shifted_data,
+                                   shifted_err, shifted_dq, shifted_wvs)
     # Log.
     if inpt_dict["verbose"] >= 1:
         print("Curvature correction complete.")
@@ -114,11 +116,13 @@ def correct_curvature(outfile, outdir, filenumber, inpt_dict):
     if time_step:
         timer(time.time()-t0,None,None,None)
 
-def fix_curvature(data, wvs, timer, show, save, verbose, outdir, outfile):
+def fix_curvature(data, err, dq, wvs, timer, show, save, verbose, outdir, outfile):
     """Corrects trace curvature in given array. Adapted in part from Eureka!
 
     Args:
         data (np.array): 3D rateints data.
+        err (np.array): 3D uncertainty on rateints.
+        dq (np.array): 3D data quality flags.
         wvs (np.array): 3D wavelength solution.
         timer (list): bool, bool. Respectively whether to time the whole step
         and whether to time corrections to each frame.
@@ -163,10 +167,25 @@ def fix_curvature(data, wvs, timer, show, save, verbose, outdir, outfile):
     # Then for each frame in data, need to roll it.
     shifted_data = np.empty_like(data)
     for i in tqdm(range(data.shape[0]),
-                  desc='Correcting curvature in each frame...',
+                  desc='Correcting curvature in each data frame...',
                   disable=(not time_ints)):
         shifted_data[i,:,:] = roll_one_frame(data[i,:,:], rolls) 
-    return shifted_data, shifted_wvs
+
+    # Then for each frame in err, need to roll it.
+    shifted_err = np.empty_like(err)
+    for i in tqdm(range(err.shape[0]),
+                  desc='Correcting curvature in each error frame...',
+                  disable=(not time_ints)):
+        shifted_err[i,:,:] = roll_one_frame(err[i,:,:], rolls) 
+
+    # Lastly, for each frame in dq, need to roll it.
+    shifted_dq = np.empty_like(dq)
+    for i in tqdm(range(dq.shape[0]),
+                  desc='Correcting curvature in each data quality frame...',
+                  disable=(not time_ints)):
+        shifted_dq[i,:,:] = roll_one_frame(dq[i,:,:], rolls) 
+
+    return shifted_data, shifted_err, shifted_dq, shifted_wvs
 
 def roll_one_frame(frame, rolls):
     """Roll one frame into alignment.
@@ -217,18 +236,23 @@ def get_rolls(frame):
     rolls = np.around(a*(x**2) + b*x + c).astype(int)
     return rolls
 
-def write_curve_fixed_file(output_file, shifted_data, shifted_wvs):
+def write_curve_fixed_file(output_file, shifted_data,
+                           shifted_err, shifted_dq, shifted_wvs):
     """Write curvature-corrected file.
 
     Args:
         output_file (str): name of the *calints.fits file we just rolled
         and are going to overwrite.
-        shifted_data (np.array): 3D data that has been rolled.
+        shifted_data (np.array): 3D flux data that has been rolled.
+        shifted_err (np.array): 3D error data that has been rolled.
+        shifted_dq (np.array): 3D data quality flag data that has been rolled.
         shifted_wvs (np.array): 3D wavelength solution that has been rolled.
     """
     with fits.open(output_file, mode="update") as fits_file:
         # Need to update data and wavelength attributes to be rotated arrays.
         fits_file['SCI'].data = shifted_data
+        fits_file['ERR'].data = shifted_err
+        fits_file['DQ'].data = shifted_dq
         fits_file['WAVELENGTH'].data = shifted_wvs
 
         # All modified headers get written out.
