@@ -104,7 +104,7 @@ def batman_init_all_planets(t, planets, ld, event):
 
 # You ever stare at a screen so long you stop noticing the word 'batman'?
 
-def batman_flux_update(bundled_params, fit_or_not, batman_params, batman_model):
+def batman_flux_update(bundled_params, fit_or_not, batman_params, batman_model, planet_ID):
     """Simple function to get the new batman flux model.
 
     Args:
@@ -112,26 +112,24 @@ def batman_flux_update(bundled_params, fit_or_not, batman_params, batman_model):
         flares, systematics, and lds, spewed out into a long dict. Can also be
         supplied as None when just retrieving the batman flux.
         fit_or_not (dict): a series of keys explaining which items must be modified.
-        batman_params (list): list of batman.TransitParams() objects to update
-        and supply to the batman_model objects.
-        batman_model (list): batman.TranstiModel() objects which return
+        batman_params (object): batman.TransitParams() object to update
+        and supply to the batman_model object.
+        batman_model (object): batman.TransitModel() object which returns
         transit/eclipse flux when supplied with parameters.
+        planet_ID (str): number of the planet being worked on. Helps grab
+        the correct tags.
 
     Returns:
-        np.array: total flux for the transit/eclipse events.
+        np.array: flux for a given transit/eclipse event.
     """
     # Update the batman_params if asked.
     if bundled_params:
-        # Need to update the params for each model.
-        for i, (batman_params_i, batman_model_i) in enumerate(zip(batman_params,batman_model)):
-            batman_params_i = update_batman_params(bundled_params, fit_or_not, batman_params_i, str(i+1))
+        # Need to update the params for the model.
+        batman_params = update_batman_params(bundled_params, fit_or_not, batman_params, planet_ID)
     
-    # And calculate and sum bat_flux.
-    for i, (batman_params_i, batman_model_i) in enumerate(zip(batman_params,batman_model)):
-        if i == 0:
-            bat_flux = batman_model_i.light_curve(batman_params_i)
-        else:
-            bat_flux += batman_model_i.light_curve(batman_params_i)
+    # And calculate bat_flux.
+    bat_flux = batman_model.light_curve(batman_params)
+    
     return bat_flux
 
 def update_batman_params(bundled_params, fit_or_not, batman_params, planet_ID):

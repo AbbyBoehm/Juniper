@@ -41,7 +41,7 @@ def get_fit_and_res(t, lc, lc_err, planets, flares, systematics, ld, event):
     residuals = full_flux-lc
 
     # Create interpolated model.
-    t_interp = np.linspace(np.min(t),np.max(t),1000)
+    t_interp = np.linspace(np.min(t),np.max(t),1000) # FIX: i guess 1000 is only high res if you have < 1000 data points
     planets = batman_handler.batman_init_all_planets(t_interp, planets, ld, event)
     
     # Create the full model and components.

@@ -68,15 +68,16 @@ def align(oneD_spec, oneD_err, wav_sols, oneD_time, inpt_dict):
         
     if (plot_ints or save_ints):
         # Plot a stack of all raw and shifted specs.
-        plt.plot(cpix, oneD_spec[0,:], color='teal', alpha=0.5,label='pre-shifted')
-        plt.plot(shift_cpix, align_spec[0], color='red',alpha=0.75,label='shifted')
+        fig,ax = plt.subplots(figsize = (10,5))
+        ax.plot(cpix, oneD_spec[0,:], color='teal', alpha=0.5,label='pre-shifted')
+        ax.plot(shift_cpix, align_spec[0], color='red',alpha=0.75,label='shifted')
         for i in range(1,oneD_spec.shape[0]):
-            plt.plot(cpix, oneD_spec[i,:], color='teal', alpha=0.5)
-            plt.plot(shift_cpix, align_spec[i], color='red',alpha=0.75)
-        plt.xlabel('Cross-dispersion Position [Pixels]')
-        plt.ylabel('Flux [DN]')
-        plt.legend(loc='upper right')
-        plt.title('Shifted spectra')
+            ax.plot(cpix, oneD_spec[i,:], color='teal', alpha=0.5)
+            ax.plot(shift_cpix, align_spec[i], color='red',alpha=0.75)
+        ax.set_xlabel('Cross-dispersion Position [Pixels]')
+        ax.set_ylabel('Flux [DN]')
+        ax.legend(loc='upper right')
+        ax.set_title('Shifted spectra')
         if save_ints:
             plt.savefig(os.path.join(inpt_dict['plot_dir'],'S4_shifted_spectra.png'),
                         dpi=300, bbox_inches='tight')

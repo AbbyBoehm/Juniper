@@ -40,7 +40,7 @@ space_method    'led'                                       # str. Options are '
 
 # Step 3a: Laplacian Edge Detecion space outlier rejection
 led_replace     True                                        # bool. If True, replaces outliers with a median filtered model. If False, leaves as masked.
-led_sigma       3.0                                         # float. The sigma to use when filtering bad pixels.
+led_sigma       5.0                                         # float. The sigma to use when filtering bad pixels.
 led_factor      2                                           # int >= 2. The factor to use when subsampling the array. 2 works and is most computationally efficient.
 led_n           2                                           # int. Number of times to do LED on each frame. Enter None to continue performing LED on each frame until no outliers are found.
 fine_structure  True                                        # bool. Whether to build the fine structure model, which further protects the trace from damage during LED.
@@ -48,7 +48,7 @@ contrast_factor 5.0                                         # float. If building
 
 # Step 3b: Spatial smoothing space outlier rejection
 space_replace   True                                        # bool. If True, replaces outliers with a median filtered model. If False, leaves as masked.
-space_sigma     3.0                                         # float. The sigma to use when filtering bad pixels.
+space_sigma     5.0                                         # float. The sigma to use when filtering bad pixels.
 space_kernel    (31,1)                                      # tuple of odd int. The kernel to use when filtering bad pixels.
 
 # Step 4: Subtract background

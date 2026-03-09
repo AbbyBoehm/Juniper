@@ -3,7 +3,7 @@ import glob
 from tqdm import tqdm
 
 import numpy as np
-#import xarray as xr
+from scipy.ndimage import median_filter
 import matplotlib.pyplot as plt
 
 from juniper.config.translate_config import make_planets, make_flares, make_systematics, make_ld
@@ -11,7 +11,7 @@ from juniper.util.diagnostics import tqdm_translate, plot_translate
 from juniper.util.datahandling import stitch_spectra, save_s5_output
 from juniper.util.plotting import plot_chains, plot_corner, plot_post
 from juniper.util.cleaning import median_timeseries_filter
-from juniper.stage5 import bin_light_curves, lsqfit_handler, mcmcfit_handler
+from juniper.stage5 import bin_light_curves, lsqfit_handler, mcmcfit_handler, nestedsampling_handler
 
 def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
     """Performs Stage 5 fitting on the given files.
@@ -35,7 +35,6 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
     
     # Check tqdm and plotting requests.
     time_step, time_ints = tqdm_translate(steps["verbose"])
-    # FIX : i'll figure this out later
     plot_step, plot_ints = plot_translate(steps["show_plots"])
     save_step, save_ints = plot_translate(steps["save_plots"])
     
@@ -56,13 +55,10 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
         light_curves = bin_light_curves.bin_light_curves(spectra, steps)
 
         # Save light curves out.
-        #light_curves.to_netcdf(os.path.join(outdir, 's5_lightcurves.nc'))
         filename = os.path.join(outdir, 's5_{}_lightcurves.npy'.format(outfile))
         np.save(filename,light_curves)
     
-    # Read the binned light curve x array.
-    #xrfile = sorted(glob.glob(os.path.join(outdir,"*lightcurves.nc")))[0]
-    #light_curves = xr.open_dataset(xrfile)
+    # Read the binned light curve dictionary.
     npyfile = sorted(glob.glob(os.path.join(outdir,"*lightcurves.npy")))[0]
     light_curves = np.load(npyfile,allow_pickle=True).item()
 
@@ -77,13 +73,26 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
         ypos = light_curves["ypos"][d]
         widths = light_curves["widths"][d]
 
-        # Optionally, clean the position and widths data
+        # Optionally, clean and smooth the position and widths data
         # since fitter often struggles with this.
         if steps["clean_pos"]:
             xpos = median_timeseries_filter(xpos,sigma=3.0,kernel=31)
+            flen = int(len(xpos)/15)
+            if flen % 2 == 0:
+                flen += 1
+            xpos = median_filter(xpos,flen,mode='nearest')
+
             ypos = median_timeseries_filter(ypos,sigma=3.0,kernel=31)
+            flen = int(len(ypos)/15)
+            if flen % 2 == 0:
+                flen += 1
+            ypos = median_filter(ypos,flen,mode='nearest')
         if steps["clean_widths"]:
             widths = median_timeseries_filter(widths,sigma=3.0,kernel=31)
+            flen = int(len(widths)/15)
+            if flen % 2 == 0:
+                flen += 1
+            widths = median_filter(widths,flen,mode='nearest')
         
         systematics[str(event_ID)] = make_systematics(steps,
                                                       xpos=xpos,
@@ -108,7 +117,10 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
                                                                      wavelengths=light_curves["broadbins"],
                                                                      planets=planets, flares=flares,
                                                                      systematics=systematics, ld=ld,
-                                                                     inpt_dict=steps, is_spec=False)
+                                                                     inpt_dict=steps, is_spec=False,
+                                                                     show_guess_plot=plot_step,
+                                                                     save_guess_plot=save_step,
+                                                                     plot_dir=plot_dir,outfile=outfile,wavestr=None)
             
             # Save output. Needs to be formatted as if there is more than one dimension.
             planets_err, flares_err, systematics_err, ld_err = planets, flares, systematics, ld
@@ -116,44 +128,9 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
                            systematics, systematics_err, ld, ld_err,
                            light_curves["time"], light_curves["broadband"],light_curves["broaderr"],
                            'broadband', outfile+"_broadbandLSQ", outdir)
-        '''
-            planets, flares, systematics, ld = lsqfit_handler.lsqfit_one(lc_time=light_curves["time"][0],
-                                                                 light_curve=light_curves["broadband"][0],
-                                                                 errors=light_curves["broaderr"][0],
-                                                                 waves=light_curves["broadbins"][0],
-                                                                 planets=planets,flares=flares,
-                                                                 systematics=systematics,ld=ld,
-                                                                 inpt_dict=steps)
-            # Save output. Needs to be formatted as if there is more than one dimension.
-            planets_err, flares_err, systematics_err, ld_err = planets, flares, systematics, ld
-            save_s5_output(planets, planets_err, flares, flares_err,
-                            systematics, systematics_err, ld, ld_err,
-                            light_curves["time"], light_curves["broadband"],light_curves["broaderr"],'broadband',
-                            outfile+"_broadbandLSQ", outdir)
-
-
-        elif steps["use_LSQ"] and len(light_curves["broadband"])!=1:
-            if steps["verbose"] == 2:
-                print("Linear least squares fitting to multiple broadband curves in parallel...")
-            planets, flares, systematics, ld = lsqfit_handler.lsqfit_joint(lc_time=light_curves["time"],
-                                                                   light_curve=light_curves["broadband"],
-                                                                   errors=light_curves["broaderr"],
-                                                                   waves=light_curves["broadbins"],
-                                                                   planets=planets,flares=flares,
-                                                                   systematics=systematics,ld=ld,
-                                                                   inpt_dict=steps)
-            # Save output.
-            planets_err, flares_err, systematics_err, ld_err = planets, flares, systematics, ld
-            save_s5_output(planets, planets_err, flares, flares_err,
-                           systematics, systematics_err, ld, ld_err,
-                           light_curves["time"], light_curves["broadband"],light_curves["broaderr"],'broadband',
-                           outfile+"_broadbandLSQ", outdir)
-        '''
         
-
-
         # Now refine those linear fits with MCMC, or just go straight to MCMC if desired.
-        if steps["use_MCMC"]:# and len(light_curves["broadband"])==1:
+        if steps["use_MCMC"]:
             if steps["verbose"] == 2:
                 print("Markov Chain Monte Carlo fitting to all supplied broadband data...")
             planets, flares, systematics, ld, \
@@ -164,7 +141,10 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
                                                      wavelengths=light_curves["broadbins"],
                                                      planets=planets, flares=flares,
                                                      systematics=systematics, ld=ld,
-                                                     inpt_dict=steps, is_spec=False)
+                                                     inpt_dict=steps, is_spec=False,
+                                                     show_guess_plot=plot_step,
+                                                     save_guess_plot=save_step,
+                                                     plot_dir=plot_dir,outfile=outfile,wavestr=None)
             
             # Save output.
             save_s5_output(planets, planets_err, flares, flares_err,
@@ -203,28 +183,35 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
                 if plot_step:
                     plt.show(block=True)
                 plt.close()
-            '''
+        
+        # Alternatively or additionally, use nested sampling to 
+        if steps["use_nested"]:
             if steps["verbose"] == 2:
-                print("Markov Chain Monte Carlo fitting to a single broadband curve...")
-            planets, flares, systematics, ld, p_err, f_err, s_err, l_err, plotting_items = mcmcfit_handler.mcmcfit_one(lc_time=light_curves["time"][0],
-                                                                                                               light_curve=light_curves["broadband"][0],
-                                                                                                               errors=light_curves["broaderr"][0],
-                                                                                                               waves=light_curves["broadbins"][0],
-                                                                                                               planets=planets,flares=flares,
-                                                                                                               systematics=systematics,ld=ld,
-                                                                                                               inpt_dict=steps)
+                print("Dynesty nested sampling fitting to all supplied broadband data...")
+            planets, flares, systematics, ld, \
+            planets_err, flares_err, systematics_err, ld_err, \
+            plotting_items = nestedsampling_handler.nestfit(exp_times=light_curves["time"],
+                                                            light_curve=light_curves["broadband"],
+                                                            errors=light_curves["broaderr"],
+                                                            wavelengths=light_curves["broadbins"],
+                                                            planets=planets, flares=flares,
+                                                            systematics=systematics, ld=ld,
+                                                            inpt_dict=steps, is_spec=False,
+                                                            show_guess_plot=plot_step,
+                                                            save_guess_plot=save_step,
+                                                            plot_dir=plot_dir,outfile=outfile,wavestr=None)
             
             # Save output.
-            save_s5_output(planets, p_err, flares, f_err,
-                           systematics, s_err, ld, l_err,
-                           light_curves["time"], light_curves["broadband"],light_curves["broaderr"],'broadband',
-                           outfile+"_broadbandMCMC", outdir)
+            save_s5_output(planets, planets_err, flares, flares_err,
+                           systematics, systematics_err, ld, ld_err,
+                           light_curves["time"], light_curves["broadband"],light_curves["broaderr"],
+                           'broadband', outfile+"_broadbandnest", outdir)
             
             # Plot, if asked.
             if (plot_step or save_step):
                 # Unpack plotting items.
                 ndim, samples, flat_samples, labels, n = plotting_items
-                labels = [str.replace(a, "_prior", "") for a in labels] # clip off the prior tag
+                
                 # Plot posteriors.
                 fig, ax = plot_post(ndim,samples,labels,n)
                 if save_step:
@@ -251,24 +238,7 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
                 if plot_step:
                     plt.show(block=True)
                 plt.close()
-        
-        else:
-            if steps["verbose"] == 2:
-                print("Markov Chain Monte Carlo fitting to multiple broadband curves in parallel...")
             
-            planets, flares, systematics, ld, p_err, f_err, s_err, l_err = MCMCfit.mcmcfit_joint(lc_time=light_curves.time.values[0,:],
-                                                                                               light_curve=light_curves.broadband.values[0,:],
-                                                                                               errors=light_curves.broaderr.values[0,:],
-                                                                                               waves=light_curves.broadbins.values[0,:],
-                                                                                               planets=planets,flares=flares,
-                                                                                               systematics=systematics,ld=ld,
-                                                                                               inpt_dict=steps)
-            # Save output.
-            save_s5_output(planets, p_err, flares, f_err,
-                            systematics, s_err, ld, l_err,
-                            light_curves.time.values[0,:], light_curves.broadband.values[0,:], light_curves.broaderr.values[0,:], 'broadband',
-                            outfile+"_broadbandMCMC", outdir)
-            '''
     # Then fit the spectroscopic curves.
     if steps["fit_spec"]:
         # Load planets, flares, systematics, and ld from a fitted model, if available.
@@ -331,7 +301,10 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
                                                                              wavelengths=wavelengths,
                                                                              planets=planets, flares=flares,
                                                                              systematics=systematics, ld=ld,
-                                                                             inpt_dict=steps, is_spec=True)
+                                                                             inpt_dict=steps, is_spec=True,
+                                                                             show_guess_plot=plot_ints,
+                                                                             save_guess_plot=save_ints,
+                                                                             plot_dir=plot_dir,outfile=outfile,wavestr=wavestr)
                 
                     # Save output. Needs to be formatted as if there is more than one dimension.
                     planets_err, flares_err, systematics_err, ld_err = planets, flares, systematics, ld
@@ -351,7 +324,10 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
                                                             wavelengths=wavelengths,
                                                             planets=planets, flares=flares,
                                                             systematics=systematics, ld=ld,
-                                                            inpt_dict=steps, is_spec=True)
+                                                            inpt_dict=steps, is_spec=True,
+                                                            show_guess_plot=plot_ints,
+                                                            save_guess_plot=save_ints,
+                                                            plot_dir=plot_dir,outfile=outfile,wavestr=wavestr)
                     
                     # Save output.
                     save_s5_output(planets, planets_err, flares, flares_err,
@@ -427,7 +403,10 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
                                                                                  wavelengths=wavelengths,
                                                                                  planets=planets, flares=flares,
                                                                                  systematics=systematics, ld=ld,
-                                                                                 inpt_dict=steps, is_spec=True)
+                                                                                 inpt_dict=steps, is_spec=True,
+                                                                                 show_guess_plot=plot_ints,
+                                                                                 save_guess_plot=save_ints,
+                                                                                 plot_dir=plot_dir,outfile=outfile,wavestr=wavestr)
                     
                         # Save output. Needs to be formatted as if there is more than one dimension.
                         planets_err, flares_err, systematics_err, ld_err = planets, flares, systematics, ld
@@ -447,7 +426,10 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
                                                                  wavelengths=wavelengths,
                                                                  planets=planets, flares=flares,
                                                                  systematics=systematics, ld=ld,
-                                                                 inpt_dict=steps, is_spec=True)
+                                                                 inpt_dict=steps, is_spec=True,
+                                                                 show_guess_plot=plot_ints,
+                                                                 save_guess_plot=save_ints,
+                                                                 plot_dir=plot_dir,outfile=outfile,wavestr=wavestr)
                         
                         # Save output.
                         save_s5_output(planets, planets_err, flares, flares_err,

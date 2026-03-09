@@ -31,7 +31,7 @@ def img(array, aspect=1, title=None, vmin=None, vmax=None, norm=None, verbose=2)
     ax.set_title(title)
     return fig, ax, im
 
-def plot_fit(ax, t, lc, lc_err, t_interp, lc_interp):
+def plot_fit(ax, t, lc, lc_err, t_interp, lc_interp, fit_color='red'):
     """Plots the fitted model over the data.
 
     Args:
@@ -47,7 +47,7 @@ def plot_fit(ax, t, lc, lc_err, t_interp, lc_interp):
     else:
         ax.scatter(t, lc, color='k', zorder=0)
     
-    ax.plot(t_interp, lc_interp, color='red', zorder=2)
+    ax.plot(t_interp, lc_interp, color=fit_color, zorder=2)
     return ax
 
 def plot_res(ax, t, res, lc_err):

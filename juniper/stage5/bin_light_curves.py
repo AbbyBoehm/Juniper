@@ -28,7 +28,6 @@ def bin_light_curves(spectra, inpt_dict):
 
     # Check tqdm and plotting requests.
     time_step, time_ints = tqdm_translate(inpt_dict["verbose"])
-    # FIX : i'll figure this out later
     plot_step, plot_ints = plot_translate(inpt_dict["show_plots"])
     save_step, save_ints = plot_translate(inpt_dict["save_plots"])
     
@@ -51,9 +50,6 @@ def bin_light_curves(spectra, inpt_dict):
                   desc='Extracting light curves from each detector...',
                   disable=(not time_ints)):
         # Load the spectra and uncertainties and wavelength solutions from this detector.
-        #spectrum = spectra.spectrum.values[d,:,:] # has shape time x wavelength
-        #error = spectra.err.values[d,:,:]
-        #waves = np.median(spectra.waves.values[d,:,:],axis=0) # median wavelength solution on time axis, has shape wavelength/column
         spectrum = spectra["spectrum"][d]
         error = spectra["errors"][d]
         waves = np.median(spectra["waves"][d],axis=0)
@@ -73,10 +69,21 @@ def bin_light_curves(spectra, inpt_dict):
                 plt.show(block=True)
             plt.close()
 
-        # Set up a mask for NaN, inf, zero-waves, and bad columns.
+        # Set up a mask for NaN, inf, zero flux, zero-waves, high-error, and bad columns.
         column_mask = np.where(np.isnan(spectrum),1,0) # create a nan mask
         column_mask = np.where(np.isinf(spectrum),1,column_mask) # mask anywhere the spectrum is inf too
+        column_mask = np.where(spectrum==0,1,column_mask) # and mask anywhere the spectrum is zero
+        column_mask = np.where(error>np.median(error)+10*np.std(error),1,column_mask) # ignore freakishly large errors
         column_mask = np.where(waves==0,1,column_mask) # and ignore places with no wavelengths
+
+        if inpt_dict["verbose"] == 2:
+            ntime, ncols = spectrum.shape[0],spectrum.shape[1]
+            print(f"For detector {d} with {ncols} columns, the following bad columns were recognized:")
+            print("NaN spectral columns:",len(np.argwhere(np.isnan(spectrum)))/ntime)
+            print("Infinite spectral columns:",len(np.argwhere(np.isinf(spectrum)))/ntime)
+            print("Empty spectral columns:",len(np.argwhere(spectrum==0))/ntime)
+            print("10-sigma abnormalities in error:",round(len(np.argwhere(error>np.median(error)+10*np.std(error)))/ntime))
+            print("Invalid wavelength solutions:",len(np.argwhere(waves==0))/ntime)
 
         # Initialize detector-specific lists.
         spec_det = [] # will have shape time x central_wavelength
@@ -86,9 +93,6 @@ def bin_light_curves(spectra, inpt_dict):
 
         # Check for bad columns.
         if inpt_dict["reject_bad_cols"]:
-            if inpt_dict["verbose"] == 2:
-                print("Rejecting unstable columns from spectra...")
-            
             # Median normalize the 1D spectra over time.
             norm_spec = np.copy(spectrum)/np.median(spectrum,axis=0)
             norm_std = np.std(norm_spec,axis=0)
@@ -100,7 +104,7 @@ def bin_light_curves(spectra, inpt_dict):
             column_mask[:,bad_columns] = 1 # update the mask
 
             if inpt_dict["verbose"] == 2:
-                print("{} columns out of {} were masked.".format(len(bad_columns),norm_spec.shape[1]))
+                print("Abnormally high standard deviations on flux (bad cols):",len(bad_columns))
 
             if (plot_ints or save_ints):
                 # Create diagnostic plot of how many columns were marked as bad, and what the column std was.
@@ -154,7 +158,6 @@ def bin_light_curves(spectra, inpt_dict):
         # The broad-band light curve is trivial.
         broadband_det = np.ma.sum(broadband_spectrum,axis=1) # sum on wavelengths to get flux over whole bandpass
         # Broad-band uncertainties sum in quadrature.
-        #broaderr_det = np.ma.sqrt(np.ma.sum(np.square(broadband_error),axis=1)) # sum on wavelengths to get error over whole bandpass
         broaderr_det = np.ma.sqrt(np.ma.sum(broadband_error**2,axis=1)) # sum on wavelengths to get error over whole bandpass
         # Getting the central wavelength is simple.
         broadwave_det = np.ma.median(broadband_waves)
@@ -175,7 +178,6 @@ def bin_light_curves(spectra, inpt_dict):
 
         if (plot_step or save_step):
             # Create diagnostic plot of the broad-band light curve.
-            #plt.errorbar(spectra.time.values[d,:], broadband_det, yerr=broaderr_det, fmt='ko', capsize=3)
             plt.errorbar(spectra["time"][d], broadband_det, yerr=broaderr_det, fmt='ko', capsize=3)
             plt.title("Broad-band light curve")
             plt.xlabel("time [mjd]")
@@ -188,7 +190,7 @@ def bin_light_curves(spectra, inpt_dict):
             plt.close()
 
             # Also, create Allan Variance plot.
-            fig, ax = allan_variance(spectra["time"][d], broadband_det)#(spectra.time.values[d,:], broadband_det)
+            fig, ax = allan_variance(spectra["time"][d], broadband_det)
             if save_ints:
                 plt.savefig(os.path.join(inpt_dict['plot_dir'],'S5_detector{}_Allanbroadband_lc.png'.format(d)),
                             dpi=300, bbox_inches='tight')
@@ -241,7 +243,6 @@ def bin_light_curves(spectra, inpt_dict):
 
                 if (plot_ints or save_ints):
                     # Create diagnostic plot of this spec light curve.
-                    #plt.errorbar(spectra.time.values[d,:], bin_spec, yerr=bin_err, fmt='ko', capsize=3)
                     plt.errorbar(spectra["time"][d], bin_spec, yerr=bin_err, fmt='ko', capsize=3)
                     plt.title("Spectroscopic light curve")
                     plt.xlabel("time [mjd]")
@@ -254,7 +255,7 @@ def bin_light_curves(spectra, inpt_dict):
                     plt.close()
 
                     # Also, create Allan Variance plot.
-                    fig, ax = allan_variance(spectra["time"][d], bin_spec)#(spectra.time.values[d,:], bin_spec)
+                    fig, ax = allan_variance(spectra["time"][d], bin_spec)
                     if save_ints:
                         plt.savefig(os.path.join(inpt_dict['plot_dir'],'S5_detector{}_Allan{}um_lc.png'.format(d,np.round(bin_wave,3))),
                                     dpi=300, bbox_inches='tight')
@@ -281,8 +282,8 @@ def bin_light_curves(spectra, inpt_dict):
             # If asked, replace outliers from the curve.
             if inpt_dict["clip_outliers"]:
                 bin_spec, n_changed = running_median_filter(bin_spec,
-                                                             sigma=inpt_dict["clip_outliers"],
-                                                             window=inpt_dict["clip_window"])
+                                                            sigma=inpt_dict["clip_outliers"],
+                                                            window=inpt_dict["clip_window"])
                 if inpt_dict["verbose"] == 2:
                     print("Replaced {} outliers in the spectroscopic light curve at {:.3F} um.".format(n_changed, bin_wave))
     
@@ -294,7 +295,6 @@ def bin_light_curves(spectra, inpt_dict):
 
             if (plot_ints or save_ints):
                 # Create diagnostic plot of this spec light curve.
-                #plt.errorbar(spectra.time.values[d,:], bin_spec, yerr=bin_err, fmt='ko', capsize=3)
                 plt.errorbar(spectra["time"][d], bin_spec, yerr=bin_err, fmt='ko', capsize=3)
                 plt.title("Spectroscopic light curve")
                 plt.xlabel("time [mjd]")
@@ -307,7 +307,7 @@ def bin_light_curves(spectra, inpt_dict):
                 plt.close()
 
                 # Also, create Allan Variance plot.
-                fig, ax = allan_variance(spectra["time"][d], bin_spec)#(spectra.time.values[d,:], bin_spec)
+                fig, ax = allan_variance(spectra["time"][d], bin_spec)
                 if save_ints:
                     plt.savefig(os.path.join(inpt_dict['plot_dir'],'S5_detector{}_Allan{}um_lc.png'.format(d,np.round(bin_wave,3))),
                                 dpi=300, bbox_inches='tight')
@@ -361,7 +361,6 @@ def bin_light_curves(spectra, inpt_dict):
 
                 if (plot_ints or save_ints):
                     # Create diagnostic plot of this spec light curve.
-                    #plt.errorbar(spectra.time.values[d,:], bin_spec, yerr=bin_err, fmt='ko', capsize=3)
                     plt.errorbar(spectra["time"][d], bin_spec, yerr=bin_err, fmt='ko', capsize=3)
                     plt.title("Spectroscopic light curve")
                     plt.xlabel("time [mjd]")
@@ -374,7 +373,7 @@ def bin_light_curves(spectra, inpt_dict):
                     plt.close()
 
                     # Also, create Allan Variance plot.
-                    fig, ax = allan_variance(spectra["time"][d], bin_spec)#(spectra.time.values[d,:], bin_spec)
+                    fig, ax = allan_variance(spectra["time"][d], bin_spec)
                     if save_ints:
                         plt.savefig(os.path.join(inpt_dict['plot_dir'],'S5_detector{}_Allan{}um_lc.png'.format(d,np.round(bin_wave,3))),
                                     dpi=300, bbox_inches='tight')
@@ -389,10 +388,6 @@ def bin_light_curves(spectra, inpt_dict):
         specbins.append(specbins_det)
 
     # Need these in case you don't want to bin in time.
-    #xpos = spectra.xpos.values
-    #ypos = spectra.ypos.values
-    #widths = spectra.widths.values
-    #t = spectra.time.values
     xpos = spectra["xpos"]
     ypos = spectra["ypos"]
     widths = spectra["widths"]
@@ -482,30 +477,6 @@ def bin_light_curves(spectra, inpt_dict):
                     "xpos":xpos,
                     "ypos":ypos,
                     "widths":widths}
-    '''
-    # Now create an xarray out of this info.
-    light_curves = xr.Dataset(data_vars=dict(
-                                    broadband=(["detector", "time"], broadband),
-                                    broaderr=(["detector", "time"], broaderr),
-                                    broadwave=(["detector",],broadwave),
-                                    broadbins=(["detector", "edge"],broadbins),
-                                    spec=(["detector", "wavelength", "time"], spec),
-                                    specerr=(["detector", "wavelength", "time"], specerr),
-                                    specwave=(["detector", "wavelength"],specwave),
-                                    specbins=(["detector", "wavelength", "edge"],specbins),
-                                    xpos=(["detector", "time"],xpos),
-                                    ypos=(["detector", "time"],ypos),
-                                    widths=(["detector", "time"],widths),
-                                    ),
-                        coords=dict(
-                               time = (["detector", "time"], t),
-                               detectors = (["detector",], [i for i in range(spectra.spectrum.shape[0])]),
-                               details = (["detector","observation_mode"], spectra.details.values), # this has the form Ndetectors x [[INSTRUMENT, DETECTOR, FILTER, GRATING]]
-                               ),
-                        attrs=dict(
-                              )
-                              )
-    '''
     
     # Report time, if asked.
     if time_step:

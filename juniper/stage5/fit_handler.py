@@ -27,11 +27,15 @@ def bundle_planets_flares_systematics_and_ld(planets,flares,systematics,ld):
         for key in planet.keys():
             if "prior" in key:
                 continue
+            if "ptype" in key:
+                continue
             bundled_params[key] = planet[key]
     for flare_ID in flares.keys():
         flare = flares[flare_ID]
         for key in flare.keys():
             if "prior" in key:
+                continue
+            if "ptype" in key:
                 continue
             bundled_params[key] = flare[key]
     for key in systematics.keys():
@@ -252,6 +256,7 @@ def dict_to_array(bundled_params, fit_or_not):
             if fit_param_keys[key]:
                 # So the bool was True, that means it must be fit for.
                 key = str.replace(key,"_prior","") # clean up the prior tag
+                key = str.replace(key,"_ptype","") # and the ptype tag
                 try:
                     if isinstance(params_in_spec[key],float) or isinstance(params_in_spec[key],int):
                         # It's a simple float or integer, so we can just tack it on there.
@@ -270,6 +275,7 @@ def dict_to_array(bundled_params, fit_or_not):
             try:
                 if fit_param_keys[key+str(1)]:
                     key = str.replace(key,"_prior","") # clean up the prior tag
+                    key = str.replace(key,"_ptype","") # and the ptype tag
                     coeffs = params_in_spec[key+"_coeffs"] # all of the coefficients are bundled here.
                     for coeff in coeffs:
                         params_to_arrayify.append(coeff)
@@ -340,6 +346,7 @@ def array_to_dict(params_array, input_param_dict, fit_or_not):
             if fit_or_not[superdict_key][key]:
                 # It was fitted, so pull from params_array.
                 key = str.replace(key,"_prior","") # clean up the prior tag
+                key = str.replace(key,"_ptype","") # and the ptype tag
 
                 # Check if it is a special key.
                 if any(special in key for special in special_keys):
@@ -354,6 +361,7 @@ def array_to_dict(params_array, input_param_dict, fit_or_not):
             else:
                 # It was not fitted, pull from input_param_dict.
                 key = str.replace(key,"_prior","") # clean up the prior tag
+                key = str.replace(key,"_ptype","") # and the ptype tag
                 redicted_params[superdict_key][key] = input_param_dict[superdict_key][key]
         
         # There will be some missing bat info.
@@ -420,71 +428,8 @@ def array_to_dict(params_array, input_param_dict, fit_or_not):
     
     return redicted_params
 
-    '''
-    # Remove _prior from keys.
-    fit_param_keys = [str.replace(key,"_prior","") for key in fit_param_keys]
-    # Open a new dictionary.
-    redicted_params = {}
-    systematics = {}
-    lds = {}
-
-    # Stash initial ld guess.
-    redicted_params["ld_initialguess"] = params_to_fit["ld_initialguess"]
-    redicted_params["fit_lds"] = params_to_fit["fit_lds"]
-
-    # Keep "organized keys" for later.
-    organized_keys = list(params_to_fit.keys())
-
-    # Define systematics keys.
-    special_keys = ["poly","mirrortilt","disp_detrend","spatial_detrend","width_detrend","singleramp","doubleramp"]
-    for i, key in enumerate(fit_param_keys):
-        # Some of these keys will be able to be transferred wholesale.
-        # The exceptions are systematics models (must be bundled as "model_coeffs")
-        # and limb darkening coefficients (must be bundled as "ld_initialguess")
-        if any([special_key in key for special_key in special_keys]):
-            # It's a systematic moodel coefficient! Store it to process later.
-            systematics[key+str(i)] = params_array[i]
-        elif "ld" in key:
-            # It's an ld! Store it to process later.
-            lds[key] = params_array[i]
-        else:
-            # It's nothing special, just take it as is.
-            redicted_params[key] = params_array[i]
-
-    # Now we need to put the systematics back in.
-    for special_key in special_keys:
-        # The systematics are checked out one by one. poly, then mirrortilt, then etc.
-        system_keys = [key for key in systematics.keys() if special_key in key]
-        system_model = []
-        for key in system_keys:
-            system_model.append(systematics[key])
-        # And now we bundle all the systematic coefficients together again.
-        if system_model:
-            # That is, only if that system model is there at all. No need to make empty tags.
-            redicted_params[special_key+"_coeffs"] = system_model
-
-    # And let's put the lds back in.
-    for key in lds.keys():
-        # The key itself will tell us redicted_params["ld_initialguess"] items to update.
-        index_to_update = int(str.replace(key,"ld",""))-1
-        redicted_params["ld_initialguess"][index_to_update] = lds[key]
-
-    # Finally, fill in anything that is missing.
-    for key in params_to_fit.keys():
-        if key not in redicted_params.keys():
-            # If it was not fitted for, resupply it here.
-            redicted_params[key] = params_to_fit[key]
-
-    # It is important that the order of items in the dictionary is correct.
-    reorganized_params = {}
-    for key in organized_keys:
-        reorganized_params[key] = redicted_params[key]
-    
-    return reorganized_params
-    '''
-
 def build_priors_dict(planets, flares, systematics, ld,
-                      is_spec=False, priors_type='uniform'):
+                      is_spec=False, samplertype='emcee', reasonable_values={}):
     """Simple function to get the priors on every fitting parameter.
 
     Args:
@@ -496,16 +441,20 @@ def build_priors_dict(planets, flares, systematics, ld,
         is_spec (bool, optional): whether this is a fit to a spectroscopic
         curve, in which case certain system parameters are to be locked.
         Defaults to False.
-        priors_type (str, optional): options of 'uniform' or 'gaussian'.
-        Defaults to 'uniform'.
+        samplertype (str, optional): options of 'lsq', 'emcee' or 'dynesty',
+        which have different requirements for how broad the priors can be.
+        Defaults to 'emcee'.
+        reasonable_values (dict, optional): reasonable priors for all
+        systematics, needed only if the sampler is dynesty.
+        Defaults to {}.
     
     Returns:
         dict, dict: each entry is a list of two numbers and this dict will be fed
         into the build_bounds function. We also return a dict which tells us what
         is and is not fitted.
     """
-    # Initialize the priors dict.
-    param_priors = {}
+    # Initialize the priors dict, and the priors types dict.
+    param_priors, priors_types = {}, {}
     # Also start a dict of what is and is not fitted.
     fit_or_not = {}
 
@@ -514,6 +463,7 @@ def build_priors_dict(planets, flares, systematics, ld,
     for superdict_key in superdict_keys:
         # Start up the dicts that will correspond to param_priors[superdict_key].
         superdict_prior = {}
+        superdict_ptype = {}
         superdict_fitornot = {}
 
         # First, gut every planet inside the superdict.
@@ -533,11 +483,15 @@ def build_priors_dict(planets, flares, systematics, ld,
             
             # We have to make some truncations when dealing with specs.
             for key in ban_keys:
+                # By setting this None here, it prevents it from being
+                # read as something we're fitting for.
                 planet[key+str(i+1)] = None                
 
             for key in special_keys:
                 if planet[key+str(i+1)]: # if this is not None, it's being fitted.
+                    # Log the prior bounds / mu+sig, as well as the type.
                     superdict_prior[key+str(i+1)] = planet[key+str(i+1)]
+                    superdict_ptype[key+str(i+1)] = planet[str.replace(key+str(i+1),"prior","ptype")]
                     superdict_fitornot[key+str(i+1)] = True
                 else:
                     superdict_fitornot[key+str(i+1)] = False
@@ -552,6 +506,7 @@ def build_priors_dict(planets, flares, systematics, ld,
             for key in special_keys:
                 if flare[key+str(i+1)]: # if this is not None, it's being fitted.
                     superdict_prior[key+str(i+1)] = flare[key+str(i+1)]
+                    superdict_ptype[key+str(i+1)] = flare[str.replace(key+str(i+1),"prior","ptype")]
                     superdict_fitornot[key+str(i+1)] = True
                 else:
                     superdict_fitornot[key+str(i+1)] = False
@@ -564,40 +519,120 @@ def build_priors_dict(planets, flares, systematics, ld,
             if systematics[superdict_key][key]:
                 # If this systematic is included, we need to put a wicked broad bound on every parameter.
                 for i,coeff in enumerate(systematics[superdict_key][key+"_coeffs"]):
-                    # Except for dilution, which needs a small [0,1.0001] prior.
+                    # Priors are all Gaussian except for poly and dilution.
+                    superdict_prior[key+str(i+1)] = [0,1]
+                    superdict_ptype[key+str(i+1)] = "gaussian"
+
+                    # Special exception for poly.
+                    if "poly" in key:
+                        # Broad uniform priors unless using Dynesty.
+                        tneg, tpos = -10*coeff,10*coeff
+                        pmin, pmax = min(tneg,tpos), max(tneg,tpos)
+                        superdict_prior[key+str(i+1)] = [pmin,pmax]
+
+                        if i == 0:
+                            # Special case for C0 of the poly function, which is always positive.
+                            superdict_prior[key+str(i+1)] = [coeff-5*(coeff**0.5),coeff+5*(coeff**0.5)]
+                        superdict_ptype[key+str(i+1)] = "uniform"
+                    
+                    #if samplertype == 'dynesty':
+                    #    superdict_prior[key+str(i+1)] = reasonable_values[key+str(i+1)]
+                    
+                    # And for dilution, which needs a very restrictive [0,1.0001] prior no matter what.
                     if key == "dilution":
                         superdict_prior[key+str(i+1)] = [0,1.0001]
-                    else:
-                        if priors_type == 'uniform':
-                            superdict_prior[key+str(i+1)] = [-1e40,1e40]
-                        else:
-                            superdict_prior[key+str(i+1)] = [0,1e40]
+                        superdict_ptype[key+str(i+1)] = "uniform"
+
+                    
                     superdict_fitornot[key+str(i+1)] = True
 
         # And ld info, if applicable.
         for i, bool in enumerate(ld[superdict_key]["fit_lds"]):
             # If any of the lds are getting fit, we need a bound on it.
             if bool:
-                if priors_type == 'uniform':
-                    superdict_prior["ld"+str(i+1)] = [-1e40,1e40]
-                else:
-                    superdict_prior["ld"+str(i+1)] = [0,1e40]
+                # Load user-supplied priors.
+                superdict_prior["ld"+str(i+1)] = ld[superdict_key]["ld_prior"][i]
+                
+                superdict_ptype["ld"+str(i+1)] = ld[superdict_key]["ld_ptype"]
                 superdict_fitornot["ld"+str(i+1)] = True
+        
 
         # And load it all in.
         param_priors[superdict_key] = superdict_prior
+        priors_types[superdict_key] = superdict_ptype
         fit_or_not[superdict_key] = superdict_fitornot
     
-    return param_priors, fit_or_not
+    return param_priors, priors_types, fit_or_not
 
-def build_bounds(params_priors, priors_type):
+def populate_reasonable_values(systematic,exp_time,light_curve):
+    """Populates a dictionary of all possible systematic coefficients
+    with reasonable values on uniform priors.
+
+    Args:
+        systematic (dict): series of entries describing systematics in the model.
+        exp_time (array-like): the exposure times for the light curve.
+        light_curve (array-like): the flux values for the light curve.
+
+    Returns:
+        dict: the reasonable priors for each fitted coefficient.
+    """
+    # Initialize the reasonable priors dict.
+    reasonable_values = {}
+
+    # First, the polynomial trend.
+    if systematic["poly"]:
+        # The initial polys have been supplied by the poly fit; we will set the prior around that.
+        for i,coeff in enumerate(systematic["poly_coeffs"]):
+            tneg, tpos = -1.2*coeff,1.2*coeff
+            pmin, pmax = min(tneg,tpos), max(tneg,tpos)
+            reasonable_values["poly"+str(i+1)] = [pmin,pmax]
+    
+    # Next, any mirror tilt events.
+    if systematic["mirrortilt"]:
+        # Reasonable mirror tilts are +/- the median at most.
+        flux_adjust = np.median(light_curve)
+        for i,coeff in enumerate(systematic["mirrortilt_coeffs"]):
+            # An adjustment of at most +/- the pre-mirror tilt flux.
+            reasonable_values["mirrortilt"+str(i+1)] = [-1.0*flux_adjust,1.0*flux_adjust]
+            if i == 0:
+                # The baseline flux before the tilt, which might be normalized to ~1.
+                reasonable_values["mirrortilt"+str(i+1)] = [0,2*flux_adjust]
+
+    # The dispersion position detrend is an n-order poly with all coeffs started at 0.
+    if systematic["disp_detrend"]:
+        for i,coeff in enumerate(systematic["disp_detrend_coeffs"]):
+            reasonable_values["disp_detrend"+str(i+1)] = [-100,100]
+
+    # The spatial position detrend is an n-order poly with all coeffs started at 0.
+    if systematic["spatial_detrend"]:
+        for i,coeff in enumerate(systematic["spatial_detrend_coeffs"]):
+            reasonable_values["spatial_detrend"+str(i+1)] = [-100,100]
+
+    # The width position detrend is an n-order poly with all coeffs started at 0.
+    if systematic["width_detrend"]:
+        for i,coeff in enumerate(systematic["width_detrend_coeffs"]):
+            reasonable_values["width_detrend"+str(i+1)] = [-100,100]
+
+    # Then there is the possibility of a single exponential ramp, which assumes the median flux is out.
+    if systematic["singleramp"]:
+        for i,coeff in enumerate(systematic["singleramp_coeffs"]):
+            reasonable_values["singleramp"+str(i+1)] = [-100,100]
+
+    # And there is the possibility of a double exponential ramp, which assumes the median flux is out.
+    if systematic["doubleramp"]:
+        for i,coeff in enumerate(systematic["doubleramp_coeffs"]):
+            reasonable_values["doubleramp"+str(i+1)] = [-100,100]
+
+    return reasonable_values
+
+def build_bounds(params_priors, priors_types):
     """Builds bounds for linear least squares fitting.
 
     Args:
         params_priors (dict): each entry is a list of two numbers which are
         either lower/upper limit (for uniform priors) or mean/sigma (gaussian).
         For Gaussian, bounds will be set as the 5-sigma limits.
-        priors_type (str): options of 'uniform' or 'gaussian'.
+        priors_types (dict): each entry has priors that are either 'uniform' or 'gaussian'.
 
     Returns:
         list: the lower and upper bounds on each parameter to fit.
@@ -606,31 +641,15 @@ def build_bounds(params_priors, priors_type):
     bounds = []
 
     # And unpack.
-    '''
-    for superdict_key in list(params_priors.keys()):
-        # The first key defines the parallel spectrum superdict key.
-        for class_key in list(params_priors[superdict_key].keys()):
-            # The next key defines the class of prior,
-            # e.g. planets, flares, systematics, or lds.
-            for key in list(params_priors[superdict_key][class_key].keys()):
-                # Finally, we get down to the parameters themselves.
-                parameter_priors = params_priors[superdict_key][class_key]
-                if priors_type == 'uniform':
-                    lower, upper = parameter_priors[key]
-                    bounds.append((lower, upper))
-                elif priors_type == 'gaussian':
-                    mean, sigma = parameter_priors[key]
-                    bounds.append((mean-(5*sigma),mean+(5*sigma)))
-    '''
     for superdict_key in list(params_priors.keys()):
         # Retrieve the parallel spectrum key.
         for key in list(params_priors[superdict_key].keys()):
             # We get down to the parameters themselves.
             parameter_priors = params_priors[superdict_key][key]
-            if priors_type == 'uniform':
+            if priors_types[superdict_key][key] == 'uniform':
                 lower, upper = parameter_priors
                 bounds.append((lower, upper))
-            elif priors_type == 'gaussian':
+            elif priors_types[superdict_key][key] == 'gaussian':
                 mean, sigma = parameter_priors
                 bounds.append((mean-(5*sigma),mean+(5*sigma)))
     return bounds
@@ -721,15 +740,16 @@ def log_likelihood(params_array, bundled_params, fit_or_not, exp_times, light_cu
     log_l = -0.5*residuals
     return log_l
 
-def log_prior(params_array, priors, priors_type):
+def log_prior(params_array, priors, priors_types):
     """For emcee. Generates log-prior of tested model based on priors.
 
     Args:
         params_array (np.array): the input to emcee and what is being fitted.
         priors (np.array): priors on each parameter being fitted.
-        priors_type (str): options are "uniform" or "gaussian". Determines
-        how log-prior is calculated. For uniform you can get 0 or np.inf,
-        while Gaussian priors allow a continuous range of values.
+        priors_types (np.array): priors types for each parameter that is being fit.
+        Options are "uniform" or "gaussian". Determines how log-prior is calculated.
+        For uniform you can get 0 or np.inf, while Gaussian priors allow a continuous
+        range of values.
 
     Returns:
         float: the log-prior, metric of how much we believe the model parameters
@@ -747,7 +767,7 @@ def log_prior(params_array, priors, priors_type):
 
     # For each parameter, check where it falls in the posterior
     log_p = 0
-    for param, prior in zip(params_array, priors):
+    for param, prior, priors_type in zip(params_array, priors, priors_types):
         log_p += prior_func(param, prior, priors_type)
     
     # Check outcome.
@@ -762,7 +782,7 @@ def log_prior(params_array, priors, priors_type):
         return -np.inf
 
 def log_probability(params_array, bundled_params, fit_or_not, exp_times, light_curve, errors,
-                    priors, priors_type, preserve_timing, preserve_depth, preserve_orbit):
+                    priors, priors_types, preserve_timing, preserve_depth, preserve_orbit):
     """For emcee. Generates the log-probability, sum of the log-likelihood
     and log-prior.
 
@@ -775,9 +795,10 @@ def log_probability(params_array, bundled_params, fit_or_not, exp_times, light_c
         light_curve (np.array): flux at each point in time.
         errors (np.array): uncertainties on the flux to weight the residuals.
         priors (np.array): priors on each parameter being fitted.
-        priors_type (str): options are "uniform" or "gaussian". Determines
-        how log-prior is calculated. For uniform you can get 0 or np.inf,
-        while Gaussian priors allow a continuous range of values.
+        priors_types (np.array): priors types for each parameter that is being fit.
+        Options are "uniform" or "gaussian". Determines how log-prior is calculated.
+        For uniform you can get 0 or np.inf, while Gaussian priors allow a continuous
+        range of values.
         preserve_timing (bool): whether or not to force all time-related arguments
         being fitted to be equal. Useful for parallel fits of simul-events.
         preserve_depth (bool): whether or not to force all depth-related arguments
@@ -790,7 +811,7 @@ def log_probability(params_array, bundled_params, fit_or_not, exp_times, light_c
         the move.
     """
     # The log-prior gives us a quick way to decide if residuals are worth checking.
-    log_p = log_prior(params_array, priors, priors_type)
+    log_p = log_prior(params_array, priors, priors_types)
 
     # If the log-prior is not a finite number, these parameters are bad.
     if np.isnan(log_p):
@@ -867,22 +888,29 @@ def _residuals(params_array, exp_times, light_curve, errors, bundled_params, fit
 
         # debug
         '''
-        print(planets_fit)
-        print(systematics_fit)
+        #print("DEBUG!!!")
+        #print(planets_fit)
+        #print(systematics_fit)
         fig, ax = plt.subplots(2,1)
         ax[0].errorbar(exp_times[d],light_curve[d],yerr=errors[d],capsize=3,
-                     color='k',ls='none',marker='o')
-        ax[0].plot(exp_times[d],model,color='red')
-        ax[1].errorbar(exp_times[d],residuals_full,yerr=errors[d],capsize=3,
-                     color='k',ls='none',marker='o')
+                     color='k',ls='none',marker='o',zorder=0)
+        ax[0].plot(exp_times[d],model,color='red',zorder=1)
+        ax[1].errorbar(exp_times[d],model-light_curve[d],yerr=errors[d],capsize=3,
+                     color='k',ls='none',marker='o',zorder=0)
         ax[1].axhline(y=0,ls='--',color='k',alpha=0.5)
-        sdnr = np.std(residuals_full)
+        sdnr = np.std(model-light_curve[d])
         for multiplier in (-1,1):
             ax[1].axhline(y=sdnr*multiplier,ls=':',color='k',alpha=0.25)
         plt.savefig(f's5_diagnostic_model_plot_{d}.png',
                     dpi=300,bbox_inches='tight')
         plt.close()
-        '''
+        if np.abs(np.sum(residuals_full**2)) > 1e8:
+            print(planets_fit)
+            print(systematics_fit)
+            print("I broke the stuff! OVO")
+            print(1/0)
+        #print(1/0)
+        #'''
         
     
     if give_res:

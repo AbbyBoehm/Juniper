@@ -230,7 +230,10 @@ def make_planets(s5_config, event_ID=1):
     special_keys = ["rp","fp","t_prim","t_seco","period",
                     "aor","incl","ecc","longitude"]
     prior_keys = [key+"_prior" for key in special_keys]
+    ptype_keys = [key+"_ptype" for key in special_keys]
     for key in prior_keys:
+        special_keys.append(key)
+    for key in ptype_keys:
         special_keys.append(key)
 
     # Now we are going to parse s5_config for individual planets.
@@ -283,7 +286,10 @@ def make_flares(s5_config, event_ID=1):
     # Recall our special keys from read_config.
     special_keys = ["A","B","C","Dr","Ds","Fr","E"]
     prior_keys = [key+"_prior" for key in special_keys]
+    ptype_keys = [key+"_ptype" for key in special_keys]
     for key in prior_keys:
+        special_keys.append(key)
+    for key in ptype_keys:
         special_keys.append(key)
 
     # Now we are going to parse s5_config for individual flares.
@@ -367,25 +373,31 @@ def make_systematics(s5_config, xpos, ypos, widths, event_ID=1):
 
     systematics["disp_detrend"] = s5_config["disp_detrend_{}".format(event_ID)]
     if systematics["disp_detrend"]:
-        # Then we need the x positions and detrending coefficients.
+        # Then we need the x positions and detrending coefficients to match the requested order.
         systematics["xpos"] = xpos
-        systematics["disp_detrend_coeffs"] = [0,]
+        
+        n_coeffs = s5_config["disp_order_{}".format(event_ID)] + 1 # if you asked for a 0th order poly, you need 1 coefficient, etc.
+        systematics["disp_detrend_coeffs"] = [0 for i in range(n_coeffs)] # initialize all as 0
     else:
         systematics["xpos"] = [0,]
 
     systematics["spatial_detrend"] = s5_config["spatial_detrend_{}".format(event_ID)]
     if systematics["spatial_detrend"]:
-        # Then we need the y positions and detrending coefficients.
+        # Then we need the y positions and detrending coefficients to match the requested order.
         systematics["ypos"] = ypos
-        systematics["spatial_detrend_coeffs"] = [0,]
+        
+        n_coeffs = s5_config["spatial_order_{}".format(event_ID)] + 1 # if you asked for a 0th order poly, you need 1 coefficient, etc.
+        systematics["spatial_detrend_coeffs"] = [0 for i in range(n_coeffs)] # initialize all as 0
     else:
         systematics["ypos"] = [0,]
     
     systematics["width_detrend"] = s5_config["width_detrend_{}".format(event_ID)]
     if systematics["width_detrend"]:
-        # Then we need the width and detrending coefficient.
+        # Then we need the width and detrending coefficient to match the requested order.
         systematics["width"] = widths
-        systematics["width_detrend_coeffs"] = [0,]
+        
+        n_coeffs = s5_config["width_order_{}".format(event_ID)] + 1 # if you asked for a 0th order poly, you need 1 coefficient, etc.
+        systematics["width_detrend_coeffs"] = [0 for i in range(n_coeffs)] # initialize all as 0
     else:
         systematics["width"] = [0,]
     
@@ -412,7 +424,8 @@ def make_ld(s5_config):
         dict: instructions for handling limb darkening.
     """
     # Define the ld keys.
-    ld_keys = ["ld_model","fit_lds","ld_initialguess","ld_coeffs","use_exotic","ld_data_path",
+    ld_keys = ["ld_model","fit_lds","ld_initialguess","ld_prior","ld_ptype",
+               "ld_coeffs","use_exotic","ld_data_path",
                "ld_grid","custom_grid","interpolate","instrument_mode"]
     
     # Copy that info out of s5_config.

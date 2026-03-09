@@ -59,8 +59,6 @@ MCMC_steps      20000                                       # int. How many step
 MCMC_specsteps  5000                                        # int. If not None, use only this many steps for chains in spec curves. They have less parameters to explore so a smaller chain size can be permitted.
 MCMC_burnin     0.20                                        # int > 1 or float < 1. If int, how many steps are regarded as burn-in, independent of MCMC_steps. If float, the fraction of MCMC_steps to be considered burn-in.
 
-priors_type     'uniform'                                   # Str. Options are 'uniform' or 'gaussian'. See priors below for more info. Set this whether you use LSQ, MCMC, or both!
-
 use_nested      True                                        # bool. Whether to use a dynesty Nested Sampler to fit parameters with posterior distribution.
 nested_dynamic  True                                        # bool. If True, use a dynamic nested sampler to adjust live points number on the fly and improve efficiency. If False, use a static nested sampler instead.
 nested_nlive    500                                         # int. Number of live points, or initial number of live points if using a dynamic sampler.
@@ -79,6 +77,8 @@ star_logg       4.5                                         # float. Log of the 
 ld_model        'nonlinear'                                 # str. Which kind of batman ld model to use. Options are 'uniform', 'linear', 'quadratic', 'square-root', 'logarithmic', 'exponential', 'power2' (from Morello et al. 2017), and 'nonlinear'.
 fit_lds         [False,False]                               # bool. Whether to treat ld coefficients as a free parameter. Only use if you have really good ingress/egress information, otherwise these will be really unconstrained. Need one bool per coefficient in your ld model.
 ld_initialguess [0,0]                                       # list of float. The initial guess of ld coefficient to supply to the ld fitting routine. Only used if use_exotic is False.
+ld_prior        [[-3,3],[-3,3],[-3,3],[-3,3]]               # list of list of float and/or None. Prior on each of the ld coefficients you are fitting. Need to supply None for any lds you are keeping fixed.
+ld_ptype        'uniform'                                   # Str. Type of prior on above. Options are 'uniform' or 'gaussian'.
 
 # Step 4c: Configuring ExoTiC-LD
 use_exotic      True                                        # bool. If True, ignore ld_initialguess and supply the values produced by ExoTiC-LD instead. Can still fit lds even if using ExoTiC-LD; in that case, all ExoTiC-LD does is supply the initial guess.
@@ -91,8 +91,8 @@ instrument_mode "JWST_NIRSpec_Prism"                        # str. Specifies whi
 # Step 5: Planets, flares, and systematics
 # For every parallelised spectrum you want to fit, make one copy of all of the lines from "# Step 5a" up to "# ENDPARSE"
 # For all priors, you can enter None to keep that parameter fixed, or a list of two floats to fit that parameter.
-# If your prior type is "uniform", the entries are the lower and upper bound of the uniform prior distribution.
-# If your prior type is "gaussian", the entries are the mean and width of the Gaussian prior distribution.
+# If your prior type (_ptype) is "uniform", the _prior entry is the lower and upper bound of the uniform prior distribution.
+# If your prior type (_ptype) is "gaussian", the _prior entry is the mean and width of the Gaussian prior distribution.
 
 # Step 5a: Setting up your planets
 event_type      'primary'                                   # str. Options are 'primary' (for transits) or 'secondary' (for eclipses).
@@ -101,30 +101,39 @@ n_planets       1                                           # int. How many plan
 # Step 5a i: Planet parameters - make one copy of this entry per planet! Set prior = None to fix that parameter instead of fitting for it.
 rp              0.10                                        # float. Planet radius in terms of stellar radius, rp/r*.
 rp_prior        [0,100]                                     # list of float or None. Prior on the above.
+rp_ptype        'uniform'                                   # Str. Type of prior on above. Options are 'uniform' or 'gaussian'.
 
 fp              0.0001                                      # float. Planet flux in terms of stellar flux, fp/f*.
 fp_prior        None                                        # list of float or None. Prior on the above.
+fp_ptype        'uniform'                                   # Str. Type of prior on above. Options are 'uniform' or 'gaussian'.
 
 t_prim          0                                           # float. Mid-transit time in days.
 t_prim_prior    [-1,1]                                      # list of float or None. Prior on the above.
+t_prim_ptype    'uniform'                                   # Str. Type of prior on above. Options are 'uniform' or 'gaussian'.
 
 t_seco          0                                           # float. Mid-eclipse time in days.
 t_seco_prior    None                                        # list of float or None. Prior on the above.
+t_seco_ptype    'uniform'                                   # Str. Type of prior on above. Options are 'uniform' or 'gaussian'.
 
 period          3                                           # float. Orbital period in days.
 period_prior    None                                        # list of float or None. Prior on the above.
+period_ptype    'uniform'                                   # Str. Type of prior on above. Options are 'uniform' or 'gaussian'.
 
 aor             10                                          # float. Orbital semimajor axis in terms of stellar radius, a/r*.
 aor_prior       None                                        # list of float or None. Prior on the above.
+aor_ptype       'uniform'                                   # Str. Type of prior on above. Options are 'uniform' or 'gaussian'.
 
 incl            90                                          # float. Orbital inclination in degrees.
 incl_prior      None                                        # list of float or None. Prior on the above.
+incl_ptype      'uniform'                                   # Str. Type of prior on above. Options are 'uniform' or 'gaussian'.
 
 ecc             0                                           # float. Orbital eccentricity, usually assumed to be 0 for short-period planets.
 ecc_prior       None                                        # list of float or None. Prior on the above.
+ecc_ptype       'uniform'                                   # Str. Type of prior on above. Options are 'uniform' or 'gaussian'.
 
 longitude       0                                           # float. Orbital longitude of periastron in degrees.
 longitude_prior None                                        # list of float or None. Prior on the above.
+longitude_ptype 'uniform'                                   # Str. Type of prior on above. Options are 'uniform' or 'gaussian'.
 
 # Step 5b: Setting up your flares
 n_flares        0                                           # int. How many flares to fit. Many observations do not contain a flare, but if you see any, use this to specify how many the fitter should look for.
@@ -132,41 +141,53 @@ n_flares        0                                           # int. How many flar
 # Step 5b i: Flare parameters - make one copy of this entry per flare!
 A               1                                           # float. Amplitude of the flare.
 A_prior         [-1e10,1e10]                                # list of float or None. Prior on the above.
+A_ptype         'uniform'                                   # Str. Type of prior on above. Options are 'uniform' or 'gaussian'.
 
 B               0                                           # float. Position in time of the flare peak relative to where the flare model began.
 B_prior         [-1e10,1e10]                                # list of float or None. Prior on the above.
+B_ptype         'uniform'                                   # Str. Type of prior on above. Options are 'uniform' or 'gaussian'.
 
 C               1                                           # float. Gaussian heating timescale.
 C_prior         [-1e10,1e10]                                # list of float or None. Prior on the above.
+C_ptype         'uniform'                                   # Str. Type of prior on above. Options are 'uniform' or 'gaussian'.
 
 Dr              1                                           # float. Timescale of the rapid cooling phase.
 Dr_prior        [-1e10,1e10]                                # list of float or None. Prior on the above.
+Dr_ptype        'uniform'                                   # Str. Type of prior on above. Options are 'uniform' or 'gaussian'.
 
 Ds              1                                           # float. Timescale of the slow cooling phase.
 Ds_prior        [-1e10,1e10]                                # list of float or None. Prior on the above.
+Ds_ptype        'uniform'                                   # Str. Type of prior on above. Options are 'uniform' or 'gaussian'.
 
 Fr              0.5                                         # float. Relative importance of the rapid cooling exponential. The importance of the slow cooler is Fs = 1 - Fr.
 Fr_prior        [0,1]                                       # list of float or None. Prior on the above.
+Fr_ptype        'uniform'                                   # Str. Type of prior on above. Options are 'uniform' or 'gaussian'.
 
 E               None                                        # float. Offset in time. If None, initializes as the MJD of the first integration.
 E_prior         [-1e10,1e10]                                # list of float or None. Prior on the above.
+E_ptype         'uniform'                                   # Str. Type of prior on above. Options are 'uniform' or 'gaussian'.
 
 # Step 5c: Systematic parameters
 poly            True                                        # bool. Whether to fit a visit-long polynomial trend to the data.
-poly_order      1                                           # float. The order of polynomial to fit. You should at least fit a 0th-order polynomial, which scales the entire curve by a constant.
+poly_order      0                                           # float. The order of polynomial to fit. You should at least fit a 0th-order polynomial, which scales the entire curve by a constant.
 
 dilution        False                                       # bool. Whether to fit a dilution factor to the transit/eclipse to account for blended sources diluting the transit depth.
 
 mirrortilt      False                                       # bool. Whether to fit for the specified number of mirror tilt events, which manifest as sudden steps in flux level before and after the tilt.
 n_tilt_events   0                                           # float. The number of tilt events to fit for.
 
-disp_detrend    True                                        # bool. Whether to detrend based on the dispersion position measured in Stage 3.
-spatial_detrend True                                        # bool. Whether to detrend based on the cross-dispersion position measured in Stage 3.
+disp_detrend    False                                       # bool. Whether to detrend based on the dispersion position measured in Stage 3.
+disp_order      0                                           # float. The order of polynomial to fit.
+
+spatial_detrend False                                       # bool. Whether to detrend based on the cross-dispersion position measured in Stage 3.
+spatial_order   0                                           # float. The order of polynomial to fit.
+
 width_detrend   False                                       # bool. Whether to detrend based on the cross-dispersion width measured in Stage 3.
+width_order     0                                           # float. The order of polynomial to fit.
 
-superbias_scale True                                        # bool. Whether to do superbias scaling. WIP!
+superbias_scale False                                       # bool. Whether to do superbias scaling. WIP!
 
-singleramp      True                                        # bool. Whether to fit a single exponential ramp.
-doubleramp      True                                        # bool. Whether to fit a double exponential ramp.
+singleramp      False                                       # bool. Whether to fit a single exponential ramp.
+doubleramp      False                                       # bool. Whether to fit a double exponential ramp.
 
 # ENDPARSE

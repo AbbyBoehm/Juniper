@@ -23,7 +23,7 @@ def mask_flags(segments, inpt_dict):
     """
     # Log.
     if inpt_dict["verbose"] >= 1:
-        print("Masking pixels flagged by the jwst pipeline...")
+        print("Treating pixels flagged by the jwst pipeline...")
     
     # Check tqdm and plotting requests.
     time_step, time_ints = tqdm_translate(inpt_dict["verbose"])

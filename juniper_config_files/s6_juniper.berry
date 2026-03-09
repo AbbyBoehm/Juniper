@@ -17,6 +17,7 @@ rename          None                                        # str. What you want
 # Step 1: Read in the LSQ and MCMC results.
 read_LSQ        True                                        # bool. If True, reads in the results from linear least squares fitting.
 read_MCMC       True                                        # bool. If True, reads in the results from Markov Chain Monte Carlo fitting.
+read_nested     True                                        # bool. If True, reads in the results from Dynesty nested sampler fitting.
 event_type      ('primary',)                                # list of str. Options are 'primary' (for transits) or 'secondary' (for eclipses). One entry per parallelised spectrum loaded.
 
 # Step 2: Plot fits and residuals

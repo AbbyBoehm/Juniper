@@ -41,7 +41,7 @@ def plot_spectrum(waves,depths,errors,bin_f,wave_bounds,spec_type):
         d = np.delete(d,delete_these)
         e = np.delete(e,delete_these)
         
-    fig, ax = plt.subplots(figure=(10,7))
+    fig, ax = plt.subplots(figsize=(10,7))
     ax.errorbar(w,d,yerr=e,fmt='ko',ls='none',capsize=3)
     ax.set_xlabel(r"wavelength [$\mu$m]")
     ax.set_ylabel('depth [{}]'.format(spec_type))

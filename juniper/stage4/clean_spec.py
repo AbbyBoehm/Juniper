@@ -73,12 +73,13 @@ def clean_spec(oneD_spec, inpt_dict):
 
     if (plot_step or save_step):
         # Plot the median cleaned spectrum.
-        plt.plot(np.median(pre_cleaned_spec,axis=0),color='midnightblue',alpha=0.75,ls='-',label='pre-correction')
-        plt.plot(np.median(oneD_spec,axis=0),color='orange',alpha=0.75,ls='--',label='post-correction')
-        plt.xlabel('Position [pix]')
-        plt.ylabel('Flux [DN]')
-        plt.legend(loc='upper right')
-        plt.title('Pre- and post-cleaning median spectrum')
+        fig,ax = plt.subplots(figsize = (10,5))
+        ax.plot(np.median(pre_cleaned_spec,axis=0),color='midnightblue',alpha=0.75,ls='-',label='pre-correction')
+        ax.plot(np.median(oneD_spec,axis=0),color='orange',alpha=0.75,ls='--',label='post-correction')
+        ax.set_xlabel('Position [pix]')
+        ax.set_ylabel('Flux [DN]')
+        ax.legend(loc='upper right')
+        ax.set_title('Pre- and post-cleaning median spectrum')
         if save_step:
             plt.savefig(os.path.join(inpt_dict['plot_dir'],'S4_cleaned_spec_median.png'),
                         dpi=300,bbox_inches='tight')
@@ -88,15 +89,16 @@ def clean_spec(oneD_spec, inpt_dict):
 
     if (plot_ints or save_ints):
         # Plot all of the cleaned spectra on top of each other.
-        plt.plot(pre_cleaned_spec[0,:],color='midnightblue',alpha=0.75,ls='-',label='pre-correction')
-        plt.plot(oneD_spec[0,:],color='orange',alpha=0.75,ls='--',label='post-correction')
+        fig,ax = plt.subplots(figsize = (10,5))
+        ax.plot(pre_cleaned_spec[0,:],color='midnightblue',alpha=0.75,ls='-',label='pre-correction')
+        ax.plot(oneD_spec[0,:],color='orange',alpha=0.75,ls='--',label='post-correction')
         for i in range(1,oneD_spec.shape[0]):
-            plt.plot(pre_cleaned_spec[i,:],color='midnightblue',alpha=0.75,ls='-')
-            plt.plot(oneD_spec[i,:],color='orange',alpha=0.75,ls='--')
-        plt.xlabel('Position [pix]')
-        plt.ylabel('Flux [DN]')
-        plt.legend(loc='upper right')
-        plt.title('Pre- and post-cleaning spectra')
+            ax.plot(pre_cleaned_spec[i,:],color='midnightblue',alpha=0.75,ls='-')
+            ax.plot(oneD_spec[i,:],color='orange',alpha=0.75,ls='--')
+        ax.set_xlabel('Position [pix]')
+        ax.set_ylabel('Flux [DN]')
+        ax.legend(loc='upper right')
+        ax.set_title('Pre- and post-cleaning spectra')
         if save_step:
             plt.savefig(os.path.join(inpt_dict['plot_dir'],'S4_cleaned_spec_all.png'),
                         dpi=300,bbox_inches='tight')

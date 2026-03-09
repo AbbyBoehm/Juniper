@@ -39,14 +39,16 @@ def full_model(t, planets, flares, systematics, bundled_params=None, fit_or_not=
         planet_ID = str.replace(planet_name, "planet", "")
         batman_flux = batman_handler.batman_flux_update(bundled_params=bundled_params,
                                                         fit_or_not=fit_or_not,
-                                                        batman_params=[planet["batman_params"+planet_ID],],
-                                                        batman_model=[planet["batman_model"+planet_ID],])
+                                                        batman_params=planet["batman_params"+planet_ID],
+                                                        batman_model=planet["batman_model"+planet_ID],
+                                                        planet_ID=planet_ID)
+        
         # Add dilution factor if needed.
         if systematics["dilution"]:
             batman_flux = systematic_dilution(batman_flux, systematics["dilution_coeffs"])
 
-        # Multiply planet's flux contribution into the full model.
-        flx *= batman_flux
+        # Add planet's flux contribution into the full model.
+        flx -= (1-batman_flux) # subtract the depths off!
         models[planet_name] = batman_flux
     
     # Build flare flux.
@@ -198,7 +200,16 @@ def systematic_jitter_disp(xpos, coeffs):
     Returns:
         np.array: x-jitter model to be added to Sys(t;A).
     """
-    jitter = 1 + coeffs[0]*xpos
+    # Set up 1s polynomial.
+    jitter = np.array([1 for i in xpos], dtype='float64')
+
+    # And populate.
+    for n, o in enumerate(coeffs):
+        if n == 0:
+            pass
+        else:
+            jitter += np.array(o*((xpos+coeffs[0])**n), dtype='float64')
+    
     return jitter
 
 def systematic_jitter_crossdisp(ypos, coeffs):
@@ -211,11 +222,22 @@ def systematic_jitter_crossdisp(ypos, coeffs):
     Returns:
         np.array: y-jitter model to be added to Sys(t;A).
     """
-    jitter = 1 + coeffs[0]*ypos
+    #jitter = 1 + coeffs[0]*ypos
+    #return jitter
+    # Set up 1s polynomial.
+    jitter = np.array([1 for i in ypos], dtype='float64')
+
+    # And populate.
+    for n, o in enumerate(coeffs):
+        if n == 0:
+            pass
+        else:
+            jitter += np.array(o*((ypos+coeffs[0])**n), dtype='float64')
+    
     return jitter
 
 def systematic_psf(widths, coeffs):
-    """Returns a polynomial correlated to trace width.
+    """Returns an offset polynomial correlated to trace width.
 
     Args:
         widths (np.array): cross-dispersion width with time.
@@ -224,7 +246,18 @@ def systematic_psf(widths, coeffs):
     Returns:
         np.array: psf model to be added to Sys(t;A).
     """
-    psf = 1 + coeffs[0]*widths
+    #psf = 1 + coeffs[0]*widths
+    #return psf
+    # Set up 1s polynomial.
+    psf = np.array([1 for i in widths], dtype='float64')
+
+    # And populate.
+    for n, o in enumerate(coeffs):
+        if n == 0:
+            pass
+        else:
+            psf += np.array(o*((widths+coeffs[0])**n), dtype='float64')
+    
     return psf
 
 def flare_model(t, flare, flare_ID):

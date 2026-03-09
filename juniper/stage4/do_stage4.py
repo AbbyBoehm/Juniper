@@ -65,7 +65,7 @@ def do_stage4(filepaths, outfile, outdir, steps, plot_dir):
             print("Frames flagged for motion in S3 will NOT be kicked in this run.")
     if steps["s4_trim_ints"]:
         if steps["verbose"] >= 1:
-            print(f"Trimming integrations {steps["s4_trim_ints"]} from 1D spectra...")
+            print(f"Trimming integrations {steps['s4_trim_ints']} from 1D spectra...")
         for trim_ints in steps["s4_trim_ints"]:
             trim = range(trim_ints[0],trim_ints[1]+1)
             for i in [j for j in trim if j not in bad_frames]:
@@ -94,6 +94,7 @@ def do_stage4(filepaths, outfile, outdir, steps, plot_dir):
     # Make diagnostic static plots.
     if (plot_step or save_step):
         plot_spec_gif.make_stack(oneD_spec,wav_sols,time,steps)
+        plot_spec_gif.make_err_median(oneD_spec,wav_sols,oneD_err,steps)
         plot_spec_gif.make_wlc(oneD_spec,wav_sols,time,steps)
     # Make diagnostic gif.
     if (plot_ints or save_ints):

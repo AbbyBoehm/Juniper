@@ -73,9 +73,15 @@ def smooth(segments, inpt_dict):
     # Update data flags.
     segments["junidq"] = np.where(bad_pix_map != 0, 1, segments["junidq"])
 
+    # Report results of cleaning.
+    if inpt_dict["verbose"] >= 1:
+        print("Smoothing complete.")
+        print("Median percentage of data cleaned by smoothing: {:.3f}%".format(100*np.median(bad_pix_per_frame)/(S.shape[0]*S.shape[1])))
     if inpt_dict["verbose"] == 2:
         print("Median outliers found in each frame: {} +/- {}".format(int(np.median(bad_pix_per_frame)),
                                                                       int(np.std((bad_pix_per_frame)))))
+        print("Highest and lowest number of pixels treated in a frame: {:.0f} and {:.0f}".format(np.max(bad_pix_per_frame),
+                                                                                                 np.min(bad_pix_per_frame)))
 
     if (plot_step or save_step):
         # Create plots of the entire bad_pix_map collapsed in on itself in time.
@@ -176,7 +182,7 @@ def led(segments, inpt_dict):
 
     # Track outliers removed and where they were found.
     bad_pix_map = np.zeros_like(segments["data"])
-    pixels_treated_per_frame = []
+    bad_pix_per_frame = []
     iterations_needed_per_frame = []
 
     # Retain noise models, fine structure models, laplacian images, and absolute differences for plotting.
@@ -279,7 +285,7 @@ def led(segments, inpt_dict):
                 stop_iterating = True
         
         # Log cleaning info after the iterations for this frame have stopped.
-        pixels_treated_per_frame.append(bad_pix_removed)
+        bad_pix_per_frame.append(bad_pix_removed)
         iterations_needed_per_frame.append(iteration_N-1)
 
         # And replace the xarray datasets if asked.
@@ -289,10 +295,10 @@ def led(segments, inpt_dict):
     # Report results of cleaning.
     if inpt_dict["verbose"] >= 1:
         print("All LED iterations complete.")
-        print("Median percentage of data cleaned by LED: {:.3f}%".format(100*np.median(pixels_treated_per_frame)/(S.shape[0]*S.shape[1])))
+        print("Median percentage of data cleaned by LED: {:.3f}%".format(100*np.median(bad_pix_per_frame)/(S.shape[0]*S.shape[1])))
     if inpt_dict["verbose"] == 2:
-        print("Highest and lowest number of pixels treated in a frame: {:.0f} and {:.0f}".format(np.min(pixels_treated_per_frame),
-                                                                                                 np.max(pixels_treated_per_frame)))
+        print("Highest and lowest number of pixels treated in a frame: {:.0f} and {:.0f}".format(np.max(bad_pix_per_frame),
+                                                                                                 np.min(bad_pix_per_frame)))
         print("Typical number of iterations needed: {:.0f}".format(np.median(iterations_needed_per_frame)))
 
     # Update data flags.

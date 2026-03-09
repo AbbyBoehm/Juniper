@@ -16,14 +16,13 @@ rename          None                                        # str. What you want
 
 # Step 1: Extract 1D spectrum
 extract_method  'box'                                       # str. Options are 'box' (for an unweighted sum) and 'optimum' (for a weighted sum, see Horne 1986).
-wavelengths     (0.50, 6.00)                                # tuple of float. If not None, limit 1D extraction to between these wavelengths in micron.
+wavelengths     None                                        # tuple of float. If not None, limit 1D extraction to between these wavelengths in micron.
+columns         None                                        # tuple of float. If not None, limit 1D extraction to between these column indices.
 mask_bad_pix    False                                       # bool. If True, fully masks any pixels flagged by the data quality array. Useful if, in Stage 3, you did not replace bad pixels.
+aperture        (0,-1)                                      # tuple of int. Defines the lower and upper row bounding the extraction aperture. Used whether method is 'box' or 'optimum'.
+com_halfwidth   None                                        # int or None. If not None, ignores aperture argument and instead builds an aperture from the com which extends +/- com_halfwidth pixels from the com. Used whether method is 'box' or 'optimum'.
 
-# Step 1a: Box extraction
-aperture        (10,18)                                     # tuple of int. Defines the lower and upper row bounding the extraction aperture.
-com_halfwidth   5                                           # int or None. If not None, ignores aperture argument and instead builds an aperture from the com which extends +/- com_halfwidth pixels from the com.
-
-# Step 1b: Optimum extraction
+# Step 1a: Optimum extraction
 aperture_type   'median'                                    # str. Defines the kind of spatial profile P to build for optimum extraction. Options are 'median' (use median integration), 'polyrow' (polynomial fit on rows), 'polycol' (polynomial fit on columns), 'gaussian' (gaussian fit on columns).
 poly_order      7                                           # int. Order of polynomial to fit, only used for 'polyrow' and 'polycol'.
 

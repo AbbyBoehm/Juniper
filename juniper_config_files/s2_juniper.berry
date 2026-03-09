@@ -89,7 +89,7 @@ do_correction   True                                        # bool. Whether to p
 do_wavemap      True                                        # bool. Whether to create a wavelength map solution for MIRI TSO, necessary to perform Juniper Stages 3-6.
 
 # Step 4: Truncate array
-do_truncate     False                                       # bool. Whether to truncate the array to a certain size, useful for lopping off bad parts of the array (e.g. MIRI LRS lightsaber).
+do_truncate     False                                       # bool. Whether to truncate the array to a certain size, useful for lopping off bad parts of the array (e.g. MIRI LRS lightsaber, invalid flat regions, etc.).
 keep_rows       [0,-1]                                      # bool. Indices of the top- and bottom-most rows to keep.
 keep_cols       [0,-1]                                      # bool. Indices of the left- and right-most columns to keep.
 

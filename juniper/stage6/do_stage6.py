@@ -3,7 +3,6 @@ import glob
 from tqdm import tqdm
 
 import numpy as np
-import xarray as xr
 import matplotlib.pyplot as plt
 
 from juniper.config.translate_config import make_planets, make_flares, make_systematics, make_ld
@@ -47,23 +46,37 @@ def do_stage6(filepaths, outfile, outdir, steps, plot_dir):
     if (not os.path.exists(plot_dir) and any((save_step, save_ints))):
         os.makedirs(plot_dir)
 
-    # Decide how to handle LSQ and MCMC results.
-    results = {}
-    if steps["read_LSQ"]:
-        # Load each lsq result.
-        for f in [filepath for filepath in filepaths if "LSQ" in filepath]:
-            result = np.load(f,allow_pickle=True).item()
-            key = str.split(f,sep='/')[-1]
-            key = str.replace(key,'.npy','')
-            results[key] = result
+    # Define simple loader utility function.
+    def load_results(steps,filepaths):
+        results = {}
+        if steps["read_LSQ"]:
+            # Load each lsq result.
+            for f in [filepath for filepath in filepaths if "LSQ" in filepath]:
+                result = np.load(f,allow_pickle=True).item()
+                key = str.split(f,sep='/')[-1]
+                key = str.replace(key,'.npy','')
+                results[key] = result
 
-    if steps["read_MCMC"]:
-        # Load each mcmc result.
-        for f in [filepath for filepath in filepaths if "MCMC" in filepath]:
-            result = np.load(f,allow_pickle=True).item()
-            key = str.split(f,sep='/')[-1]
-            key = str.replace(key,'.npy','')
-            results[key] = result
+        if steps["read_MCMC"]:
+            # Load each mcmc result.
+            for f in [filepath for filepath in filepaths if "MCMC" in filepath]:
+                result = np.load(f,allow_pickle=True).item()
+                key = str.split(f,sep='/')[-1]
+                key = str.replace(key,'.npy','')
+                results[key] = result
+
+        if steps["read_nested"]:
+            # Load each nested sampler result.
+            for f in [filepath for filepath in filepaths if "nested" in filepath]:
+                result = np.load(f,allow_pickle=True).item()
+                key = str.split(f,sep='/')[-1]
+                key = str.replace(key,'.npy','')
+                results[key] = result
+        
+        return results
+
+    # Load results from LSQ, MCMC, and/or nested sampling as requested.
+    results = load_results(steps,filepaths)
     
     # With the fits loaded, we can start making plots. We start with fits and residuals.
     if steps["plot_individual"]:
@@ -75,6 +88,8 @@ def do_stage6(filepaths, outfile, outdir, steps, plot_dir):
             tag = 'MCMC'
             if 'LSQ' in key:
                 tag = 'LSQ'
+            if 'nested' in key:
+                tag = 'nested'
             # Every result has keys planets, planet_errs,
             # flares, flare_errs, systematics, systematic_errs,
             # ld, ld_err, time, light_curve, errors, wavelength.
@@ -116,23 +131,8 @@ def do_stage6(filepaths, outfile, outdir, steps, plot_dir):
                 except IndexError:
                     para_ID_error = True
 
-    # Reload.
-    results = {}
-    if steps["read_LSQ"]:
-        # Load each lsq result.
-        for f in [filepath for filepath in filepaths if "LSQ" in filepath]:
-            result = np.load(f,allow_pickle=True).item()
-            key = str.split(f,sep='/')[-1]
-            key = str.replace(key,'.npy','')
-            results[key] = result
-
-    if steps["read_MCMC"]:
-        # Load each mcmc result.
-        for f in [filepath for filepath in filepaths if "MCMC" in filepath]:
-            result = np.load(f,allow_pickle=True).item()
-            key = str.split(f,sep='/')[-1]
-            key = str.replace(key,'.npy','')
-            results[key] = result
+    # Reload results to fix edits made during plotting, e.g. binning, outlier smoothing etc.
+    results = load_results(steps,filepaths)
 
     # We can plot panels of the models, too.
     if steps["plot_components"]:
@@ -144,6 +144,8 @@ def do_stage6(filepaths, outfile, outdir, steps, plot_dir):
             tag = 'MCMC'
             if 'LSQ' in key:
                 tag = 'LSQ'
+            if 'nested' in key:
+                tag = 'nested'
             # Every result has keys planets, planet_errs,
             # flares, flare_errs, systematics, systematic_errs,
             # ld, ld_err, time, light_curve, errors, wavelength.
@@ -185,23 +187,8 @@ def do_stage6(filepaths, outfile, outdir, steps, plot_dir):
                 except IndexError:
                     para_ID_error = True
 
-    # Reload.
-    results = {}
-    if steps["read_LSQ"]:
-        # Load each lsq result.
-        for f in [filepath for filepath in filepaths if "LSQ" in filepath]:
-            result = np.load(f,allow_pickle=True).item()
-            key = str.split(f,sep='/')[-1]
-            key = str.replace(key,'.npy','')
-            results[key] = result
-
-    if steps["read_MCMC"]:
-        # Load each mcmc result.
-        for f in [filepath for filepath in filepaths if "MCMC" in filepath]:
-            result = np.load(f,allow_pickle=True).item()
-            key = str.split(f,sep='/')[-1]
-            key = str.replace(key,'.npy','')
-            results[key] = result
+    # Reload results to fix edits made during plotting, e.g. binning, outlier smoothing etc.
+    results = load_results(steps,filepaths)
 
     # Plot the Allan variance of each fit.
     if steps["plot_allan_var"]:
@@ -213,6 +200,8 @@ def do_stage6(filepaths, outfile, outdir, steps, plot_dir):
             tag = 'MCMC'
             if 'LSQ' in key:
                 tag = 'LSQ'
+            if 'nested' in key:
+                tag = 'nested'
             # Every result has keys planets, planet_errs,
             # flares, flare_errs, systematics, systematic_errs,
             # ld, ld_err, time, light_curve, errors, wavelength.
@@ -254,27 +243,12 @@ def do_stage6(filepaths, outfile, outdir, steps, plot_dir):
                 except IndexError:
                     para_ID_error = True
 
-    # Reload.
-    results = {}
-    if steps["read_LSQ"]:
-        # Load each lsq result.
-        for f in [filepath for filepath in filepaths if "LSQ" in filepath]:
-            result = np.load(f,allow_pickle=True).item()
-            key = str.split(f,sep='/')[-1]
-            key = str.replace(key,'.npy','')
-            results[key] = result
-
-    if steps["read_MCMC"]:
-        # Load each mcmc result.
-        for f in [filepath for filepath in filepaths if "MCMC" in filepath]:
-            result = np.load(f,allow_pickle=True).item()
-            key = str.split(f,sep='/')[-1]
-            key = str.replace(key,'.npy','')
-            results[key] = result
+    # Reload results to fix edits made during plotting, e.g. binning, outlier smoothing etc.
+    results = load_results(steps,filepaths)
 
     # We can plot a waterfall of the fits and residuals.
     if steps["plot_waterfall"]:
-        for tag in ('LSQ','MCMC'):
+        for tag in ('LSQ','MCMC','nested'):
             result_keys = [key for key in list(results.keys()) if tag in key]
 
             # Each of these keys contains a "parallel ID" key which
@@ -323,27 +297,12 @@ def do_stage6(filepaths, outfile, outdir, steps, plot_dir):
                 except IndexError:
                     para_ID_error = True
 
-    # Reload.
-    results = {}
-    if steps["read_LSQ"]:
-        # Load each lsq result.
-        for f in [filepath for filepath in filepaths if "LSQ" in filepath]:
-            result = np.load(f,allow_pickle=True).item()
-            key = str.split(f,sep='/')[-1]
-            key = str.replace(key,'.npy','')
-            results[key] = result
-
-    if steps["read_MCMC"]:
-        # Load each mcmc result.
-        for f in [filepath for filepath in filepaths if "MCMC" in filepath]:
-            result = np.load(f,allow_pickle=True).item()
-            key = str.split(f,sep='/')[-1]
-            key = str.replace(key,'.npy','')
-            results[key] = result
+    # Reload results to fix edits made during plotting, e.g. binning, outlier smoothing etc.
+    results = load_results(steps,filepaths)
 
     # Now we should compute the spectrum and save it.
     if steps["get_spectrum"]:
-        for tag in ('LSQ','MCMC'):
+        for tag in ('LSQ','MCMC','nested'):
             # Move through each parallel spectrum as available.
             parallel_ID = 0
             para_ID_error = False

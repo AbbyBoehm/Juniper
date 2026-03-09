@@ -32,7 +32,7 @@ def make_gif(oneD_spec, wav_sols, timestamps, inpt_dict):
         t0 = time.time()
 
     # create animation
-    fig,ax = plt.subplots(figsize = (5,5))
+    fig,ax = plt.subplots(figsize = (10,5))
 
     # plot first spectrum, get things started
     spec_line = ax.plot(wav_sols[0,:],oneD_spec[0,:],color='navy')
@@ -99,8 +99,8 @@ def make_stack(oneD_spec, wav_sols, timestamps, inpt_dict):
     if time_step:
         t0 = time.time()
 
-    # create animation
-    fig,ax = plt.subplots(figsize = (5,5))
+    # create plot
+    fig,ax = plt.subplots(figsize = (10,5))
 
     # plot all spectra on top of each other
     for i in range(oneD_spec.shape[0]):
@@ -113,9 +113,65 @@ def make_stack(oneD_spec, wav_sols, timestamps, inpt_dict):
 
     plt.tight_layout()
 
-    # save animation
+    # save plot
     if save_step:
         plt.savefig(os.path.join(inpt_dict['plot_dir'],'S4_1D_extraction_spectra.png'),
+                    dpi=300,bbox_inches='tight')
+
+    if plot_step:
+        plt.show(block = True)
+
+    plt.close() # save memory
+
+    # Report time, if asked.
+    if time_step:
+        timer(time.time()-t0,None,None,None)
+
+def make_err_median(oneD_spec, wav_sols, oneD_err, inpt_dict):
+    """Plots a stack of the median spectrum with error bars.
+
+    Args:
+        oneD_spec (_type_): _description_
+        wav_sols (_type_): _description_
+        oneD_err (_type_): _description_
+        inpt_dict (_type_): _description_
+    """
+    # Log.
+    if inpt_dict["verbose"] >= 1:
+        print("Creating median spectrum with error bars...")
+
+    # Check tqdm and plotting requests.
+    time_step, time_ints = tqdm_translate(inpt_dict["verbose"])
+    plot_step, plot_ints = plot_translate(inpt_dict["show_plots"])
+    save_step, save_ints = plot_translate(inpt_dict["save_plots"])
+
+    # Time step, if asked.
+    if time_step:
+        t0 = time.time()
+
+    # create plot
+    fig,ax = plt.subplots(figsize = (10,5))
+
+    # get medians
+    medwav = np.median(wav_sols,axis=0)
+    medspec = np.median(oneD_spec,axis=0)
+    mederr = np.median(oneD_err,axis=0)
+
+    # plot median spectrum with error bars
+    ax.plot(medwav,medspec,color='k')
+    ax.errorbar(medwav,medspec,yerr=mederr,color='k',ls='none',
+                capsize=3,marker='o',markersize=1)
+    ax.set_title('Median 1D spectra with error bars')
+    ax.set_xlabel(r'Wavelength [$\mu$m]')
+    ax.set_ylabel('Flux [a.u.]')
+    ax.set_xlim(np.nanmin(wav_sols),np.nanmax(wav_sols))
+    ax.set_ylim(0,min(10*np.nanmean(oneD_spec),np.max(oneD_spec)))
+
+    plt.tight_layout()
+
+    # save plot
+    if save_step:
+        plt.savefig(os.path.join(inpt_dict['plot_dir'],'S4_1D_extraction_medspec-errs.png'),
                     dpi=300,bbox_inches='tight')
 
     if plot_step:

@@ -1,3 +1,4 @@
+import os
 import time
 from tqdm import tqdm
 
@@ -7,13 +8,16 @@ from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 from juniper.stage5 import models
 
-from juniper.stage5 import batman_handler, fit_handler, exotic_handler
+from juniper.stage5 import batman_handler, fit_handler, exotic_handler, models
 from juniper.util.diagnostics import tqdm_translate, plot_translate, timer
 from juniper.util.cleaning import median_timeseries_filter
+from juniper.util.plotting import plot_fit
 
 def lsqfit(exp_times, light_curve, errors, wavelengths,
            planets, flares, systematics, ld,
-           inpt_dict, is_spec=False):
+           inpt_dict, is_spec=False,
+           show_guess_plot=False, save_guess_plot=False,
+           plot_dir=None, outfile=None, wavestr=None):
     """Performs linear least squares fitting on the given array(s) using scipy.
     
     Args:
@@ -35,6 +39,13 @@ def lsqfit(exp_times, light_curve, errors, wavelengths,
         is_spec (bool, optional): whether this is a fit to a spectroscopic
         curve, in which case certain system parameters are to be locked.
         Defaults to False.
+        show_guess_plot (bool, optional): whether to show a plot of the initial
+        vs final guess. Defaults to False.
+        save_guess_plot (bool, optional): whether to save a plot of the initial
+        vs final guess. Defaults to False.
+        plot_dir (str, optional): location to save diagnostic plots to. Defaults to None.
+        outfile (str, optional): name to save diagnostic plots to. Defaults to None.
+        wavestr (str, optional): name to save spec plots to. Defaults to None.
     
     Returns:
         dict, dict, dict, dict: planets, flares, systematics, and ld updated
@@ -48,10 +59,53 @@ def lsqfit(exp_times, light_curve, errors, wavelengths,
                           "systematics":systematics[key].copy(),
                           "ld":ld[key].copy()}
         
-    # If you are doing a poly fit, set the first polynomial coefficient better.
+    # If you are doing a poly fit, use a quick numpy polyfit to improve the coefficient estimates.
     for i,key in enumerate(list(systematics.keys())):
         if systematics[key]["poly"]:
-            systematics[key]["poly_coeffs"][0] = np.median(light_curve[i])
+            poly_degree = len(systematics[key]["poly_coeffs"])-1
+
+            # Assume event duration of 15% of the exposure duration.
+            duration = 0.15*(exp_times[i][-1]-exp_times[i][0])
+
+            # Identify flux away from the expected mid-transit and mid-eclipse times.
+            oks = []
+            for j, planet_key in enumerate(list(planets[key].keys())):
+                planet = planets[key][planet_key]
+                tkeys = (f't_prim{j+1}',f't_seco{j+1}')
+                for tkey in tkeys:
+                    event_time = planet[tkey]
+                    not_ok = (exp_times[i]>event_time-duration) & (exp_times[i]<event_time+duration)
+                    oks.append(~not_ok)
+            all_ok = np.full(oks[0].shape,True)
+            for ok in oks:
+                all_ok = np.logical_and(all_ok,ok)
+
+            polyfit_coeffs = np.flip(np.polyfit(exp_times[i][all_ok]-exp_times[i][0],
+                                                light_curve[i][all_ok],
+                                                deg=poly_degree))
+
+            systematics[key]["poly_coeffs"] = polyfit_coeffs
+
+            # If asked, plot how we got the poly model.
+            if (save_guess_plot or show_guess_plot):
+                fig, ax = plt.subplots(figsize=(7,5))
+                ax.scatter(exp_times[i],light_curve[i],color='k')
+                ax.scatter(exp_times[i][~all_ok],light_curve[i][~all_ok],color='grey')
+                poly_flux = models.systematic_polynomial(exp_times[i],polyfit_coeffs)
+                ax.plot(exp_times[i],poly_flux,color='red')
+                ax.set_xlabel("Exposure Time [BJD_TDB]")
+                ax.set_ylabel("Flux [normalized]")
+                ax.tick_params(which='both',axis='both',direction='in',)
+                if save_guess_plot:
+                    if is_spec:
+                        plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"detector{}".format(key)+"_spec{}LSQ_system-estimate.png".format(wavestr)),
+                                    dpi=300, bbox_inches='tight')
+                    else:
+                        plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"detector{}".format(key)+"_broadbandLSQ_system-estimate.png"),
+                                    dpi=300, bbox_inches='tight')
+                if show_guess_plot:
+                    plt.show(block=True)
+                plt.close()
 
     # Check if ExoTiC-LD is being used.
     for i,key in enumerate(list(ld.keys())):
@@ -68,12 +122,12 @@ def lsqfit(exp_times, light_curve, errors, wavelengths,
         planets[key] = batman_handler.batman_init_all_planets(exp_times[i], planets[key], ld[key],
                                                               event=inpt_dict["event_type_"+key])
 
-    # Build a priors dictionary, and log information about what is getting fit.
-    params_priors, fit_or_not = fit_handler.build_priors_dict(planets,flares,systematics,ld,
-                                                              is_spec=is_spec,priors_type=inpt_dict["priors_type"])
+    # Build priors dictionaries, and log information about what is getting fit.
+    param_priors, priors_types, fit_or_not = fit_handler.build_priors_dict(planets,flares,systematics,ld,
+                                                                           is_spec=is_spec,samplertype='lsq',reasonable_values=None)
     
     # Then build the lsq bounds object.
-    bounds = fit_handler.build_bounds(params_priors, priors_type=inpt_dict["priors_type"])
+    bounds = fit_handler.build_bounds(param_priors, priors_types)
 
     # Translate planets, flares, systematics, and lds into a single fitting dictionary.
     bundled_params = {}
@@ -92,6 +146,42 @@ def lsqfit(exp_times, light_curve, errors, wavelengths,
     preserve_depth = inpt_dict["preserve_depth"]
     preserve_orbit = inpt_dict["preserve_orbit"]
 
+    # If asked, make a plot of the initial guess.
+    if (show_guess_plot or save_guess_plot):
+        fig, ax = plt.subplots(figsize=(7,int(2.5*len(list(planets.keys())))),
+                               nrows=len(list(planets.keys())))
+        # On each ax[i], plot the full model and its components.
+        for i,key in enumerate(list(planets.keys())):
+            full_model, _ = models.full_model(exp_times[i],
+                                              planets[key],
+                                              flares[key],
+                                              systematics[key],
+                                              None, None)
+            
+            # Plot the initial model over the data.
+            if len(list(planets.keys())) > 1:
+                ax[i] = plot_fit(ax[i], exp_times[i], light_curve[i], errors[i],
+                                exp_times[i], full_model, fit_color='blue')
+                ax[i].set_xlabel("Exposure Time [BJD_TDB]")
+                ax[i].set_ylabel("Flux [normalized]")
+                ax[i].tick_params(which='both',axis='both',direction='in',)
+            else:
+                ax = plot_fit(ax, exp_times[i], light_curve[i], errors[i],
+                                exp_times[i], full_model, fit_color='blue')
+                ax.set_xlabel("Exposure Time [BJD_TDB]")
+                ax.set_ylabel("Flux [normalized]")
+                ax.tick_params(which='both',axis='both',direction='in',)
+        if save_guess_plot:
+            if is_spec:
+                plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_spec{}LSQ-initial.png".format(wavestr)),
+                            dpi=300, bbox_inches='tight')
+            else:
+                plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_broadbandLSQ-initial.png"),
+                            dpi=300, bbox_inches='tight')
+        if show_guess_plot:
+            plt.show(block=True)
+        plt.close()
+    
     # Now do lsq.
     results = minimize(fit_handler._residuals,
                        x0=params_array,
@@ -126,6 +216,42 @@ def lsqfit(exp_times, light_curve, errors, wavelengths,
     for i,key in enumerate(list(planets.keys())):
         planets[key] = batman_handler.batman_init_all_planets(exp_times[i], planets[key], ld[key],
                                                               event=inpt_dict["event_type_"+key])
+        
+    # If asked, make a plot of the final guess.
+    if (show_guess_plot or save_guess_plot):
+        fig, ax = plt.subplots(figsize=(7,int(2.5*len(list(planets.keys())))),
+                               nrows=len(list(planets.keys())))
+        # On each ax[i], plot the full model and its components.
+        for i,key in enumerate(list(planets.keys())):
+            full_model, _ = models.full_model(exp_times[i],
+                                              planets[key],
+                                              flares[key],
+                                              systematics[key],
+                                              None, None)
+            
+            # Plot the final model over the data.
+            if len(list(planets.keys())) > 1:
+                ax[i] = plot_fit(ax[i], exp_times[i], light_curve[i], errors[i],
+                                exp_times[i], full_model, fit_color='red')
+                ax[i].set_xlabel("Exposure Time [BJD_TDB]")
+                ax[i].set_ylabel("Flux [normalized]")
+                ax[i].tick_params(which='both',axis='both',direction='in',)
+            else:
+                ax = plot_fit(ax, exp_times[i], light_curve[i], errors[i],
+                                exp_times[i], full_model, fit_color='red')
+                ax.set_xlabel("Exposure Time [BJD_TDB]")
+                ax.set_ylabel("Flux [normalized]")
+                ax.tick_params(which='both',axis='both',direction='in',)
+        if save_guess_plot:
+            if is_spec:
+                plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_spec{}LSQ-final.png".format(wavestr)),
+                            dpi=300, bbox_inches='tight')
+            else:
+                plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_broadbandLSQ-final.png"),
+                            dpi=300, bbox_inches='tight')
+        if show_guess_plot:
+            plt.show(block=True)
+        plt.close()
     
     # And return the fitted parameters.
     return planets, flares, systematics, ld
