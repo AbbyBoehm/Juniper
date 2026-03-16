@@ -90,7 +90,7 @@ def align(oneD_spec, oneD_err, wav_sols, oneD_time, inpt_dict):
 
     if (plot_step or save_step):
         plt.scatter(oneD_time, shifts, color='midnightblue')
-        plt.xlabel("Exposure Time [MJD]")
+        plt.xlabel("Exposure Time [BJD TDB]")
         plt.ylabel("Shift [Pixels]")
         plt.title('Cross-correlation shifts')
         if save_step:

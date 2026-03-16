@@ -101,6 +101,20 @@ def plot_post(ndim, samples, labels, n):
         ax.set_ylabel(labels[i])
     return fig, axes
 
+def plot_nest_post(ndim, samples, labels):
+    fig, axes = plt.subplots(ndim, figsize=(10, 7), sharex=False)
+    for i in range(ndim):
+        try:
+            ax = axes[i]
+        except TypeError:
+            # There is only one axis because there was only one sample.
+            ax = axes
+        post = samples[:,i]
+        ax.hist(post, 100, alpha=0.3)
+        ax.set_xlim(min(post), max(post))
+        ax.set_ylabel(labels[i])
+    return fig, axes
+
 def plot_allan(residuals):
     # Define maximum bin size.
     maxbins = len(residuals)//2

@@ -111,7 +111,7 @@ def track_pos(segments, inpt_dict):
                 plt.axhline(med_disp,ls='--',color='red')
                 for mult in (-1,1):
                     plt.axhline(med_disp+(mult*3*std_disp),ls=':',color='red')
-            plt.xlabel('Exposure Time [MJD]')
+            plt.xlabel('Exposure Time [BJD TDB]')
             plt.ylabel('Dispersion Position [pixels]')
             plt.tick_params(which='both',axis='both',direction='in')
             if save_step:
@@ -169,7 +169,7 @@ def track_pos(segments, inpt_dict):
                 plt.axhline(med_cross,ls='--',color='red')
                 for mult in (-1,1):
                     plt.axhline(med_cross+(mult*3*std_cross),ls=':',color='red')
-            plt.xlabel('Exposure Time [MJD]')
+            plt.xlabel('Exposure Time [BJD TDB]')
             plt.ylabel('Cross-Dispersion Position [pixels]')
             plt.tick_params(which='both',axis='both',direction='in')
             if save_step:
@@ -182,7 +182,7 @@ def track_pos(segments, inpt_dict):
             # Create a plot in time of the measured cross-dispersion widths.
             plt.figure(figsize=(5,5))
             plt.scatter(segments["time"], crossdispersion_width, color='k')
-            plt.xlabel('Exposure Time [MJD]')
+            plt.xlabel('Exposure Time [BJD TDB]')
             plt.ylabel('Cross-Dispersion Width [pixels]')
             plt.tick_params(which='both',axis='both',direction='in')
             if save_step:

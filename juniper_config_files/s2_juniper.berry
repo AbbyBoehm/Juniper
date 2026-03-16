@@ -2,8 +2,8 @@
 
 # Setup for Stage 2
 toplevel_dir    ''                                          # Top-level directory for all files in this project. The input and output files should be here.
-input           'rates'                                     # The sub-directory relative to the top-level directory where your input *rateints.fits files are.
-output          'calints'                                   # The sub-directory relative to the top-level directory where your output *calints.fits files will be saved
+input           's1_rates'                                  # The sub-directory relative to the top-level directory where your input *rateints.fits files are.
+output          's2_calints'                                # The sub-directory relative to the top-level directory where your output *calints.fits files will be saved
 input_run       None                                        # str or None. You can use this to choose a sub-folder from the input folder if you wanted to rerun (e.g. pull from input/run1 instead of input/ or input/run2).
 output_run      None                                        # str or None. You can use this to open sub-folders in the output folder if you wanted to rerun (e.g. have output/run1 and output/run2).
 CRDS_PATH       None                                        # str or None. If you already have a crds_cache directory, point to its absolute path here. Otherwise, a crds_cache will be opened in the current working directory.
@@ -12,31 +12,30 @@ verbose         2                                           # Int from 0 to 2. 0
 show_plots      2                                           # Int from 0 to 2. 0 = show nothing. 1 = show some plots. 2 = show all plots.
 save_plots      2                                           # Int from 0 to 2. 0 = save nothing. 1 = save some plots. 2 = save all plots.
 diagnostics     'diagnostics'                               # str. If save_plots >= 1, diagnostic plots will be written to this folder.
+rename          'name'                                      # str. What you want to rename the files to. Can be None to keep the default name. Suggestions include naming the files after the target planet and program ID (e.g. 'PLANET-B_ID12345').
 
 # Step 1: JWST Spec2Pipeline wrapper
-rename          'name'                                      # str. What you want to rename the files to. Can be None to keep the default name. Suggestions include naming the files after the target planet and program ID (e.g. 'PLANET-B_ID12345').
 do_assign_wcs   True                                        # bool. Whether to perform this step in jwst Spec2Pipeline.
 slit_y_low      -0.55                                       # float. Lower edge of slit.
 slit_y_high     0.55                                        # float. Upper edge of slit.
 
-do_selfcal      False                                       # bool. Whether to perform this step in jwst Spec2Pipeline. Applies only to NIRSpec IFU and MIRI MRS.
+do_selfcal      False                                       # bool. Whether to perform this step in jwst Spec2Pipeline. Applies only to NIRSpec IFU and MIRI MRS. Not recommended by default for TSOs.
 flagfrac_lower  0.001                                       # float. Fraction of pixels to flag as outliers on low-flux side of smooth-subtracted image.
 flagfrac_upper  0.001                                       # float. Fraction of pixels to flag as outliers on high-flux side of smooth-subtracted image.
 kernel_size     15                                          # int. Kernel to use for median filtering.
 save_flagged    False                                       # bool. Whether to save flagged background exposures to fits files.
 
-do_msa_flagging False                                       # bool. Whether to perform this step in jwst Spec2Pipeline. Applies only to NIRSpec MOS and IFU.
+do_msa_flagging False                                       # bool. Whether to perform this step in jwst Spec2Pipeline. Applies only to NIRSpec MOS and IFU. Not recommended by default for TSOs.
 
-# Note: The jwst Spec2Pipeline build of NSClean was not designed for exoplanetary sciences and may misbehave if you use it.
-do_jwstnsclean  False                                       # bool. Whether to perform this step in jwst Spec2Pipeline. Applies to all NIRSpec modes.
+do_cleanflicker False                                       # bool. Whether to perform this step in jwst Spec2Pipeline. Applies to all NIRSpec modes.
 mask_trace      True                                        # bool. Whether to mask the trace as defined by the WCS bounding boxes.
 n_sigma         5                                           # float. Sigma for kicking outliers from the background region.
 save_mask       False                                       # bool. Whether to save the trace mask.
-user_mask       None                                        # str or None. User-supplied trace mask path.
+user_mask       None                                        # str or None. User-supplied trace mask path. Recommended to use this if an initial attempt at running this routine results in inadequate masking of trace signal.
 
-do_imprint      False                                       # bool. Whether to perform this step in jwst Spec2Pipeline. Applies only to NIRSpec MOS and IFU.
+do_imprint      False                                       # bool. Whether to perform this step in jwst Spec2Pipeline. Applies only to NIRSpec MOS and IFU. Not recommended by default for TSOs.
 
-do_background   True                                        # bool. Whether to perform this step in jwst Spec2Pipeline.
+do_background   False                                       # bool. Whether to perform this step in jwst Spec2Pipeline. Not recommended by default for TSOs.
 bkg_sigma       3                                           # float. Sigma clipping limit.
 maxiters        None                                        # int or None. If int, limits how many iterations are performed.
 save_bkg        False                                       # bool. Whether to save the combined image used to subtract the background.
@@ -54,39 +53,39 @@ grism_objects   []                                          # list of jwst.trans
 do_srctype      True                                        # bool. Whether to perform this step in jwst Spec2Pipeline.
 source_type_st  None                                        # str ("POINT" or "EXTENDED") or None. Can be used to override Spec2Pipeline's judgment.
 
-do_wavecorr     True                                        # bool. Whether to perform this step in jwst Spec2Pipeline. Applies to NIRSpec FS and MOS.
+do_wavecorr     False                                       # bool. Whether to perform this step in jwst Spec2Pipeline. Applies to NIRSpec FS and MOS. Not recommended by default for TSOs.
 
-do_master_bckg  False                                       # bool. Whether to perform this step in jwst Spec2Pipeline. Applies only to NIRSpec MOS.
+do_master_bckg  False                                       # bool. Whether to perform this step in jwst Spec2Pipeline. Applies only to NIRSpec MOS. Not recommended by default for TSOs.
 user_bckg       None                                        # str or None. User-supplied background fle.
 save_bckg       False                                       # bool. Whether to save the background that is computed.
 force_subtract  False                                       # bool. If True, overrides step's built-in judgment for whether this step is to be done.
 output_model    True                                        # bool. Whether to determine filename from meta.
 
-do_straylight   False                                       # bool. Whether to perform this step in jwst Spec2Pipeline. Applies only to MIRI MRS.
+do_straylight   False                                       # bool. Whether to perform this step in jwst Spec2Pipeline. Applies only to MIRI MRS. Not recommended by default for TSOs.
 
 do_flat_field   True                                        # bool. Whether to perform this step in jwst Spec2Pipeline. Flat field sometimes makes it worse if the flat file is from early cycles.
 save_int_flat   False                                       # bool. Whether to save flat field constructed by this step.
 user_flat       None                                        # str or None. User-supplied flat field file.
 inverse_ff      False                                       # bool. Whether flat field should be multiplied in (True) instead of the usual dividing out (False).
 
-do_fringe       False                                       # bool. Whether to perform this step in jwst Spec2Pipeline. Applies only to MIRI MRS.
+do_fringe       False                                       # bool. Whether to perform this step in jwst Spec2Pipeline. Applies only to MIRI MRS. Not recommended by default for TSOs.
 
-do_pathloss     False                                       # bool. Whether to perform this step in jwst Spec2Pipeline.
+do_pathloss     False                                       # bool. Whether to perform this step in jwst Spec2Pipeline. Not recommended by default for TSOs.
 inverse_pl      False                                       # bool. Whether flat field should be multiplied in (True) instead of the usual dividing out (False).
 source_type_pl  None                                        # str ("POINT" or "EXTENDED") or None. Can be used to override Spec2Pipeline's judgment.
 user_slit_loc   None                                        # float or None. If float, offsets the target location along the dispersion direction.
 
-do_barshadow    False                                       # bool. Whether to perform this step in jwst Spec2Pipeline. Applies only to NIRSpec MOS.
+do_barshadow    False                                       # bool. Whether to perform this step in jwst Spec2Pipeline. Applies only to NIRSpec MOS. Not recommended by default for TSOs.
 inverse_bar     False                                       # bool. Whether correction should be multiplied in (True) instead of the usual dividing out (False).
 source_type_bar None                                        # str ("POINT" or "EXTENDED") or None. Can be used to override Spec2Pipeline's judgment.
 
-do_wfss_contam  False                                       # bool. Whether to perform this step in jwst Spec2Pipeline. Applies only to NIRISS WFSS and NIRCam.
+do_wfss_contam  False                                       # bool. Whether to perform this step in jwst Spec2Pipeline. Applies only to NIRISS WFSS and NIRCam. Not recommended by default for TSOs.
 
 # Step 2: Curvature correction
 do_correction   True                                        # bool. Whether to perform this step, if it is needed (e.g. G395H data is curved but PRISM is not, so even if this is set to True, it will not apply to PRISM data).
 
 # Step 3: MIRI wavelength solution
-do_wavemap      True                                        # bool. Whether to create a wavelength map solution for MIRI TSO, necessary to perform Juniper Stages 3-6.
+do_wavemap      True                                        # bool. Whether to create a wavelength map solution for MIRI LRS, necessary to perform Juniper Stages 3-6.
 
 # Step 4: Truncate array
 do_truncate     False                                       # bool. Whether to truncate the array to a certain size, useful for lopping off bad parts of the array (e.g. MIRI LRS lightsaber, invalid flat regions, etc.).

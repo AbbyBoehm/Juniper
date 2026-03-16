@@ -213,7 +213,7 @@ def mcmcfit(exp_times, light_curve, errors, wavelengths,
         discard = int(inpt_dict["MCMC_burnin"]*steps)
 
     # Check for parallelization.
-    if inpt_dict["max_cores"] != 1:
+    if inpt_dict["max_cores"] not in (1,'1'):
         # Count cores that are available.
         cores = cpu_count()
         if inpt_dict["verbose"] >= 1:
@@ -249,7 +249,7 @@ def mcmcfit(exp_times, light_curve, errors, wavelengths,
     flat_samples = sampler.get_chain(discard=discard, flat=True)
 
     # Close up the pool, if it was made.
-    if inpt_dict["max_cores"] != 1:
+    if inpt_dict["max_cores"] not in (1,'1'):
         pool.close()
         pool.join()
 

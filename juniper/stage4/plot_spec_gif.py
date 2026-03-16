@@ -215,7 +215,7 @@ def make_wlc(oneD_spec, wav_sols, timestamps, inpt_dict):
         wlc.append(np.sum(oneD_spec[i,:]))
     ax.scatter(timestamps,wlc,color='k',marker='o')
     ax.set_title('Broad-band light curve')
-    ax.set_xlabel('Exposure Time [MJD]')
+    ax.set_xlabel('Exposure Time [BJD TDB]')
     ax.set_ylabel('Flux [a.u.]')
 
     plt.tight_layout()

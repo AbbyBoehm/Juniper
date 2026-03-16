@@ -133,11 +133,11 @@ def s2_to_pipeline(s2_config):
                                      "kernel_size":s2_config["kernel_size"],
                                      "save_flagged_bkg":s2_config["save_flagged"]} 
     
-    s2_pipeline["nsclean"] = {"skip":(not s2_config["do_jwstnsclean"]),
-                              "mask_spectral_regions":s2_config["mask_trace"],
-                              "n_sigma":s2_config["n_sigma"],
-                              "save_mask":s2_config["save_mask"],
-                              "user_mask":s2_config["user_mask"]}
+    s2_pipeline["nsclean"] = {"skip":(not s2_config["do_cleanflicker"]),
+                                          "mask_spectral_regions":s2_config["mask_trace"],
+                                          "n_sigma":s2_config["n_sigma"],
+                                          "save_mask":s2_config["save_mask"],
+                                          "user_mask":s2_config["user_mask"]}
     
     s2_pipeline["background"] = {"skip":(not s2_config["do_background"]),
                                  "sigma":s2_config["bkg_sigma"],
@@ -206,7 +206,7 @@ def s2_clean_dict(s2_pipeline, mode):
                     'master_background','straylight','fringe','barshadow',
                     'wfss_contam','residual_fringe','cube_build')
     elif 'MIRI'.casefold() in mode.casefold(): # FIX: p sure that MIRI LRS has even more specific keys, like background is okay for IFUs but not okay for LRS
-        bad_keys = ('msa_flagging','nsclean','imprint','extract_2d','background',
+        bad_keys = ('msa_flagging','imprint','extract_2d','background',
                     'master_background','wavecorr','pathloss','barshadow',
                     'wfss_contam','resample_spec')
     for key in bad_keys:

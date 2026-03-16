@@ -120,24 +120,22 @@ def nestfit(exp_times, light_curve, errors, wavelengths,
     for i,key in enumerate(list(planets.keys())):
         planets[key] = batman_handler.batman_init_all_planets(exp_times[i], planets[key], ld[key],
                                                               event=inpt_dict["event_type_"+key])
-        
-    # Develop a set of reasonable values for systematic+LD models.
-    reasonable_values = {}
-    for i,key in enumerate(list(systematics.keys())):
-        reasonable_values[key] = fit_handler.populate_reasonable_values(systematics[key],
-                                                                        exp_times[i],
-                                                                        light_curve[i])
 
     # Build a priors dictionary, and log information about what is getting fit.
     param_priors, priors_types, fit_or_not = fit_handler.build_priors_dict(planets,flares,systematics,ld,
-                                                                           is_spec=is_spec,samplertype='dynesty',
-                                                                           reasonable_values=reasonable_values)
+                                                                           is_spec=is_spec)
     
     # Unpack priors into a list of lists.
     unpack_priors = []
     for superdict_key in list(planets.keys()):
-        for key in list(params_priors[superdict_key].keys()):
-            unpack_priors.append(params_priors[superdict_key][key])
+        for key in list(param_priors[superdict_key].keys()):
+            unpack_priors.append(param_priors[superdict_key][key])
+
+    # Unpack prior types into a list of lists.
+    unpack_ptypes = []
+    for superdict_key in list(planets.keys()):
+        for key in list(priors_types[superdict_key].keys()):
+            unpack_ptypes.append(priors_types[superdict_key][key])
 
     # Translate planets, flares, systematics, and lds into a single fitting dictionary.
     bundled_params = {}
@@ -192,32 +190,23 @@ def nestfit(exp_times, light_curve, errors, wavelengths,
             plt.show(block=True)
         plt.close()
 
-    ### ADD NESTED SAMPLING STUFF HERE
-    # Set up the chains with a little bit of scatter around the initial guess.
-    if int(inpt_dict["MCMC_chains"]) < 2*params_array.shape[0]:
-        new_n_walkers = 2*params_array.shape[0]
-        if inpt_dict["verbose"] >= 1:
-            print("Input n. chains {} was less than twice the number of parameters, raising value to {}.".format(inpt_dict["MCMC_chains"],new_n_walkers))
-        inpt_dict["MCMC_chains"] = new_n_walkers
-    pos = params_array + 1e-4 * np.random.randn(inpt_dict["MCMC_chains"],
-                                                params_array.shape[0])
-    nwalkers, ndim = pos.shape
+    # Define dimensionality of the problem.
+    ndim = params_array.shape[0]
 
-    # Define steps to run for.
-    steps = inpt_dict["MCMC_steps"]
-    if (is_spec and inpt_dict["MCMC_specsteps"]):
-        steps = inpt_dict["MCMC_specsteps"]
+    # Define args of the log probability function.
+    loglike_args = (bundled_params, fit_or_not, exp_times, light_curve, errors,
+                    unpack_priors, unpack_ptypes, preserve_timing, preserve_depth, preserve_orbit)
+    
+    # Define args of the prior transform function.
+    ptform_args = (param_priors, priors_types)
 
-    # Define how many steps we want to keep.
-    if inpt_dict["MCMC_burnin"] >= 1:
-        # If it is a whole integer, the user has asked to burn this many steps.
-        discard = int(inpt_dict["MCMC_burnin"])
-    else:
-        # If it is a fraction, the user has asked to burn a fraction of the steps.
-        discard = int(inpt_dict["MCMC_burnin"]*steps)
+    # Establish dlnz.
+    dlnz = None
+    if "nested_dlnz" in list(inpt_dict.keys()):
+        dlnz = inpt_dict["nested_dlnz"]
 
-    # Check for parallelization.
-    if inpt_dict["max_cores"] != 1:
+    # Check for parallelization as we initialize and run the sampler.
+    if inpt_dict["max_cores"] not in (1,'1'):
         # Count cores that are available.
         cores = cpu_count()
         if inpt_dict["verbose"] >= 1:
@@ -234,31 +223,85 @@ def nestfit(exp_times, light_curve, errors, wavelengths,
             n_use = cores
         if inpt_dict["verbose"] >= 1:
             print("Multiprocessing with {} out of {} cores.".format(n_use,cores))
-        pool = Pool(n_use)
+        with dynesty.pool.Pool(n_use,fit_handler.log_probability,fit_handler.prior_transform,
+                               logl_args=loglike_args,ptform_args=ptform_args) as dypool:
+            # Create the sampler object with a pool.
+            if inpt_dict["nested_dynamic"]:
+                # Use a dynamic sampler.
+                sampler = dynesty.DynamicNestedSampler(dypool.loglike,
+                                                       dypool.prior_transform,
+                                                       ndim,
+                                                       bound = inpt_dict["nested_bounding"],
+                                                       sample = inpt_dict["nested_sample"],
+                                                       pool=dypool)
+                if inpt_dict["verbose"] == 2:
+                    print("Beginning dynamic nested sampling...")
+                sampler.run_nested(dlogz_init=dlnz,
+                                   nlive_init=inpt_dict["nested_nlive"],
+                                   nlive_batch=inpt_dict["nested_batch"])
+            else:
+                # Use a static sampler.
+                sampler = dynesty.NestedSampler(dypool.loglike,
+                                                dypool.prior_transform,
+                                                ndim,
+                                                nlive = inpt_dict["nested_nlive"],
+                                                bound = inpt_dict["nested_bounding"],
+                                                sample = inpt_dict["nested_sample"],
+                                                pool=dypool)
+                if inpt_dict["verbose"] == 2:
+                    print("Beginning static nested sampling...")
+                sampler.run_nested(dlogz=dlnz,)
     else:
-        pool = None
-    
-    # Define the emcee sampler.
-    sampler = emcee.EnsembleSampler(nwalkers, ndim, fit_handler.log_probability,
-                                    args=(bundled_params, fit_or_not, exp_times, light_curve, errors,
-                                          unpack_priors, inpt_dict["priors_type"],
-                                          preserve_timing, preserve_depth, preserve_orbit),
-                                    pool=pool)
-    
-    # And run it!
-    sampler.run_mcmc(pos, steps, progress=True)#;
-    
-    # Pull the sampled posteriors and discard the burn-in and flatten it.
-    samples = sampler.get_chain()
-    flat_samples = sampler.get_chain(discard=discard, flat=True)
+        # Create the sampler object without a pool.
+        print("Running Dynesty without multiprocessing. This might take awhile...")
 
-    # Close up the pool, if it was made.
-    if inpt_dict["max_cores"] != 1:
-        pool.close()
-        pool.join()
+        # Create the nested sampler object.
+        if inpt_dict["nested_dynamic"]:
+            # Use a dynamic sampler.
+            sampler = dynesty.DynamicNestedSampler(fit_handler.log_probability,
+                                                   fit_handler.prior_transform,
+                                                   ndim,
+                                                   bound = inpt_dict["nested_bounding"],
+                                                   sample = inpt_dict["nested_sample"],
+                                                   logl_args=loglike_args,
+                                                   ptform_args=ptform_args,)
+            if inpt_dict["verbose"] == 2:
+                print("Beginning dynamic nested sampling...")
+            sampler.run_nested(dlogz_init=dlnz,
+                               nlive_init=inpt_dict["nested_nlive"],
+                               nlive_batch=inpt_dict["nested_batch"])
+        else:
+            # Use a static sampler.
+            sampler = dynesty.NestedSampler(fit_handler.log_probability,
+                                            fit_handler.prior_transform,
+                                            ndim,
+                                            nlive = inpt_dict["nested_nlive"],
+                                            bound = inpt_dict["nested_bounding"],
+                                            sample = inpt_dict["nested_sample"],
+                                            logl_args=loglike_args,
+                                            ptform_args=ptform_args,)
+            if inpt_dict["verbose"] == 2:
+                print("Beginning static nested sampling...")
+            sampler.run_nested(dlogz=dlnz,)
+
+    # Get the results from the sampler.
+    results = sampler.results
+
+    # Print a summary of the run if asked.
+    if inpt_dict["verbose"] == 2:
+        print(results.summary)
+
+    # Determine how many steps are burn-in.
+    if inpt_dict["nested_burnin"] > 0:
+        discard = int(inpt_dict["nested_burnin"]*results.niter)
+    else:
+        discard = 0
+    
+    # Pull the sampled posteriors and discard the burn-in.
+    samples = results.samples[discard:]
 
     # Turn the flattened chains into arrays.
-    fitted_array, fitted_errs_array = fit_handler.get_result_from_post(ndim, flat_samples)
+    fitted_array, fitted_errs_array = fit_handler.get_result_from_post(ndim, samples)
 
     # Turn both back into dicts.
     fitted_dict = fit_handler.array_to_dict(fitted_array, bundled_params, fit_or_not)
@@ -325,18 +368,14 @@ def nestfit(exp_times, light_curve, errors, wavelengths,
         if inpt_dict["verbose"] == 2:
             print("Found {} repeat indices to delete as part of preserve arguments.".format(len(delete_indices)))
         delete_indices = np.array([int(i) for i in delete_indices])
-        samples = np.delete(samples,obj=delete_indices,axis=2)
-        flat_samples = np.delete(flat_samples,obj=delete_indices,axis=1)
+        samples = np.delete(samples,obj=delete_indices,axis=1)
         labels = np.delete(labels,obj=delete_indices,axis=0)
 
-    # Get how many parameters were fit.
-    n = np.shape(samples[:,:,0])[0]*np.shape(samples[:,:,0])[1]
-
     # Update ndim, necessary if there were deletions.
-    ndim = samples.shape[2]
+    ndim = samples.shape[1]
 
     # Store plotting items, we may want them later.
-    plotting_items = (ndim, samples, flat_samples, labels, n)
+    plotting_items = (ndim, samples, labels)
 
     # If asked, make a plot of the final guess.
     if (show_guess_plot or save_guess_plot):

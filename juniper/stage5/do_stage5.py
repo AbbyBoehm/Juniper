@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from juniper.config.translate_config import make_planets, make_flares, make_systematics, make_ld
 from juniper.util.diagnostics import tqdm_translate, plot_translate
 from juniper.util.datahandling import stitch_spectra, save_s5_output
-from juniper.util.plotting import plot_chains, plot_corner, plot_post
+from juniper.util.plotting import plot_chains, plot_corner, plot_post, plot_nest_post
 from juniper.util.cleaning import median_timeseries_filter
 from juniper.stage5 import bin_light_curves, lsqfit_handler, mcmcfit_handler, nestedsampling_handler
 
@@ -77,19 +77,19 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
         # since fitter often struggles with this.
         if steps["clean_pos"]:
             xpos = median_timeseries_filter(xpos,sigma=3.0,kernel=31)
-            flen = int(len(xpos)/15)
+            flen = int(0.1*len(xpos))
             if flen % 2 == 0:
                 flen += 1
             xpos = median_filter(xpos,flen,mode='nearest')
 
             ypos = median_timeseries_filter(ypos,sigma=3.0,kernel=31)
-            flen = int(len(ypos)/15)
+            flen = int(0.1*len(ypos))
             if flen % 2 == 0:
                 flen += 1
             ypos = median_filter(ypos,flen,mode='nearest')
         if steps["clean_widths"]:
             widths = median_timeseries_filter(widths,sigma=3.0,kernel=31)
-            flen = int(len(widths)/15)
+            flen = int(0.1*len(widths))
             if flen % 2 == 0:
                 flen += 1
             widths = median_filter(widths,flen,mode='nearest')
@@ -184,7 +184,7 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
                     plt.show(block=True)
                 plt.close()
         
-        # Alternatively or additionally, use nested sampling to 
+        # Alternatively or additionally, use nested sampling to fit the broadband data.
         if steps["use_nested"]:
             if steps["verbose"] == 2:
                 print("Dynesty nested sampling fitting to all supplied broadband data...")
@@ -205,35 +205,26 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
             save_s5_output(planets, planets_err, flares, flares_err,
                            systematics, systematics_err, ld, ld_err,
                            light_curves["time"], light_curves["broadband"],light_curves["broaderr"],
-                           'broadband', outfile+"_broadbandnest", outdir)
+                           'broadband', outfile+"_broadbandnested", outdir)
             
             # Plot, if asked.
             if (plot_step or save_step):
                 # Unpack plotting items.
-                ndim, samples, flat_samples, labels, n = plotting_items
+                ndim, samples, labels = plotting_items
                 
                 # Plot posteriors.
-                fig, ax = plot_post(ndim,samples,labels,n)
+                fig, ax = plot_nest_post(ndim,samples,labels)
                 if save_step:
-                    plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_broadbandMCMC-posterior.png"),
+                    plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_broadbandnested-posterior.png"),
                                 dpi=300, bbox_inches='tight')
                 if plot_step:
                     plt.show(block=True)
                 plt.close()
 
                 # Plot corners.
-                fig = plot_corner(flat_samples,labels)
+                fig = plot_corner(samples,labels)
                 if save_step:
-                    plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_broadbandMCMC-corner.png"),
-                                dpi=300, bbox_inches='tight')
-                if plot_step:
-                    plt.show(block=True)
-                plt.close()
-
-                # Plot chains.
-                fig, ax = plot_chains(ndim,samples,labels)
-                if save_step:
-                    plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_broadbandMCMC-chains.png"),
+                    plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_broadbandnested-corner.png"),
                                 dpi=300, bbox_inches='tight')
                 if plot_step:
                     plt.show(block=True)
@@ -366,7 +357,53 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
                         if plot_step:
                             plt.show(block=True)
                         plt.close()
-                    
+
+                # Alternatively or additionally, fit with dynesty.
+                if steps["use_nested"]:
+                    if steps["verbose"] == 2:
+                        print("Dynesty nested sampling fitting to supplied spectroscopic light curve {} micron in parallel...".format(wavestr))
+                    planets, flares, systematics, ld, \
+                    planets_err, flares_err, systematics_err, ld_err, \
+                    plotting_items = nestedsampling_handler.nestfit(exp_times=light_curves["time"],
+                                                                    light_curve=light_curve,
+                                                                    errors=errors,
+                                                                    wavelengths=wavelengths,
+                                                                    planets=planets, flares=flares,
+                                                                    systematics=systematics, ld=ld,
+                                                                    inpt_dict=steps, is_spec=True,
+                                                                    show_guess_plot=plot_ints,
+                                                                    save_guess_plot=save_ints,
+                                                                    plot_dir=plot_dir,outfile=outfile,wavestr=wavestr)
+            
+                    # Save output
+                    save_s5_output(planets, planets_err, flares, flares_err,
+                                   systematics, systematics_err, ld, ld_err,
+                                   light_curves["time"], light_curve, errors,
+                                   wavestr, outfile+"_spec{}nested".format(wavestr), outdir)
+            
+                    # Plot, if asked.
+                    if (plot_step or save_step):
+                        # Unpack plotting items.
+                        ndim, samples, labels = plotting_items
+                        
+                        # Plot posteriors.
+                        fig, ax = plot_nest_post(ndim,samples,labels)
+                        if save_step:
+                            plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_spec{}nested-posterior.png".format(wavestr)),
+                                        dpi=300, bbox_inches='tight')
+                        if plot_step:
+                            plt.show(block=True)
+                        plt.close()
+
+                        # Plot corners.
+                        fig = plot_corner(samples,labels)
+                        if save_step:
+                            plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_spec{}nested-corner.png".format(wavestr)),
+                                        dpi=300, bbox_inches='tight')
+                        if plot_step:
+                            plt.show(block=True)
+                        plt.close()
+                
                 # Reset planets, etc. to originals.
                 planets, flares, systematics, ld = planets0, flares0, systematics0, ld0
                 planets_err, flares_err, systematics_err, ld_err = planets_err0, flares_err0, systematics_err0, ld_err0
@@ -464,6 +501,52 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
                             fig, ax = plot_chains(ndim,samples,labels)
                             if save_step:
                                 plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_spec{}_ID{}MCMC-chains.png".format(wavestr,d+1)),
+                                            dpi=300, bbox_inches='tight')
+                            if plot_step:
+                                plt.show(block=True)
+                            plt.close()
+                    
+                    # Alternatively or additionally, fit with dynesty.
+                    if steps["use_nested"]:
+                        if steps["verbose"] == 2:
+                            print("Dynesty nested sampling fitting to supplied spectroscopic light curve {} micron in series...".format(wavestr))
+                        planets, flares, systematics, ld, \
+                        planets_err, flares_err, systematics_err, ld_err, \
+                        plotting_items = nestedsampling_handler.nestfit(exp_times=light_curves["time"],
+                                                                        light_curve=light_curve,
+                                                                        errors=errors,
+                                                                        wavelengths=wavelengths,
+                                                                        planets=planets, flares=flares,
+                                                                        systematics=systematics, ld=ld,
+                                                                        inpt_dict=steps, is_spec=True,
+                                                                        show_guess_plot=plot_ints,
+                                                                        save_guess_plot=save_ints,
+                                                                        plot_dir=plot_dir,outfile=outfile,wavestr=wavestr)
+                
+                        # Save output
+                        save_s5_output(planets, planets_err, flares, flares_err,
+                                    systematics, systematics_err, ld, ld_err,
+                                    light_curves["time"], light_curve, errors,
+                                    wavestr, outfile+"_spec{}nested_ID{}".format(wavestr,d+1), outdir)
+                
+                        # Plot, if asked.
+                        if (plot_step or save_step):
+                            # Unpack plotting items.
+                            ndim, samples, labels = plotting_items
+                            
+                            # Plot posteriors.
+                            fig, ax = plot_nest_post(ndim,samples,labels)
+                            if save_step:
+                                plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_spec{}_ID{}nested-corner.png".format(wavestr,d+1)),
+                                            dpi=300, bbox_inches='tight')
+                            if plot_step:
+                                plt.show(block=True)
+                            plt.close()
+
+                            # Plot corners.
+                            fig = plot_corner(samples,labels)
+                            if save_step:
+                                plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_spec{}_ID{}nested-corner.png".format(wavestr,d+1)),
                                             dpi=300, bbox_inches='tight')
                             if plot_step:
                                 plt.show(block=True)

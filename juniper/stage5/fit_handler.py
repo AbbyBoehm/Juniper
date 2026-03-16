@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.stats import norm
 import matplotlib.pyplot as plt
 
 from juniper.stage5 import models
@@ -429,7 +430,7 @@ def array_to_dict(params_array, input_param_dict, fit_or_not):
     return redicted_params
 
 def build_priors_dict(planets, flares, systematics, ld,
-                      is_spec=False, samplertype='emcee', reasonable_values={}):
+                      is_spec=False):
     """Simple function to get the priors on every fitting parameter.
 
     Args:
@@ -441,17 +442,11 @@ def build_priors_dict(planets, flares, systematics, ld,
         is_spec (bool, optional): whether this is a fit to a spectroscopic
         curve, in which case certain system parameters are to be locked.
         Defaults to False.
-        samplertype (str, optional): options of 'lsq', 'emcee' or 'dynesty',
-        which have different requirements for how broad the priors can be.
-        Defaults to 'emcee'.
-        reasonable_values (dict, optional): reasonable priors for all
-        systematics, needed only if the sampler is dynesty.
-        Defaults to {}.
     
     Returns:
-        dict, dict: each entry is a list of two numbers and this dict will be fed
+        dict, dict, dict: each entry is a list of two numbers and this dict will be fed
         into the build_bounds function. We also return a dict which tells us what
-        is and is not fitted.
+        is and is not fitted, and keys to tell us what prior types these are.
     """
     # Initialize the priors dict, and the priors types dict.
     param_priors, priors_types = {}, {}
@@ -525,18 +520,16 @@ def build_priors_dict(planets, flares, systematics, ld,
 
                     # Special exception for poly.
                     if "poly" in key:
-                        # Broad uniform priors unless using Dynesty.
-                        tneg, tpos = -10*coeff,10*coeff
+                        # Uniform priors around the initial guess poly.
+                        tneg, tpos = -5*coeff,5*coeff
                         pmin, pmax = min(tneg,tpos), max(tneg,tpos)
                         superdict_prior[key+str(i+1)] = [pmin,pmax]
 
                         if i == 0:
                             # Special case for C0 of the poly function, which is always positive.
-                            superdict_prior[key+str(i+1)] = [coeff-5*(coeff**0.5),coeff+5*(coeff**0.5)]
+                            superdict_prior[key+str(i+1)] = [coeff-3*(coeff**0.5),coeff+3*(coeff**0.5)]
+                        
                         superdict_ptype[key+str(i+1)] = "uniform"
-                    
-                    #if samplertype == 'dynesty':
-                    #    superdict_prior[key+str(i+1)] = reasonable_values[key+str(i+1)]
                     
                     # And for dilution, which needs a very restrictive [0,1.0001] prior no matter what.
                     if key == "dilution":
@@ -564,72 +557,52 @@ def build_priors_dict(planets, flares, systematics, ld,
     
     return param_priors, priors_types, fit_or_not
 
-def populate_reasonable_values(systematic,exp_time,light_curve):
-    """Populates a dictionary of all possible systematic coefficients
-    with reasonable values on uniform priors.
+def prior_transform(u, param_priors, priors_types):
+    """Transforms the vector u from normalized [0,1] values to real parameters.
 
     Args:
-        systematic (dict): series of entries describing systematics in the model.
-        exp_time (array-like): the exposure times for the light curve.
-        light_curve (array-like): the flux values for the light curve.
+        u (array-like): the current dynesty guess for parameters all transformed
+        to a uniform [0,1] space.
+        param_priors (dict): each entry is a list of two numbers which are
+        either lower/upper limit (for uniform priors) or mean/sigma (gaussian).
+        For Gaussian, bounds will be set as the 5-sigma limits.
+        priors_types (dict): each entry has priors that are either 'uniform' or 'gaussian'.
 
     Returns:
-        dict: the reasonable priors for each fitted coefficient.
+        array-like: the u vector transformed into real parameter values.
     """
-    # Initialize the reasonable priors dict.
-    reasonable_values = {}
+    # Copy u.
+    tf_u = np.copy(u)
 
-    # First, the polynomial trend.
-    if systematic["poly"]:
-        # The initial polys have been supplied by the poly fit; we will set the prior around that.
-        for i,coeff in enumerate(systematic["poly_coeffs"]):
-            tneg, tpos = -1.2*coeff,1.2*coeff
-            pmin, pmax = min(tneg,tpos), max(tneg,tpos)
-            reasonable_values["poly"+str(i+1)] = [pmin,pmax]
+    # Track the tf_u index.
+    i = 0
+
+    # Start unpacking the param priors.
+    for superdict_key in list(param_priors.keys()):
+        # Retrieve the parallel spectrum key.
+        for key in list(param_priors[superdict_key].keys()):
+            # We get down to the parameters themselves.
+            parameter_priors = param_priors[superdict_key][key]
+            if priors_types[superdict_key][key] == 'uniform':
+                lower, upper = parameter_priors
+
+                # Uniform transform: *(upper-lower), then +lower
+                tf_u[i] = (upper-lower)*u[i] + lower
+
+            elif priors_types[superdict_key][key] == 'gaussian':
+                mean, sigma = parameter_priors
+
+                # Normal transform: sigma*scipy.stats.norm.ppf(u) + mean
+                tf_u[i] = sigma*norm.ppf(u[i]) + mean
+            i += 1
     
-    # Next, any mirror tilt events.
-    if systematic["mirrortilt"]:
-        # Reasonable mirror tilts are +/- the median at most.
-        flux_adjust = np.median(light_curve)
-        for i,coeff in enumerate(systematic["mirrortilt_coeffs"]):
-            # An adjustment of at most +/- the pre-mirror tilt flux.
-            reasonable_values["mirrortilt"+str(i+1)] = [-1.0*flux_adjust,1.0*flux_adjust]
-            if i == 0:
-                # The baseline flux before the tilt, which might be normalized to ~1.
-                reasonable_values["mirrortilt"+str(i+1)] = [0,2*flux_adjust]
+    return tf_u
 
-    # The dispersion position detrend is an n-order poly with all coeffs started at 0.
-    if systematic["disp_detrend"]:
-        for i,coeff in enumerate(systematic["disp_detrend_coeffs"]):
-            reasonable_values["disp_detrend"+str(i+1)] = [-100,100]
-
-    # The spatial position detrend is an n-order poly with all coeffs started at 0.
-    if systematic["spatial_detrend"]:
-        for i,coeff in enumerate(systematic["spatial_detrend_coeffs"]):
-            reasonable_values["spatial_detrend"+str(i+1)] = [-100,100]
-
-    # The width position detrend is an n-order poly with all coeffs started at 0.
-    if systematic["width_detrend"]:
-        for i,coeff in enumerate(systematic["width_detrend_coeffs"]):
-            reasonable_values["width_detrend"+str(i+1)] = [-100,100]
-
-    # Then there is the possibility of a single exponential ramp, which assumes the median flux is out.
-    if systematic["singleramp"]:
-        for i,coeff in enumerate(systematic["singleramp_coeffs"]):
-            reasonable_values["singleramp"+str(i+1)] = [-100,100]
-
-    # And there is the possibility of a double exponential ramp, which assumes the median flux is out.
-    if systematic["doubleramp"]:
-        for i,coeff in enumerate(systematic["doubleramp_coeffs"]):
-            reasonable_values["doubleramp"+str(i+1)] = [-100,100]
-
-    return reasonable_values
-
-def build_bounds(params_priors, priors_types):
+def build_bounds(param_priors, priors_types):
     """Builds bounds for linear least squares fitting.
 
     Args:
-        params_priors (dict): each entry is a list of two numbers which are
+        param_priors (dict): each entry is a list of two numbers which are
         either lower/upper limit (for uniform priors) or mean/sigma (gaussian).
         For Gaussian, bounds will be set as the 5-sigma limits.
         priors_types (dict): each entry has priors that are either 'uniform' or 'gaussian'.
@@ -641,11 +614,11 @@ def build_bounds(params_priors, priors_types):
     bounds = []
 
     # And unpack.
-    for superdict_key in list(params_priors.keys()):
+    for superdict_key in list(param_priors.keys()):
         # Retrieve the parallel spectrum key.
-        for key in list(params_priors[superdict_key].keys()):
+        for key in list(param_priors[superdict_key].keys()):
             # We get down to the parameters themselves.
-            parameter_priors = params_priors[superdict_key][key]
+            parameter_priors = param_priors[superdict_key][key]
             if priors_types[superdict_key][key] == 'uniform':
                 lower, upper = parameter_priors
                 bounds.append((lower, upper))

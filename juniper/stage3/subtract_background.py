@@ -166,7 +166,7 @@ def subtract_background(segments, inpt_dict):
         ax.scatter(segments["time"],bckg_tseries,color='red',alpha=0.5)
         ax.plot(segments["time"],bckg_tseries,color='red',ls='--')
 
-        ax.set_xlabel("Exposure Time [MJD]")
+        ax.set_xlabel("Exposure Time [BJD TDB]")
         ax.set_ylabel("Flux [DN]")
         ax.set_title("Median Background Levels Before Correction")
         ax.tick_params(which='both',axis='both',direction='in')

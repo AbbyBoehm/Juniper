@@ -124,7 +124,7 @@ def lsqfit(exp_times, light_curve, errors, wavelengths,
 
     # Build priors dictionaries, and log information about what is getting fit.
     param_priors, priors_types, fit_or_not = fit_handler.build_priors_dict(planets,flares,systematics,ld,
-                                                                           is_spec=is_spec,samplertype='lsq',reasonable_values=None)
+                                                                           is_spec=is_spec)
     
     # Then build the lsq bounds object.
     bounds = fit_handler.build_bounds(param_priors, priors_types)

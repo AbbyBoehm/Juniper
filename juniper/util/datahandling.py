@@ -103,7 +103,7 @@ def read_one_datamodel(file):
          int_count = data.shape[0]
          wav = f.wavelength
          dq = f.dq
-         t = f.int_times["int_mid_MJD_UTC"]
+         t = f.int_times["int_mid_BJD_TDB"]
 
          # And get observation details.
     with fits.open(file) as f:
