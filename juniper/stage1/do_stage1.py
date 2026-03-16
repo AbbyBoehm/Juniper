@@ -2,8 +2,8 @@ import os
 from tqdm import tqdm
 
 from juniper.util.diagnostics import tqdm_translate, plot_translate
-from juniper.config.translate_config import s1_to_pipeline, s1_to_glbs, s1_to_miribckg, s1_to_NSClean
-from juniper.stage1 import group_level_bckg_sub, miri_bckg_sub, wrap_stage1jwst, NSClean
+from juniper.config.translate_config import s1_to_pipeline, s1_to_glbs, s1_to_miribckg
+from juniper.stage1 import group_level_bckg_sub, miri_bckg_sub, wrap_stage1jwst
 
 def do_stage1(filepaths, outfiles, outdir, steps, plot_dir):
     """Performs Stage 1 calibration on the given files.
@@ -54,11 +54,6 @@ def do_stage1(filepaths, outfiles, outdir, steps, plot_dir):
 
         # Wrap the last steps of Detector1Pipeline.
         result = wrap_stage1jwst.wrap_back_end(datamodel, s1_pipeline, outfile, outdir)
-
-        # Perform NSClean background subtraction.
-        if steps["do_NSClean"]:
-            s1_NSClean = s1_to_NSClean(steps)
-            NSClean.NSClean(filepath, s1_NSClean, plot_dir)
         
         if steps["verbose"] == 2:
             print("One iteration complete. Output saved in", outdir, "as file name {}.fits".format(outfile))
