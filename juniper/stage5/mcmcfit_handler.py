@@ -62,7 +62,7 @@ def mcmcfit(exp_times, light_curve, errors, wavelengths,
     for i,key in enumerate(list(systematics.keys())):
         if systematics[key]["poly"]:
             poly_degree = len(systematics[key]["poly_coeffs"])-1
-
+            '''
             # Assume event duration of 15% of the exposure duration.
             duration = 0.15*(exp_times[i][-1]-exp_times[i][0])
 
@@ -82,6 +82,15 @@ def mcmcfit(exp_times, light_curve, errors, wavelengths,
             polyfit_coeffs = np.flip(np.polyfit(exp_times[i][all_ok]-exp_times[i][0],
                                                 light_curve[i][all_ok],
                                                 deg=poly_degree))
+            '''
+
+            # Estimate transit model with just planets + depths
+            planet_flux = models.full_model(exp_times[i],planets[key],
+                                            {},{},None,None)
+
+            polyfit_coeffs = np.flip(np.polyfit(exp_times[i]-exp_times[i][0],
+                                                light_curve[i]/planet_flux,
+                                                deg=poly_degree))
 
             systematics[key]["poly_coeffs"] = polyfit_coeffs
 
@@ -89,7 +98,8 @@ def mcmcfit(exp_times, light_curve, errors, wavelengths,
             if (save_guess_plot or show_guess_plot):
                 fig, ax = plt.subplots(figsize=(7,5))
                 ax.scatter(exp_times[i],light_curve[i],color='k')
-                ax.scatter(exp_times[i][~all_ok],light_curve[i][~all_ok],color='grey')
+                #ax.scatter(exp_times[i][~all_ok],light_curve[i][~all_ok],color='grey')
+                ax.scatter(exp_times[i],light_curve[i]/planet_flux,color='grey')
                 poly_flux = models.systematic_polynomial(exp_times[i],polyfit_coeffs)
                 ax.plot(exp_times[i],poly_flux,color='red')
                 ax.set_xlabel("Exposure Time [BJD_TDB]")
