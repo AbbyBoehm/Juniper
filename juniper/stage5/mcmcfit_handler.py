@@ -85,6 +85,8 @@ def mcmcfit(exp_times, light_curve, errors, wavelengths,
             '''
 
             # Estimate transit model with just planets + depths
+            planets[key] = batman_handler.batman_init_all_planets(exp_times[i], planets[key], ld[key],
+                                                                  event=inpt_dict["event_type_"+key])
             planet_flux = models.full_model(exp_times[i],planets[key],
                                             {},{},None,None)
 
