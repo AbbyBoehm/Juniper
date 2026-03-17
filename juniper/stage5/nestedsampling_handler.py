@@ -89,8 +89,8 @@ def nestfit(exp_times, light_curve, errors, wavelengths,
             planets[key] = batman_handler.batman_init_all_planets(exp_times[i], planets[key], ld[key],
                                                                   event=inpt_dict["event_type_"+key])
             faux_sys = {}
-            for key in list(systematics[key].keys()):
-                faux_sys[key] = False
+            for sys_key in list(systematics[key].keys()):
+                faux_sys[sys_key] = False
             planet_flux = models.full_model(exp_times[i],planets[key],
                                             {},faux_sys,None,None)
 
