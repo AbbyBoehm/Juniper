@@ -91,8 +91,8 @@ def nestfit(exp_times, light_curve, errors, wavelengths,
             faux_sys = {}
             for sys_key in list(systematics[key].keys()):
                 faux_sys[sys_key] = False
-            planet_flux = models.full_model(exp_times[i],planets[key],
-                                            {},faux_sys,None,None)
+            planet_flux, _ = models.full_model(exp_times[i],planets[key],
+                                               {},faux_sys,None,None)
 
             polyfit_coeffs = np.flip(np.polyfit(exp_times[i]-exp_times[i][0],
                                                 light_curve[i]/planet_flux,
