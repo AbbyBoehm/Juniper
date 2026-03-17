@@ -88,8 +88,11 @@ def lsqfit(exp_times, light_curve, errors, wavelengths,
             # Estimate transit model with just planets + depths
             planets[key] = batman_handler.batman_init_all_planets(exp_times[i], planets[key], ld[key],
                                                                   event=inpt_dict["event_type_"+key])
+            faux_sys = {}
+            for key in list(systematics[key].keys()):
+                faux_sys[key] = False
             planet_flux = models.full_model(exp_times[i],planets[key],
-                                            {},{},None,None)
+                                            {},faux_sys,None,None)
 
             polyfit_coeffs = np.flip(np.polyfit(exp_times[i]-exp_times[i][0],
                                                 light_curve[i]/planet_flux,
