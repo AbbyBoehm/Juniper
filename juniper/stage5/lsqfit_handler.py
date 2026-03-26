@@ -59,52 +59,34 @@ def lsqfit(exp_times, light_curve, errors, wavelengths,
                           "systematics":systematics[key].copy(),
                           "ld":ld[key].copy()}
         
+    # Apply log-uniform transforms as needed.
+    planets, flares, ld = fit_handler.loguniform_transform(planets, flares, ld)
+    
     # If you are doing a poly fit, use a quick numpy polyfit to improve the coefficient estimates.
     for i,key in enumerate(list(systematics.keys())):
         if systematics[key]["poly"]:
             poly_degree = len(systematics[key]["poly_coeffs"])-1
-            '''
-            # Assume event duration of 15% of the exposure duration.
-            duration = 0.15*(exp_times[i][-1]-exp_times[i][0])
 
-            # Identify flux away from the expected mid-transit and mid-eclipse times.
-            oks = []
-            for j, planet_key in enumerate(list(planets[key].keys())):
-                planet = planets[key][planet_key]
-                tkeys = (f't_prim{j+1}',f't_seco{j+1}')
-                for tkey in tkeys:
-                    event_time = planet[tkey]
-                    not_ok = (exp_times[i]>event_time-duration) & (exp_times[i]<event_time+duration)
-                    oks.append(~not_ok)
-            all_ok = np.full(oks[0].shape,True)
-            for ok in oks:
-                all_ok = np.logical_and(all_ok,ok)
-
-            polyfit_coeffs = np.flip(np.polyfit(exp_times[i][all_ok]-exp_times[i][0],
-                                                light_curve[i][all_ok],
-                                                deg=poly_degree))
-            '''
-
-            # Estimate transit model with just planets + depths
+            # Estimate transit model with just planets + flares    
             planets[key] = batman_handler.batman_init_all_planets(exp_times[i], planets[key], ld[key],
                                                                   event=inpt_dict["event_type_"+key])
             faux_sys = {}
             for sys_key in list(systematics[key].keys()):
                 faux_sys[sys_key] = False
+            
             planet_flux, _ = models.full_model(exp_times[i],planets[key],
-                                               {},faux_sys,None,None)
-
+                                               flares[key],faux_sys,None,None)
             polyfit_coeffs = np.flip(np.polyfit(exp_times[i]-exp_times[i][0],
-                                                light_curve[i]/planet_flux,
+                                                (light_curve[i]/planet_flux)/np.median(light_curve[i]),
                                                 deg=poly_degree))
-
+            
             systematics[key]["poly_coeffs"] = polyfit_coeffs
+            polyfit_coeffs[0] = np.median(light_curve[i])*polyfit_coeffs[0]
 
             # If asked, plot how we got the poly model.
             if (save_guess_plot or show_guess_plot):
                 fig, ax = plt.subplots(figsize=(7,5))
                 ax.scatter(exp_times[i],light_curve[i],color='k')
-                #ax.scatter(exp_times[i][~all_ok],light_curve[i][~all_ok],color='grey')
                 ax.scatter(exp_times[i],light_curve[i]/planet_flux,color='grey')
                 poly_flux = models.systematic_polynomial(exp_times[i],polyfit_coeffs)
                 ax.plot(exp_times[i],poly_flux,color='red')
@@ -117,6 +99,24 @@ def lsqfit(exp_times, light_curve, errors, wavelengths,
                                     dpi=300, bbox_inches='tight')
                     else:
                         plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"detector{}".format(key)+"_broadbandLSQ_system-estimate.png"),
+                                    dpi=300, bbox_inches='tight')
+                if show_guess_plot:
+                    plt.show(block=True)
+                plt.close()
+
+            if (save_guess_plot or show_guess_plot):
+                fig, ax = plt.subplots(figsize=(7,5))
+                ax.scatter(exp_times[i],light_curve[i]/np.median(light_curve[i]),color='grey',zorder=0)
+                ax.plot(exp_times[i],planet_flux,color='k',zorder=1)
+                ax.set_xlabel("Exposure Time [BJD_TDB]")
+                ax.set_ylabel("Flux [normalized]")
+                ax.tick_params(which='both',axis='both',direction='in',)
+                if save_guess_plot:
+                    if is_spec:
+                        plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"detector{}".format(key)+"_spec{}LSQ_system-planetflare.png".format(wavestr)),
+                                    dpi=300, bbox_inches='tight')
+                    else:
+                        plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"detector{}".format(key)+"_broadbandLSQ_system-planetflare.png"),
                                     dpi=300, bbox_inches='tight')
                 if show_guess_plot:
                     plt.show(block=True)
@@ -136,7 +136,7 @@ def lsqfit(exp_times, light_curve, errors, wavelengths,
     for i,key in enumerate(list(planets.keys())):
         planets[key] = batman_handler.batman_init_all_planets(exp_times[i], planets[key], ld[key],
                                                               event=inpt_dict["event_type_"+key])
-
+    
     # Build priors dictionaries, and log information about what is getting fit.
     param_priors, priors_types, fit_or_not = fit_handler.build_priors_dict(planets,flares,systematics,ld,
                                                                            is_spec=is_spec)
@@ -152,7 +152,7 @@ def lsqfit(exp_times, light_curve, errors, wavelengths,
                                                                                    flares[key],
                                                                                    systematics[key],
                                                                                    ld[key])
-        
+    
     # Turn that into an array so scipy will accept it.
     params_array = fit_handler.dict_to_array(bundled_params, fit_or_not)
 
@@ -160,6 +160,7 @@ def lsqfit(exp_times, light_curve, errors, wavelengths,
     preserve_timing = inpt_dict["preserve_timing"]
     preserve_depth = inpt_dict["preserve_depth"]
     preserve_orbit = inpt_dict["preserve_orbit"]
+    preserve_star = inpt_dict["preserve_star"]
 
     # If asked, make a plot of the initial guess.
     if (show_guess_plot or save_guess_plot):
@@ -200,8 +201,8 @@ def lsqfit(exp_times, light_curve, errors, wavelengths,
     # Now do lsq.
     results = minimize(fit_handler._residuals,
                        x0=params_array,
-                       args=(exp_times, light_curve, errors, bundled_params, fit_or_not,
-                             preserve_timing, preserve_depth, preserve_orbit),
+                       args=(exp_times, light_curve, errors, bundled_params, priors_types, fit_or_not,
+                             preserve_timing, preserve_depth, preserve_orbit, preserve_star),
                        method=inpt_dict["LSQ_type"],
                        tol=inpt_dict["LSQ_tolerance"],
                        bounds=bounds,
@@ -223,9 +224,12 @@ def lsqfit(exp_times, light_curve, errors, wavelengths,
         planets[key], flares[key], systematics[key], ld[key] = fit_handler.unpack_params_back_to_dicts(fitted_dict[key],
                                                                                                        originals[key])
         
+    # Apply log-uniform transforms as needed.
+    planets, flares, ld = fit_handler.loguniform_transform(planets, flares, ld)
+
     # Repeat preserve calls.
-    planets = fit_handler.preservation(planets,
-                                       preserve_timing, preserve_depth, preserve_orbit)
+    planets, ld = fit_handler.preservation(planets, ld,
+                                           preserve_timing, preserve_depth, preserve_orbit)
 
     # Re-initialize the planets to get the updated models into place.
     for i,key in enumerate(list(planets.keys())):
@@ -271,6 +275,13 @@ def lsqfit(exp_times, light_curve, errors, wavelengths,
     # And return the fitted parameters.
     return planets, flares, systematics, ld
 
+
+
+
+
+
+# TO BE REMOVED IN FUTURE UPDATE
+# i adapted lsqfit to work on one or many arbitrarily
 def lsqfit_one(lc_time, light_curve, errors, waves, planets, flares, systematics, ld, inpt_dict, is_spec=False):
     """Performs linear least squares fitting on the given array(s) using scipy.
     Fits a single light curve. Useful for fitting spectroscopic curves.

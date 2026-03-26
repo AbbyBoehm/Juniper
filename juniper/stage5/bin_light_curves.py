@@ -404,24 +404,24 @@ def bin_light_curves(spectra, inpt_dict):
 
         # Start by binning time itself.
         t_new = []
-        for d in range(t.shape[0]):
-            t_new.append(time_bin(t[d,:],s,'median'))
+        for d in range(len(t)):
+            t_new.append(time_bin(t[d],s,'median'))
 
-        t = np.array(t_new)
+        t = t_new
 
         # We can initialize a lot of empty arrays this way.
-        broadband_new = np.empty_like(t)
-        broaderr_new = np.empty_like(t)
-        xpos_new = np.empty_like(t)
-        ypos_new = np.empty_like(t)
-        widths_new = np.empty_like(t)
+        broadband_new = [0 for x in t]
+        broaderr_new = [0 for x in t]
+        xpos_new = [0 for x in t]
+        ypos_new = [0 for x in t]
+        widths_new = [0 for x in t]
 
-        for d in range(t.shape[0]):
-            broadband_new[d,:] = time_bin(broadband[d],s,'mean')
-            broaderr_new[d,:] = time_bin(broaderr[d],s,'quadrature')
-            xpos_new[d,:] = time_bin(xpos[d],s,'median')
-            ypos_new[d,:] = time_bin(ypos[d],s,'median')
-            widths_new[d,:] = time_bin(widths[d],s,'median')
+        for d in range(len(t)):
+            broadband_new[d] = time_bin(broadband[d],s,'mean')
+            broaderr_new[d] = time_bin(broaderr[d],s,'quadrature')
+            xpos_new[d] = time_bin(xpos[d],s,'median')
+            ypos_new[d] = time_bin(ypos[d],s,'median')
+            widths_new[d] = time_bin(widths[d],s,'median')
 
         broadband = broadband_new
         broaderr = broaderr_new
@@ -430,21 +430,27 @@ def bin_light_curves(spectra, inpt_dict):
         widths = widths_new
 
         # The spec and spec_err need slightly special treatment.
-        spec_new = np.empty((t.shape[0],len(spec[0]),t.shape[1]))
-        specerr_new = np.empty((t.shape[0],len(specerr[0]),t.shape[1]))
+        #spec_new = np.empty((t.shape[0],len(spec[0]),t.shape[1]))
+        #specerr_new = np.empty((t.shape[0],len(specerr[0]),t.shape[1]))
+        spec_new = []
+        specerr_new = []
 
-        for d in range(t.shape[0]):
-            for l in range(spec_new.shape[1]):
-                spec_new[d,l,:] = time_bin(spec[d][l],s,'mean')
-                specerr_new[d,l,:] = time_bin(specerr[d][l],s,'quadrature')
+        for d in range(len(t)):
+            specdet_new = [0 for x in range(len(spec[d]))]
+            specerrdet_new = [0 for x in range(len(spec[d]))]
+            for l in range(len(spec[d])):
+                specdet_new[l] = time_bin(spec[d][l],s,'mean')
+                specerrdet_new[l] = time_bin(specerr[d][l],s,'quadrature')
+            spec_new.append(np.array(specdet_new))
+            specerr_new.append(np.array(specerrdet_new))
 
         spec = spec_new
         specerr = specerr_new
 
         if (plot_step or save_step):
             # Create diagnostic plot of the binned broad-band light curve.
-            for d in range(t.shape[0]):
-                plt.errorbar(t[d,:], broadband[d,:], yerr=broaderr[d,:], fmt='ko', capsize=3)
+            for d in range(len(t)):
+                plt.errorbar(t[d], broadband[d], yerr=broaderr[d], fmt='ko', capsize=3)
                 plt.title("Broad-band light curve")
                 plt.xlabel("time [mjd]")
                 plt.ylabel("flux [a.u.]")
@@ -456,7 +462,7 @@ def bin_light_curves(spectra, inpt_dict):
                 plt.close()
 
                 # Also, create Allan Variance plot.
-                fig, ax = allan_variance(t[d,:], broadband[d,:])#, broaderr[d,:])
+                fig, ax = allan_variance(t[d], broadband[d])#, broaderr[d,:])
                 if save_ints:
                     plt.savefig(os.path.join(inpt_dict['plot_dir'],'S5_detector{}_Allanbinnedbroadband_lc.png'.format(d)),
                                 dpi=300, bbox_inches='tight')
@@ -528,7 +534,8 @@ def time_bin(array, bin_size, mode='sum'):
             binned.append(np.ma.median(trim))
         if mode == 'quadrature':
             binned.append(np.sqrt(np.ma.sum(np.square(trim)))/len(trim))
-    
+    # Restore array status.
+    binned = np.array(binned)
     return binned
 
 def allan_variance(time, flx):

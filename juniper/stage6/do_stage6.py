@@ -77,7 +77,7 @@ def do_stage6(filepaths, outfile, outdir, steps, plot_dir):
 
     # Load results from LSQ, MCMC, and/or nested sampling as requested.
     results = load_results(steps,filepaths)
-    
+
     # With the fits loaded, we can start making plots. We start with fits and residuals.
     if steps["plot_individual"]:
         # We want to plot each light curve in its own plot. Each key here will
@@ -104,7 +104,6 @@ def do_stage6(filepaths, outfile, outdir, steps, plot_dir):
             while not para_ID_error:
                 try:
                     event_type = steps['event_type_1'][parallel_ID]
-                
                     fig, ax = plot_fit_and_res.plot_fit_and_res(result['time'][parallel_ID],
                                                                 result['light_curve'][parallel_ID],
                                                                 result['errors'][parallel_ID],

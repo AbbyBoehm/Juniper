@@ -1,5 +1,6 @@
 import os
 from tqdm import tqdm
+from copy import deepcopy
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -41,11 +42,21 @@ def get_fit_and_res(t, lc, lc_err, planets, flares, systematics, ld, event):
     residuals = full_flux-lc
 
     # Create interpolated model.
-    t_interp = np.linspace(np.min(t),np.max(t),1000) # FIX: i guess 1000 is only high res if you have < 1000 data points
+    t_interp = np.linspace(np.min(t),np.max(t),int(len(t))*100)
+    interp_systematics = deepcopy(systematics)
+    if systematics["piecewise_coeffs"]:
+        # A trick here is that you'll have to adjust the timestamps of certain systematic events.
+        for j, bundle in enumerate(systematics["piecewise_coeffs"]):
+            if systematics["piecewise_coeffs"][j][-1] == 0:
+                continue
+            # We only need to make this adjustment for nonzero indices.
+            timestamp = t[bundle[-1]]
+            nearest_interpolated_timestamp = np.argmin(np.abs(t_interp-timestamp))
+            interp_systematics["piecewise_coeffs"][j][-1] = nearest_interpolated_timestamp
     planets = batman_handler.batman_init_all_planets(t_interp, planets, ld, event)
     
     # Create the full model and components.
-    lc_interp, components = models.full_model(t_interp, planets, flares, systematics,
+    lc_interp, components = models.full_model(t_interp, planets, flares, interp_systematics,
                                               None, None)
     
     return t_interp, lc_interp, components, residuals

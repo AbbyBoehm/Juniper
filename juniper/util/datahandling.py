@@ -420,7 +420,7 @@ def stitch_spectra(files, detector_method, time_step, verbose):
         # Initialize some empty lists.
         spectra, errors, waves, shifts, xpos, ypos, widths = [], [], [], [], [], [], [] # the data_vars
         time = [] # the coords
-        insts, dets, filters, gratings = [], [], [], [], [] # the attributes
+        insts, dets, filters, gratings = [], [], [], [] # the attributes
 
         # Read in each file.
         for file in tqdm(files,

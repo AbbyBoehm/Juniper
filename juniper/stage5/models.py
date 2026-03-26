@@ -55,8 +55,8 @@ def full_model(t, planets, flares, systematics, bundled_params=None, fit_or_not=
     for flare_ID in list(flares.keys()):
         flare = flares[flare_ID] # dict, contains flare parameters
         flare_flux = flare_model(t, flare, str.replace(flare_ID,"flare",""))
-        # Multiply flare's flux contribution into the full model.
-        flx *= flare_flux
+        # Add flare's flux contribution into the full model.
+        flx += flare_flux
         models[flare_ID] = flare_flux
 
     # Build systematics modifier.
@@ -67,6 +67,12 @@ def full_model(t, planets, flares, systematics, bundled_params=None, fit_or_not=
         poly = systematic_polynomial(t, systematics["poly_coeffs"])
         system *= poly
         models["poly"] = poly
+
+    # Piecewise polynomial trend.
+    if systematics["piecewise"]:
+        piece = systematic_piecewise(t, systematics["piecewise_coeffs"])
+        system *= piece
+        models["piecewise"] = piece
 
     # Mirror tilt event.
     if systematics["mirrortilt"]:
@@ -138,14 +144,46 @@ def systematic_polynomial(t, coeffs):
     Returns:
         np.array: polynomial model to be added to Sys(t;A).
     """
-    # Set up empty polynomial.
-    poly = np.array([0 for i in t], dtype='float64')
+    # Set up 1s polynomial.
+    poly = np.ones_like(t, dtype='float64')
 
     # And populate.
     for n, o in enumerate(coeffs):
+        if n == 0:
+            continue
         poly += np.array(o*((t-t[0])**n), dtype='float64')
     
-    return poly
+    return poly*coeffs[0]
+
+def systematic_piecewise(t, coeffs):
+    """Returns a piecewise polynomial of specified order in time.
+
+    Args:
+        t (np.array): time.
+        coeffs (list): polynomial coefficients and changeover integration numbers.
+
+    Returns:
+        np.array: piecewise polynomial model to be added to Sys(t;A).
+    """
+    # Set up 1s polynomial.
+    piece = np.ones_like(t, dtype='float64')
+    
+    # And populate.
+    for n, o in enumerate(coeffs):
+        # We grab the first batch of coeffs and the start/end times.
+        start = coeffs[n][-1]
+        try:
+            end = coeffs[n+1][-1]
+        except IndexError:
+            end = len(t)
+        trunc_time = t[start:end]
+        coefficients = coeffs[n][:-1]
+        
+        # And populate only in the bounds of start/end.
+        for power, coefficient in enumerate(coefficients):
+            piece[start:end] += np.array(coefficient*((trunc_time-trunc_time[0])**power), dtype='float64')
+    
+    return piece
 
 def systematic_expramp(t, coeffs):
     """Returns a single exponential ramp trend in time.
@@ -187,7 +225,8 @@ def systematic_mirrortilt(t, coeffs):
     """
     flx = coeffs[0]*np.ones_like(t) # there is a pre-tilt baseline flux [0]
     for n in range(1,len(coeffs)):
-        flx[coeffs[n][0]:] += coeffs[n][1] # and then after time index [n][0], there is a step of [n][1] which can be up or down
+        index_of_change = np.argmin(np.abs(t-coeffs[n][0]))
+        flx[index_of_change:] += coeffs[n][1] # and then after time index [n][0], there is a step of [n][1] which can be up or down
     return flx
 
 def systematic_jitter_disp(xpos, coeffs):
@@ -266,26 +305,31 @@ def flare_model(t, flare, flare_ID):
     Args:
         t (np.array): time.
         flare (dict): description of this flare, including its start time,
-        amplitude, and fade time.
+        amplitude, heating rate, and fade time.
         flare_ID (str): the number of the flare. Used for picking the right keys.
 
     Returns:
         np.array: flux of a flare with time.
     """
-    t_offset = np.array([ti - flare["E"+flare_ID] for ti in t])
-    c1 = np.sqrt(np.pi)*flare["A"+flare_ID]*flare["C"+flare_ID]/2
+    t0 = flare["E"+flare_ID]
+    if flare["E"+flare_ID] == None:
+        t0 = t[0]
+    t_offset = np.array([(ti - t0)*100 for ti in np.copy(t)])
+    #c1 = np.sqrt(np.pi)*flare["A"+flare_ID]*flare["C"+flare_ID]/2
+    c1 = flare["A"+flare_ID]
     c2 = flare["Fr"+flare_ID]*flare_h(t_offset, flare["B"+flare_ID], flare["C"+flare_ID], flare["Dr"+flare_ID])
     c3 = (1-flare["Fr"+flare_ID])*flare_h(t_offset, flare["B"+flare_ID], flare["C"+flare_ID], flare["Ds"+flare_ID])
-    return c1*(c2+c3)
+    flare_model = c1*flare_norm(c2+c3)
+    return flare_model
 
 def flare_h(t, B, C, D):
     """The exponetial h terms from Tovar Mendoza+ 2022's flare model.
 
     Args:
         t (np.array): time.
-        B (float): parameter of the h term.
-        C (float): parameter of the h term.
-        D (float): parameter of the h term.
+        B (float): offset in time from start of flare model.
+        C (float): Gaussian heating timescale, controls flare width / sharpness.
+        D (float): timescale of rapid / slow cooling phase, controls flare decay tail.
 
     Returns:
         np.array: an h term in the flare.
@@ -295,6 +339,19 @@ def flare_h(t, B, C, D):
     a3 = ((B/C)+a2)**2
     a4 = (B-t)/C
     return np.exp(a1+a3)*erfc(a4+a2)
+
+def flare_norm(flare_c):
+    """Quick util to 0-1 a flare model.
+
+    Args:
+        flare_c (np.array): pure Tovar Mendoza+ 2022 F*h(t) model.
+
+    Returns:
+        np.array: the same but now it goes from 0 to 1!
+    """
+    flare_c -= np.min(flare_c)
+    flare_c /= np.max(flare_c)
+    return flare_c
 
 def interpolate_model(model, base):
     """Interpolates the model to match the time resolution of the base.

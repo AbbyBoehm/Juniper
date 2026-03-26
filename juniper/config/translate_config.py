@@ -291,7 +291,7 @@ def make_flares(s5_config, event_ID=1):
         
         else:
             # Create a key for the next flare.
-            flare_name = "flare{}_{}".format(flare_ID, event_ID)
+            flare_name = "flare{}".format(flare_ID)
             # And a dictionary for that flare.
             flare = {}
             try:
@@ -339,6 +339,29 @@ def make_systematics(s5_config, xpos, ypos, widths, event_ID=1):
             # And initialize every term thereafter as 0.
             coeffs.append(0)
         systematics["poly_coeffs"] = coeffs
+
+    systematics["piecewise"] = s5_config["piecewise_{}".format(event_ID)]
+    if systematics["piecewise"]:
+        # We need to initiate sets of coeffs for each requested piecewise poly.
+        n_polys = s5_config["piecewise_n_{}".format(event_ID)] # this is how many you want
+
+        # Each model consists of a start time, coeffs[0], and a set of poly coeffs, coeffs[1:]
+        coeffs = [[0 for i in range(s5_config["piecewise_os_{}".format(event_ID)][0]+1)],] # the first poly's coeffs
+        start_times = [s5_config["piecewise_t_{}".format(event_ID)][0]]
+
+        # Populate for the other polys.
+        for i in range(1, n_polys):
+            # Grab the changeover time.
+            start_times.append(s5_config["piecewise_t_{}".format(event_ID)][i])
+            # Append a bunch of zeros for the next poly's coeffs.
+            coeffs.append([0 for i in range(s5_config["piecewise_os_{}".format(event_ID)][i]+1)])
+
+        # Unpack so that the last coeff is actually the start time.
+        for i in range(len(coeffs)):
+            coeffs[i].append(start_times[i])
+
+        # And pass it.
+        systematics["piecewise_coeffs"] = coeffs
 
     systematics["dilution"] = s5_config["dilution_{}".format(event_ID)]
     if systematics["dilution"]:

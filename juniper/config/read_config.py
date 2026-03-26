@@ -31,7 +31,9 @@ def read_config(path_to_config_file):
     flare_ptype_keys = [key+"_ptype" for key in flare_keys]
     for key in flare_ptype_keys:
         flare_keys.append(key)
-    systematics_keys = ["poly","poly_order","dilution",
+    systematics_keys = ["poly","poly_order",
+                        "piecewise","piecewise_n","piecewise_t","piecewise_os",
+                        "dilution",
                         "mirrortilt","n_tilt_events",
                         "disp_detrend","disp_order",
                         "spatial_detrend","spatial_order",
