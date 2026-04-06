@@ -44,15 +44,19 @@ def get_fit_and_res(t, lc, lc_err, planets, flares, systematics, ld, event):
     # Create interpolated model.
     t_interp = np.linspace(np.min(t),np.max(t),int(len(t))*100)
     interp_systematics = deepcopy(systematics)
-    if systematics["piecewise_coeffs"]:
-        # A trick here is that you'll have to adjust the timestamps of certain systematic events.
-        for j, bundle in enumerate(systematics["piecewise_coeffs"]):
-            if systematics["piecewise_coeffs"][j][-1] == 0:
-                continue
-            # We only need to make this adjustment for nonzero indices.
-            timestamp = t[bundle[-1]]
-            nearest_interpolated_timestamp = np.argmin(np.abs(t_interp-timestamp))
-            interp_systematics["piecewise_coeffs"][j][-1] = nearest_interpolated_timestamp
+    try:
+        if systematics["piecewise_coeffs"]:
+            # A trick here is that you'll have to adjust the timestamps of certain systematic events.
+            for j, bundle in enumerate(systematics["piecewise_coeffs"]):
+                if systematics["piecewise_coeffs"][j][-1] == 0:
+                    continue
+                # We only need to make this adjustment for nonzero indices.
+                timestamp = t[bundle[-1]]
+                nearest_interpolated_timestamp = np.argmin(np.abs(t_interp-timestamp))
+                interp_systematics["piecewise_coeffs"][j][-1] = nearest_interpolated_timestamp
+    except KeyError:
+        # We didn't use the piecewise model, so skip this.
+        pass
     planets = batman_handler.batman_init_all_planets(t_interp, planets, ld, event)
     
     # Create the full model and components.
