@@ -125,7 +125,7 @@ def subtract_background(segments, inpt_dict):
         if inpt_dict["trace_mask"]:
             background_mask[trace_mask==0] = 0
         else:
-            minr, maxr = np.min(inpt_dict["rows"]), np.max(inpt_dict["rows"])
+            minr, maxr = np.min(inpt_dict["bckg_rows"]), np.max(inpt_dict["bckg_rows"])
             if minr < 0:
                 ubound, lbound = background_mask.shape[0] + minr, maxr
             else:
