@@ -99,6 +99,8 @@ def subtract_background(segments, inpt_dict):
         
     if (plot_step or save_step):
         # Create a diagnostic plot of the first integration's last group's residuals.
+        median_integration = np.median(segments["data"],axis=0)
+        
         fig, ax = plt.subplots(figsize=(20,12),nrows=3)
         fig.subplots_adjust(hspace=0.01,wspace=0.01)
         im1 = ax[0].imshow(precorrected_data[0,:,:],cmap='viridis',origin='lower',

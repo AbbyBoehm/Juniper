@@ -249,6 +249,9 @@ def do_stage6(filepaths, outfile, outdir, steps, plot_dir):
     if steps["plot_waterfall"]:
         for tag in ('LSQ','MCMC','nested'):
             result_keys = [key for key in list(results.keys()) if tag in key]
+            if len(result_keys) == 0:
+                # This key has no results, so skip it.
+                continue
 
             # Each of these keys contains a "parallel ID" key which
             # encodes which spectrum it belongs to. We need to move
@@ -302,6 +305,12 @@ def do_stage6(filepaths, outfile, outdir, steps, plot_dir):
     # Now we should compute the spectrum and save it.
     if steps["get_spectrum"]:
         for tag in ('LSQ','MCMC','nested'):
+            # Get just the keys for the type of fit we are probing.
+            result_keys = [key for key in list(results.keys()) if tag in key]
+            if len(result_keys) == 0:
+                # This should not have any plots, we did not do this kind of fit.
+                continue
+            
             # Move through each parallel spectrum as available.
             parallel_ID = 0
             para_ID_error = False
@@ -314,9 +323,6 @@ def do_stage6(filepaths, outfile, outdir, steps, plot_dir):
                     keyError_happened = False
                     while not keyError_happened:
                         try:
-                            # Get just the keys for the type of fit we are probing.
-                            result_keys = [key for key in list(results.keys()) if tag in key]
-
                             # First check out broadband depth.
                             for key in [key for key in result_keys if results[key]['wavelength'] == 'broadband']:
                                 # Get the result's planets.
@@ -341,20 +347,21 @@ def do_stage6(filepaths, outfile, outdir, steps, plot_dir):
                                                                                 planet_errs['planet{}'.format(planet_ID)],
                                                                                 str(planet_ID))
                             # And save.
-                            fname = os.path.join(outdir,'S6_{}_ID{}_planet{}_broadband{}_fit{}.dat'.format(outfile,
-                                                                                                           parallel_ID+1,
-                                                                                                           planet_ID,
-                                                                                                           steps["spectrum_type"][parallel_ID],
-                                                                                                           tag))
-                            with open(fname,mode='w') as f:
-                                f.write("#wavelength[um] depth[{}] err[{}]\n".format(steps["spectrum_type"][parallel_ID],
-                                                                                     steps["spectrum_type"][parallel_ID]))
-                                f.write("{}   {}   {}\n".format('broadband',depth,err))
-                                f.write('parameters\n')
-                                for key in list(planets['planet{}'.format(planet_ID)].keys()):
-                                    f.write("{}    {}    {}\n".format(key,
-                                                                    planets['planet{}'.format(planet_ID)][key],
-                                                                    planet_errs['planet{}'.format(planet_ID)][key]))
+                            if len(list(planets['planet{}'.format(planet_ID)].keys())) > 0:
+                                fname = os.path.join(outdir,'S6_{}_ID{}_planet{}_broadband{}_fit{}.dat'.format(outfile,
+                                                                                                            parallel_ID+1,
+                                                                                                            planet_ID,
+                                                                                                            steps["spectrum_type"][parallel_ID],
+                                                                                                            tag))
+                                with open(fname,mode='w') as f:
+                                    f.write("#wavelength[um] depth[{}] err[{}]\n".format(steps["spectrum_type"][parallel_ID],
+                                                                                        steps["spectrum_type"][parallel_ID]))
+                                    f.write("{}   {}   {}\n".format('broadband',depth,err))
+                                    f.write('parameters\n')
+                                    for key in list(planets['planet{}'.format(planet_ID)].keys()):
+                                        f.write("{}    {}    {}\n".format(key,
+                                                                        planets['planet{}'.format(planet_ID)][key],
+                                                                        planet_errs['planet{}'.format(planet_ID)][key]))
 
                             # Open some lists for this spectrum.
                             waves = []
@@ -422,16 +429,17 @@ def do_stage6(filepaths, outfile, outdir, steps, plot_dir):
                                     plt.close()
                             
                             # And save.
-                            fname = os.path.join(outdir,'S6_{}_ID{}_planet{}_spectrum{}_fit{}.dat'.format(outfile,
-                                                                                                          parallel_ID+1,
-                                                                                                    planet_ID,
-                                                                                                    steps["spectrum_type"][parallel_ID],
-                                                                                                    tag))
-                            with open(fname,mode='w') as f:
-                                f.write("#wavelength[um] depth[{}] err[{}]\n".format(steps["spectrum_type"][parallel_ID],
-                                                                                     steps["spectrum_type"][parallel_ID]))
-                                for w,d,e in zip(waves,depths,errors):
-                                    f.write("{}   {}   {}\n".format(w,d,e))
+                            if len(depths) > 0:
+                                fname = os.path.join(outdir,'S6_{}_ID{}_planet{}_spectrum{}_fit{}.dat'.format(outfile,
+                                                                                                                parallel_ID+1,
+                                                                                                        planet_ID,
+                                                                                                        steps["spectrum_type"][parallel_ID],
+                                                                                                        tag))
+                                with open(fname,mode='w') as f:
+                                    f.write("#wavelength[um] depth[{}] err[{}]\n".format(steps["spectrum_type"][parallel_ID],
+                                                                                            steps["spectrum_type"][parallel_ID]))
+                                    for w,d,e in zip(waves,depths,errors):
+                                        f.write("{}   {}   {}\n".format(w,d,e))
                             
                             # Advance to next planet!
                             planet_ID += 1

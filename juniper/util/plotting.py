@@ -10,7 +10,7 @@ def img(array, aspect=1, title=None, vmin=None, vmax=None, norm=None, verbose=2)
 
     Args:
         array (np.array): Image you want to plot.
-        aspect (int, optional): Aspect ratio. Useful for visualizing narrow arrays. Defaults to 1.
+        aspect (str or int, optional): Aspect ratio. Useful for visualizing narrow arrays. Defaults to 1.
         title (str, optional): Title to give the plot. Defaults to None.
         vmin (float, optional): Minimum value for color mapping. Defaults to None.
         vmax (float, optional): Maximum value for color mapping. Defaults to None.
@@ -27,7 +27,10 @@ def img(array, aspect=1, title=None, vmin=None, vmax=None, norm=None, verbose=2)
             print("Plot normalization unspecified or unrecognized, defaulting to 'linear'...")
         norm = 'linear'
     im = ax.imshow(array, aspect=aspect, norm=norm, origin="lower", vmin=vmin, vmax=vmax)
-    plt.colorbar(mappable=im,fraction=min(0.5/aspect,0.15))
+    if isinstance(aspect,str):
+        plt.colorbar(mappable=im,aspect=40)
+    else:
+        plt.colorbar(mappable=im,fraction=min(0.5/aspect,0.15))
     ax.set_title(title)
     return fig, ax, im
 
