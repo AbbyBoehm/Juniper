@@ -70,7 +70,7 @@ def s1_to_glbs(s1_config):
         s1_glbs[key] = s1_config[key]
 
     # glbs keys are nearly identical.
-    for key in ("sigma","kernel","mask","com_mask","rows","threshold","low_contr"):
+    for key in ("sigma","kernel","mask","com_mask","upw_mask","rows","threshold","low_contr"):
         s1_glbs[key] = s1_config["glbs_{}".format(key)]
     
     return s1_glbs

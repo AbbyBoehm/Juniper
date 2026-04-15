@@ -4,9 +4,10 @@ from tqdm import tqdm
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
+from scipy.ndimage import generate_binary_structure, binary_dilation
 
 from juniper.util.diagnostics import tqdm_translate, plot_translate
-from juniper.util.cleaning import median_spatial_filter, colbycol_bckg, get_trace_mask, get_com_mask
+from juniper.util.cleaning import median_spatial_filter, median_timeseries_filter, colbycol_bckg, get_trace_mask, get_com_mask
 from juniper.util.plotting import img
 
 def glbs(datamodel, inpt_dict, plot_dir, outfile):
@@ -60,6 +61,7 @@ def glbs(datamodel, inpt_dict, plot_dir, outfile):
                                                             sigma=inpt_dict["sigma"],
                                                             kernel=inpt_dict["kernel"]),
                                                             width=inpt_dict["com_mask"],
+                                                            upper=inpt_dict["upw_mask"],
                                                             contrast=inpt_dict["low_contr"])
         else:
             trace_mask = get_trace_mask(median_spatial_filter(median_last_group,
@@ -88,6 +90,21 @@ def glbs(datamodel, inpt_dict, plot_dir, outfile):
     # Track backgrounds for plotting, and keep a frame handy for plotting.
     backgrounds = np.empty_like(datamodel.data[:,:,:,:])
     precorrected_frame = np.copy(datamodel.data[0,-1,:,:])
+
+    # Create aggressively cleaned background model to measure from.
+    bckg = np.copy(data)
+    for g in tqdm(range(data.shape[1]),
+                  desc='Preparing clean background to measure from...',
+                  disable=(not time_step)): # compare like groups
+        # Kick outliers from the 1D tseries of each pixel
+        bckgmed, bckgstd = np.median(bckg[:,g,:,:],axis=0), np.std(bckg[:,g,:,:],axis=0)
+        for i in range(data.shape[0]):
+            hitmap = np.where(np.abs(bckg[i,g,:,:]-bckgmed)>inpt_dict["sigma"]*bckgstd,1,0)
+            # Snowball the hitmap by 1, to catch cosmic ray halos.
+            hitmap = binary_dilation(hitmap,structure=generate_binary_structure(2,2)).astype(int)
+            # And replace.
+            bckg[i,g,:,:] = np.where(hitmap>0,bckgmed,bckg[i,g,:,:])
+
     # Iterate over frames.
     for i in tqdm(range(data.shape[0]),
                   desc = "Removing 1/f noise from integrations...",
@@ -95,6 +112,7 @@ def glbs(datamodel, inpt_dict, plot_dir, outfile):
         for g in range(data.shape[1]): # for each group
             # Correct 1/f noise with group-level background subtraction for that group.
             datamodel.data[i,g,:,:], backgrounds[i,g,:,:] = colbycol_bckg(data[i,g,:,:],
+                                                                          bckg[i,g,:,:],
                                                                           inpt_dict["rows"],
                                                                           trace_mask)
         

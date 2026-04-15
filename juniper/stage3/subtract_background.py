@@ -58,7 +58,8 @@ def subtract_background(segments, inpt_dict):
             trace_mask = get_com_mask(median_spatial_filter(median_integration,
                                                             sigma=inpt_dict["bckg_sigma"],
                                                             kernel=inpt_dict["bckg_kernel"]),
-                                      width=inpt_dict["trace_com_mask"])
+                                      width=inpt_dict["trace_com_mask"],
+                                      upper=inpt_dict["trace_upw_mask"])
         else:
             trace_mask = get_trace_mask(median_spatial_filter(median_integration,
                                                               sigma=inpt_dict["bckg_sigma"],
@@ -87,6 +88,9 @@ def subtract_background(segments, inpt_dict):
     # Track backgrounds for plotting, and keep a frame handy for plotting.
     backgrounds = np.empty_like(segments["data"][:,:,:])
     precorrected_data = np.copy(segments["data"][:,:,:])
+
+    # Background is already cleaned by this stage.
+    bckg = np.copy(segments["data"][:,:,:])
             
     # Iterate over frames.
     for i in tqdm(range(segments["data"].shape[0]),
@@ -94,13 +98,14 @@ def subtract_background(segments, inpt_dict):
                   disable=(not time_ints)): # for each integration
         # Correct 1/f noise with integration-level background subtraction for that integration.
         segments["data"][i,:,:], backgrounds[i,:,:] = colbycol_bckg(segments["data"][i,:,:],
-                                                                        inpt_dict["bckg_rows"],
-                                                                        trace_mask)
+                                                                    bckg[i,:,:],
+                                                                    inpt_dict["bckg_rows"],
+                                                                    trace_mask)
         
     if (plot_step or save_step):
         # Create a diagnostic plot of the first integration's last group's residuals.
         median_integration = np.median(segments["data"],axis=0)
-        
+
         fig, ax = plt.subplots(figsize=(20,12),nrows=3)
         fig.subplots_adjust(hspace=0.01,wspace=0.01)
         im1 = ax[0].imshow(precorrected_data[0,:,:],cmap='viridis',origin='lower',

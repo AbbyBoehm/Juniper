@@ -59,6 +59,7 @@ bckg_rows       [0,1,2,-3,-2,-1]                            # list of ints. Row 
 trace_mask      True                                        # bool. Whether to mask the trace while computing the background values. Best used with a curving trace.
 bckg_threshold  10000                                       # float. Median integration's lowest signal level which still confidently constitutes part of the trace, thus sets the minimum value to be masked. Only called if trace_mask is True and trace_com_mask is None.
 trace_com_mask  5                                           # int or None. If not None, identifies the COM of each column and then masks all pixels +/- this value from the COM to build a mask. Only called if trace_mask is True. Overrides bckg_threshold if not None.
+trace_upw_mask  5                                           # int or None. If not None, applies this mask in the upwards spatial direction. Useful if your trace is asymmetric due to e.g. CTE.
 
 # Step 5: Track x, y displacement of trace in space
 track_disp      True                                        # bool. Whether to track frame motion in the dispersion direction.

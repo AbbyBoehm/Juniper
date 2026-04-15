@@ -77,11 +77,12 @@ do_rscd         False                                       # bool. Whether to p
 # Step 2a: Group-level background subtraction
 do_glbs         True                                        # bool. Whether to perform this step. Can reduce NIRSpec scatter by thousands of ppm. Not for use with MIRI LRS!
 glbs_sigma      10                                          # float. How aggressively to clean outliers from the background region during glbs.
-glbs_kernel     (31,1)                                      # tuple of odd ints. The cols x rows to span during filtering of the background. Recommended to filter over many columns and just one row to avoid trace signal.
+glbs_kernel     (1,31)                                      # tuple of odd ints. The rows x cols to span during filtering of the background. Recommended to filter over many columns and just one row to avoid trace signal.
 glbs_rows       [0,1,2,3,4,5,-6,-5,-4,-3,-2,-1]             # list of ints. Row indices to use as the background. Best used with a straight trace. Never ignored unless empty.
 glbs_mask       True                                        # bool. Whether to mask the trace while computing the background values. Best used with a curving trace.
 glbs_threshold  10000                                       # float. Median last group's lowest signal level which still confidently constitutes part of the trace, thus sets the minimum value to be masked. Only called if glbs_mask is True and glbs_com_mask is None.
 glbs_com_mask   7                                           # int or None. If not None, identifies the COM of each column and then masks all pixels +/- this value from the COM to build a mask. Only called if glbs_mask is True. Overrides glbs_threshold if not None.
+glbs_upw_mask   7                                           # int or None. If not None, applies this mask in the upwards spatial direction. Useful if your trace is asymmetric due to e.g. CTE.
 glbs_low_contr  False                                       # bool. If True, uses powers to amplify faint trace signal. Useful if the COM locator is struggling to find your trace because of low contrast against a bright background.
 
 # Step 2b: MIRI LRS group-level background subtraction

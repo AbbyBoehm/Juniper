@@ -9,7 +9,8 @@ def median_spatial_filter(data, sigma, kernel):
     Args:
         data (np.array): 2D array of data.
         sigma (float): sigma threshold at which to reject outliers.
-        kernel (tuple): tuple of two ints which must be odd. Kernal used for median filtering.
+        kernel (tuple): tuple of two ints which must be odd. Kernal used \
+            for median filtering.
 
     Returns:
         np.array: cleaned 2D array.
@@ -42,11 +43,12 @@ def median_timeseries_filter(data, sigma, kernel):
     test = (~mask).astype(float)
     return (data*test) + int_mask
 
-def colbycol_bckg(data, bckg_rows=[], trace_mask=None):
+def colbycol_bckg(data, bckg, bckg_rows=[], trace_mask=None):
     """Performs column-by-column background subtraction on a given array.
 
     Args:
-        data (np.array): 2D array of data, row x col.
+        data (np.array): 2D array of data, unchanged data.
+        bckg (np.array): 2D array of data, data cleaned of outliers.
         bckg_rows (list, optional): list of integers which defines the background rows. Defaults to [].
         trace_mask (np.ma.masked_array, optional): mask to hide trace pixels with. Defaults to None.
 
@@ -55,7 +57,7 @@ def colbycol_bckg(data, bckg_rows=[], trace_mask=None):
     """
     # Define the background region using background rows and/or masks, if applicable.
     trace_mask[np.isnan(data)] = 1
-    background_region = np.ma.masked_array(data,mask=trace_mask)
+    background_region = np.ma.masked_array(bckg,mask=trace_mask)
     if bckg_rows:
          background_region = background_region[bckg_rows, :]
 
@@ -87,13 +89,15 @@ def get_trace_mask(data, threshold=10000):
     masked_fg = np.ma.masked_where(data - mu > 0.1*sig, data)
     return np.ma.getmask(masked_fg)
 
-def get_com_mask(data, width=5, contrast=False):
+def get_com_mask(data, width=5, upper=None, contrast=False):
     """Build a com mask using the given 2D data frame.
 
     Args:
         data (np.array): 2D array of data.
         width (int, optional): how many pixels from the COM to declare
-        a pixel outside of the mask.
+        a pixel outside of the mask. Defaults to 5.
+        upper (int, optional): for asymmetric masking - upper mask width.
+        Defaults to None.
         contrast (bool, optional): a flag warning that this dataset suffers
         from low contrast between trace and background. Uses powers to
         amplify trace signal. Defaults to False.
@@ -124,6 +128,8 @@ def get_com_mask(data, width=5, contrast=False):
     for i, center in enumerate(integer_COMs):
         lb = center-width
         ub = center+width
+        if upper:
+            ub = center+upper
         if lb < 0:
             lb = 0
         if ub > trace_mask.shape[0] - 1:
