@@ -586,8 +586,8 @@ def build_priors_dict(planets, flares, systematics, ld,
                 # If this systematic is included, we need to put a wicked broad bound on every parameter.
                 for i,coeff in enumerate(systematics[superdict_key][key+"_coeffs"]):
                     # Prepare for lots of exceptions!
-                    if key in ("disp_detrend","spatial_detrend","width_detrend","singleramp","doubleramp"):
-                        # Priors are all Gaussian except for dilution and mirror tilt.
+                    if key in ("singleramp","doubleramp"):
+                        # Tiny priors on exponentials, I don't need to see any bad exp behavior.
                         superdict_prior[key+str(i+1)] = [0,1]
                         superdict_ptype[key+str(i+1)] = "gaussian"
                         superdict_fitornot[key+str(i+1)] = True
@@ -605,6 +605,13 @@ def build_priors_dict(planets, flares, systematics, ld,
                         #    superdict_prior[key+str(i+1)] = [coeff-3*(coeff**0.5),coeff+3*(coeff**0.5)]
                         
                         #superdict_ptype[key+str(i+1)] = "uniform"
+
+                    # And special exception for detrends.
+                    if "detrend" in key:
+                        # Uniform and broad priors.
+                        superdict_prior[key+str(i+1)] = [-10000,10000]
+                        superdict_ptype[key+str(i+1)] = "uniform"
+                        superdict_fitornot[key+str(i+1)] = True
 
                     # And an exception for piecewise.
                     if "piecewise" in key:

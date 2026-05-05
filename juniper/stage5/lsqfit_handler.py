@@ -62,7 +62,8 @@ def lsqfit(exp_times, light_curve, errors, wavelengths,
     # Apply log-uniform transforms as needed.
     planets, flares, ld = fit_handler.loguniform_transform(planets, flares, ld)
     
-    # If you are doing a poly fit, use a quick numpy polyfit to improve the coefficient estimates.
+    # If you are doing a poly fit or variable detrend,
+    # use a quick numpy polyfit to improve the coefficient estimates.
     for i,key in enumerate(list(systematics.keys())):
         if systematics[key]["poly"]:
             poly_degree = len(systematics[key]["poly_coeffs"])-1
@@ -121,6 +122,72 @@ def lsqfit(exp_times, light_curve, errors, wavelengths,
                 if show_guess_plot:
                     plt.show(block=True)
                 plt.close()
+        for detrend_type, detrend_variable in zip(("disp","spatial","width"),
+                                                  ("xpos","ypos","width")):
+            if systematics[key][f"{detrend_type}_detrend"]:
+                continue
+                # Estimate transit model with just planets + flares    
+                planets[key] = batman_handler.batman_init_all_planets(exp_times[i], planets[key], ld[key],
+                                                                    event=inpt_dict["event_type_"+key])
+                faux_sys = {}
+                for sys_key in list(systematics[key].keys()):
+                    faux_sys[sys_key] = False
+                
+                planet_flux, _ = models.full_model(exp_times[i],planets[key],
+                                                flares[key],faux_sys,None,None)
+                
+                # Define res function.
+                if detrend_variable == "xpos":
+                    def _detrend_residuals(x,norm_flux,pos):
+                        poly_flux = models.systematic_jitter_disp(pos,x)
+                        return np.sum((poly_flux-norm_flux)**2)
+                    
+                if detrend_variable == "ypos":
+                    def _detrend_residuals(x,norm_flux,pos):
+                        poly_flux = models.systematic_jitter_crossdisp(pos,x)
+                        return np.sum((poly_flux-norm_flux)**2)
+                    
+                if detrend_variable == "width":
+                    def _detrend_residuals(x,norm_flux,pos):
+                        poly_flux = models.systematic_psf(pos,x)
+                        return np.sum((poly_flux-norm_flux)**2)
+
+                polyfit_coeffs = minimize(_detrend_residuals,
+                                          x0=systematics[key][f"{detrend_type}_detrend_coeffs"],
+                                          args=((light_curve[i]/planet_flux)/np.median(light_curve[i]),
+                                                systematics[key][detrend_variable]))
+                polyfit_coeffs = polyfit_coeffs.x
+                
+                systematics[key][f"{detrend_type}_detrend_coeffs"] = polyfit_coeffs
+
+                # If asked, plot how we got the poly model.
+                if (save_guess_plot or show_guess_plot):
+                    fig, ax = plt.subplots(figsize=(7,5))
+                    ax.scatter(exp_times[i],light_curve[i]/np.median(light_curve[i]),color='k')
+                    ax.scatter(exp_times[i],light_curve[i]/planet_flux/np.median(light_curve[i]),color='grey')
+                    if detrend_variable == "xpos":
+                        poly_flux = models.systematic_jitter_disp(systematics[key][detrend_variable],
+                                                                   polyfit_coeffs)
+                    if detrend_variable == "ypos":
+                        poly_flux = models.systematic_jitter_crossdisp(systematics[key][detrend_variable],
+                                                                       polyfit_coeffs)
+                    if detrend_variable == "width":
+                        poly_flux = models.systematic_psf(systematics[key][detrend_variable],
+                                                          polyfit_coeffs)
+                    ax.plot(exp_times[i],poly_flux,color='red')
+                    ax.set_xlabel("Exposure Time [BJD_TDB]")
+                    ax.set_ylabel("Flux [normalized]")
+                    ax.tick_params(which='both',axis='both',direction='in',)
+                    if save_guess_plot:
+                        if is_spec:
+                            plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"detector{}".format(key)+"_spec{}LSQ_{}-estimate.png".format(wavestr,detrend_type)),
+                                        dpi=300, bbox_inches='tight')
+                        else:
+                            plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"detector{}".format(key)+"_broadbandLSQ_{}-estimate.png".format(detrend_type)),
+                                        dpi=300, bbox_inches='tight')
+                    if show_guess_plot:
+                        plt.show(block=True)
+                    plt.close()
 
     # Check if ExoTiC-LD is being used.
     for i,key in enumerate(list(ld.keys())):

@@ -356,6 +356,12 @@ def make_systematics(s5_config, xpos, ypos, widths, event_ID=1):
             # Append a bunch of zeros for the next poly's coeffs.
             coeffs.append([0 for i in range(s5_config["piecewise_os_{}".format(event_ID)][i]+1)])
 
+        # Need to check for binned light curves.
+        if s5_config["bin_time"]:
+            # If you bin by bin_size, then the new start time is bin_time/bin_size, roughly.
+            for i in range(len(coeffs)):
+                start_times[i] = int(start_times[i]/s5_config["bin_size"])
+
         # Unpack so that the last coeff is actually the start time.
         for i in range(len(coeffs)):
             coeffs[i].append(start_times[i])

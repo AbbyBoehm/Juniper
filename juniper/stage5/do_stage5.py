@@ -73,6 +73,11 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
         ypos = light_curves["ypos"][d]
         widths = light_curves["widths"][d]
 
+        # Mandatory to normalize the position and widths data.
+        xpos -= np.median(xpos)
+        ypos -= np.median(ypos)
+        widths -= np.median(widths)
+
         # Optionally, clean and smooth the position and widths data
         # since fitter often struggles with this.
         if steps["clean_pos"]:
@@ -275,10 +280,15 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
             for i in range(len(light_curves["spec"][0])):
                 # Get the parallelised spectra dict for this wavelength band.
                 light_curve, errors, wavelengths = [], [], []
-                for j in range(len(light_curves["spec"])):
-                    light_curve.append(light_curves["spec"][j][i])
-                    errors.append(light_curves["specerr"][j][i])
-                    wavelengths.append(light_curves["specbins"][j][i])
+                try:
+                    for j in range(len(light_curves["spec"])):
+                        light_curve.append(light_curves["spec"][j][i])
+                        errors.append(light_curves["specerr"][j][i])
+                        wavelengths.append(light_curves["specbins"][j][i])
+                except IndexError:
+                    if steps["verbose"] >= 1:
+                        print("Wavelength",light_curves["specbins"][0][i],"does not exist in detector",j+1,".")
+                    continue
                 
                 wavestr = '{:.3f}'.format(np.mean(wavelengths[0]))
 

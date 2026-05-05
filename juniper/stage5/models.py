@@ -247,8 +247,14 @@ def systematic_jitter_disp(xpos, coeffs):
         if n == 0:
             pass
         else:
+            jitter += np.array(o*(xpos**n), dtype='float64')
+    '''
+    for n, o in enumerate(coeffs):
+        if n == 0:
+            pass
+        else:
             jitter += np.array(o*((xpos+coeffs[0])**n), dtype='float64')
-    
+    '''
     return jitter
 
 def systematic_jitter_crossdisp(ypos, coeffs):
@@ -271,8 +277,14 @@ def systematic_jitter_crossdisp(ypos, coeffs):
         if n == 0:
             pass
         else:
+            jitter += np.array(o*(ypos**n), dtype='float64')
+    '''
+    for n, o in enumerate(coeffs):
+        if n == 0:
+            pass
+        else:
             jitter += np.array(o*((ypos+coeffs[0])**n), dtype='float64')
-    
+    '''
     return jitter
 
 def systematic_psf(widths, coeffs):
@@ -295,8 +307,14 @@ def systematic_psf(widths, coeffs):
         if n == 0:
             pass
         else:
+            psf += np.array(o*(widths**n), dtype='float64')
+    '''
+    for n, o in enumerate(coeffs):
+        if n == 0:
+            pass
+        else:
             psf += np.array(o*((widths+coeffs[0])**n), dtype='float64')
-    
+    '''
     return psf
 
 def flare_model(t, flare, flare_ID):

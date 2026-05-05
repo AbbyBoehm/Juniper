@@ -346,6 +346,9 @@ def do_stage6(filepaths, outfile, outdir, steps, plot_dir):
                                     depth, err = compute_depths.compute_depth_fpfs(planets['planet{}'.format(planet_ID)],
                                                                                 planet_errs['planet{}'.format(planet_ID)],
                                                                                 str(planet_ID))
+                                
+                                if tag == "LSQ":
+                                    err = 0
                             # And save.
                             if len(list(planets['planet{}'.format(planet_ID)].keys())) > 0:
                                 fname = os.path.join(outdir,'S6_{}_ID{}_planet{}_broadband{}_fit{}.dat'.format(outfile,
@@ -391,6 +394,9 @@ def do_stage6(filepaths, outfile, outdir, steps, plot_dir):
                                     depth, err = compute_depths.compute_depth_fpfs(planets['planet{}'.format(planet_ID)],
                                                                                 planet_errs['planet{}'.format(planet_ID)],
                                                                                 str(planet_ID))
+                                    
+                                if tag == "LSQ":
+                                    err = 0
                                 
                                 if results[key]['wavelength'] == 'broadband':
                                     fname = os.path.join(plot_dir,'S6_{}_ID{}_planet{}_broadband{}_fit{}.txt'.format(outfile,

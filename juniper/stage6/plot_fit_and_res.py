@@ -138,7 +138,7 @@ def plot_waterfall(wavelengths, ts, lcs, lc_errs, t_interps, lc_interps, residua
     # Array-ify.
     wavelengths = np.asarray(wavelengths)
     # Initialize the waterfall plot.
-    fig, axes = plt.subplots(1,2,figsize=(4,10))
+    fig, axes = plt.subplots(1,2,figsize=(8,12),sharey=True)
 
     # For each light curve, offset it by an increasing amount.
     spacing = inpt_dict["waterfall_space"]#/1e6
@@ -148,9 +148,12 @@ def plot_waterfall(wavelengths, ts, lcs, lc_errs, t_interps, lc_interps, residua
     for i in tqdm(range(len(offsets)),
                   desc='Normalizing and offsetting models...'):
         # First, normalize the light curve, model, and residuals.
+        residualses[i] /= np.median(lcs[i])
         lcs[i] /= np.median(lcs[i])
         lc_interps[i] /= np.median(lc_interps[i])
-        residualses[i] /= np.median(lcs[i])
+
+        # Then scale the residuals to be on the same line as the lc.
+        residualses[i] += np.median(lcs[i])
 
         #print([1e6*k for k in lcs[i]],offsets[i])
 
@@ -200,12 +203,11 @@ def plot_waterfall(wavelengths, ts, lcs, lc_errs, t_interps, lc_interps, residua
         t = ts[i]
         residual = residualses[i]
         lc_err = lc_errs[i]
-        offset = offsets[i]
         if inpt_dict['waterfall_bin']:
             t = time_bin(np.asarray(t),inpt_dict["waterfall_bin"],'median')
             residual = time_bin(np.asarray(residual),inpt_dict["waterfall_bin"],'median')
             lc_err = time_bin(np.asarray(lc_err),inpt_dict["waterfall_bin"],'median')
-        axes[1].plot(t,[offset for i in t],color='k',ls='--')
+        #axes[1].plot(t,[offset for _ in t],color='k',ls='--')
         axes[1].scatter(t,residual,color=colormap(wave))
         axes[1].errorbar(t,residual,yerr=lc_err,ls='none',color=colormap(wave),capsize=3)
     
