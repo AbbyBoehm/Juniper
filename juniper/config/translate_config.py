@@ -388,31 +388,43 @@ def make_systematics(s5_config, xpos, ypos, widths, event_ID=1):
 
     systematics["disp_detrend"] = s5_config["disp_detrend_{}".format(event_ID)]
     if systematics["disp_detrend"]:
-        # Then we need the x positions and detrending coefficients to match the requested order.
-        systematics["xpos"] = xpos
-        
-        n_coeffs = s5_config["disp_order_{}".format(event_ID)] + 1 # if you asked for a 0th order poly, you need 1 coefficient, etc.
-        systematics["disp_detrend_coeffs"] = [0 for i in range(n_coeffs)] # initialize all as 0
+        # Only if order > 0 is requested.
+        if s5_config["disp_order_{}".format(event_ID)] > 0:
+            # Then we need the x positions and detrending coefficients to match the requested order.
+            systematics["xpos"] = xpos
+            
+            n_coeffs = s5_config["disp_order_{}".format(event_ID)]
+            systematics["disp_detrend_coeffs"] = [0 for i in range(n_coeffs)] # initialize all as 0
+        else:
+            systematics["xpos"] = [0,]
     else:
         systematics["xpos"] = [0,]
 
     systematics["spatial_detrend"] = s5_config["spatial_detrend_{}".format(event_ID)]
     if systematics["spatial_detrend"]:
-        # Then we need the y positions and detrending coefficients to match the requested order.
-        systematics["ypos"] = ypos
-        
-        n_coeffs = s5_config["spatial_order_{}".format(event_ID)] + 1 # if you asked for a 0th order poly, you need 1 coefficient, etc.
-        systematics["spatial_detrend_coeffs"] = [0 for i in range(n_coeffs)] # initialize all as 0
+        # Only if order > 0 is requested.
+        if s5_config["spatial_order_{}".format(event_ID)] > 0:
+            # Then we need the y positions and detrending coefficients to match the requested order.
+            systematics["ypos"] = ypos
+            
+            n_coeffs = s5_config["spatial_order_{}".format(event_ID)]
+            systematics["spatial_detrend_coeffs"] = [0 for i in range(n_coeffs)] # initialize all as 0
+        else:
+            systematics["ypos"] = [0,]
     else:
         systematics["ypos"] = [0,]
     
     systematics["width_detrend"] = s5_config["width_detrend_{}".format(event_ID)]
     if systematics["width_detrend"]:
-        # Then we need the width and detrending coefficient to match the requested order.
-        systematics["width"] = widths
-        
-        n_coeffs = s5_config["width_order_{}".format(event_ID)] + 1 # if you asked for a 0th order poly, you need 1 coefficient, etc.
-        systematics["width_detrend_coeffs"] = [0 for i in range(n_coeffs)] # initialize all as 0
+        # Only if order > 0 is requested.
+        if s5_config["width_order_{}".format(event_ID)] > 0:
+            # Then we need the width and detrending coefficient to match the requested order.
+            systematics["width"] = widths
+            
+            n_coeffs = s5_config["width_order_{}".format(event_ID)]
+            systematics["width_detrend_coeffs"] = [0 for i in range(n_coeffs)] # initialize all as 0
+        else:
+            systematics["width"] = [0,]
     else:
         systematics["width"] = [0,]
     

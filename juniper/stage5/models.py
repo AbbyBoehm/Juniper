@@ -244,17 +244,8 @@ def systematic_jitter_disp(xpos, coeffs):
 
     # And populate.
     for n, o in enumerate(coeffs):
-        if n == 0:
-            pass
-        else:
-            jitter += np.array(o*(xpos**n), dtype='float64')
-    '''
-    for n, o in enumerate(coeffs):
-        if n == 0:
-            pass
-        else:
-            jitter += np.array(o*((xpos+coeffs[0])**n), dtype='float64')
-    '''
+        jitter += np.array(o*(xpos**(n+1)), dtype='float64')
+    
     return jitter
 
 def systematic_jitter_crossdisp(ypos, coeffs):
@@ -267,24 +258,13 @@ def systematic_jitter_crossdisp(ypos, coeffs):
     Returns:
         np.array: y-jitter model to be added to Sys(t;A).
     """
-    #jitter = 1 + coeffs[0]*ypos
-    #return jitter
     # Set up 1s polynomial.
     jitter = np.array([1 for i in ypos], dtype='float64')
 
     # And populate.
     for n, o in enumerate(coeffs):
-        if n == 0:
-            pass
-        else:
-            jitter += np.array(o*(ypos**n), dtype='float64')
-    '''
-    for n, o in enumerate(coeffs):
-        if n == 0:
-            pass
-        else:
-            jitter += np.array(o*((ypos+coeffs[0])**n), dtype='float64')
-    '''
+        jitter += np.array(o*(ypos**(n+1)), dtype='float64')
+    
     return jitter
 
 def systematic_psf(widths, coeffs):
@@ -297,24 +277,13 @@ def systematic_psf(widths, coeffs):
     Returns:
         np.array: psf model to be added to Sys(t;A).
     """
-    #psf = 1 + coeffs[0]*widths
-    #return psf
     # Set up 1s polynomial.
     psf = np.array([1 for i in widths], dtype='float64')
 
     # And populate.
     for n, o in enumerate(coeffs):
-        if n == 0:
-            pass
-        else:
-            psf += np.array(o*(widths**n), dtype='float64')
-    '''
-    for n, o in enumerate(coeffs):
-        if n == 0:
-            pass
-        else:
-            psf += np.array(o*((widths+coeffs[0])**n), dtype='float64')
-    '''
+        psf += np.array(o*(widths**(n+1)), dtype='float64')
+    
     return psf
 
 def flare_model(t, flare, flare_ID):
