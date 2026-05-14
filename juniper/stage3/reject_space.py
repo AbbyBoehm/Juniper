@@ -289,7 +289,7 @@ def led(segments, inpt_dict):
         iterations_needed_per_frame.append(iteration_N-1)
 
         # And replace the xarray datasets if asked.
-        if inpt_dict["space_replace"]:
+        if inpt_dict["led_replace"]:
             segments["data"][k] = np.where(segments["data"][k] != integration,integration,segments["data"][k])
     
     # Report results of cleaning.

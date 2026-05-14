@@ -74,9 +74,28 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
         widths = light_curves["widths"][d]
 
         # Mandatory to normalize the position and widths data.
-        xpos -= np.median(xpos)
-        ypos -= np.median(ypos)
-        widths -= np.median(widths)
+        #xpos -= np.median(xpos)
+        #ypos -= np.median(ypos)
+        #widths -= np.median(widths)
+
+        # Mandatory to normalize the position and widths data.
+        xpos = 1 + (xpos - np.min(xpos)) * (-1 - 1) / (np.max(xpos) - np.min(xpos))
+        ypos = 1 + (ypos - np.min(ypos)) * (-1 - 1) / (np.max(ypos) - np.min(ypos))
+        widths = 1 + (widths - np.min(widths)) * (-1 - 1) / (np.max(widths) - np.min(widths))
+
+        if (plot_step or save_step):
+            for var, var_name in zip((xpos,ypos,widths),("dispersion","cross-dispersion","widths")):
+                plt.figure(figsize=(10,5))
+                plt.scatter(light_curves["time"][d],var,color='k')
+                plt.xlabel('Exposure Time [BJD TDB]')
+                plt.ylabel(f'Trend: {var_name}')
+                plt.tick_params(which='both',axis='both',direction='in')
+                if save_step:
+                    plt.savefig(os.path.join(plot_dir,"s5_"+outfile+f"_ID{d}_trend-{var_name}.png"),
+                                dpi=300, bbox_inches='tight')
+                if plot_step:
+                    plt.show(block=True)
+                plt.close()
 
         # Optionally, clean and smooth the position and widths data
         # since fitter often struggles with this.

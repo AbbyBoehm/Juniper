@@ -144,6 +144,7 @@ def systematic_polynomial(t, coeffs):
     Returns:
         np.array: polynomial model to be added to Sys(t;A).
     """
+    '''
     # Set up 1s polynomial.
     poly = np.ones_like(t, dtype='float64')
 
@@ -153,6 +154,16 @@ def systematic_polynomial(t, coeffs):
             continue
         poly += np.array(o*((t-t[0])**n), dtype='float64')
     
+    return poly*coeffs[0]
+    '''
+    # Set up 1s polynomial by skipping first coeff.
+    poly_coeffs = [1.0]
+    poly_coeffs.extend(coeffs[1:])
+    
+    # Generate polynomial.
+    poly =  np.polynomial.polynomial.polyval((t-t[0]),poly_coeffs)
+
+    # Scale and return.
     return poly*coeffs[0]
 
 def systematic_piecewise(t, coeffs):
@@ -165,6 +176,7 @@ def systematic_piecewise(t, coeffs):
     Returns:
         np.array: piecewise polynomial model to be added to Sys(t;A).
     """
+    '''
     # Set up 1s polynomial.
     piece = np.ones_like(t, dtype='float64')
     
@@ -184,9 +196,36 @@ def systematic_piecewise(t, coeffs):
             piece[start:end] += np.array(coefficient*((trunc_time-trunc_time[0])**power), dtype='float64')
     
     return piece
+    '''
+    # Ensure correct dtype, sometimes t is a list.
+    t = np.asarray(t, dtype=np.float64)
+
+    # Initialize an empty piecewise.
+    piece = np.empty_like(t)
+
+    # Begin populating each segment of the piecewise.
+    for n, segment in enumerate(coeffs):
+        # We grab the first batch of coeffs and the start/end times.
+        start = segment[-1]
+        if n + 1 < len(coeffs):
+            end = coeffs[n + 1][-1]
+        else:
+            end = len(t)
+
+        # Truncate and normalize the timestamps of the piecewise.
+        x = t[start:end] - t[start]
+
+        # Define the poly coefficients by excluding the start time.
+        poly_coeffs = [1.0]
+        poly_coeffs.extend(segment[:-1])
+
+        # And populate this piece.
+        piece[start:end] = np.polynomial.polynomial.polyval(x,poly_coeffs)
+    
+    return piece
 
 def systematic_expramp(t, coeffs):
-    """Returns a single exponential ramp trend in time.
+    """Returns a single exponential ramp trend in time. Needs optimized!
 
     Args:
         t (np.array): time.
@@ -199,7 +238,7 @@ def systematic_expramp(t, coeffs):
     return single_ramp
 
 def systematic_doubleramp(t, coeffs):
-    """Returns a double exponential ramp trend in time.
+    """Returns a double exponential ramp trend in time. Needs optimized!
 
     Args:
         t (np.array): time.
@@ -214,7 +253,7 @@ def systematic_doubleramp(t, coeffs):
 
 def systematic_mirrortilt(t, coeffs):
     """Returns a step function modelling an arbitrary number
-     of mirror tilt events.
+     of mirror tilt events. Needs optimized!
 
     Args:
         t (np.array): time.
@@ -240,13 +279,11 @@ def systematic_jitter_disp(xpos, coeffs):
         np.array: x-jitter model to be added to Sys(t;A).
     """
     # Set up 1s polynomial.
-    jitter = np.array([1 for i in xpos], dtype='float64')
-
-    # And populate.
-    for n, o in enumerate(coeffs):
-        jitter += np.array(o*(xpos**(n+1)), dtype='float64')
+    poly_coeffs = [1.0]
+    poly_coeffs.extend(coeffs)
     
-    return jitter
+    # Then evaluate and return with numpy.
+    return np.polynomial.polynomial.polyval(xpos,poly_coeffs)
 
 def systematic_jitter_crossdisp(ypos, coeffs):
     """Returns a polynomial correlated to trace y position.
@@ -259,13 +296,11 @@ def systematic_jitter_crossdisp(ypos, coeffs):
         np.array: y-jitter model to be added to Sys(t;A).
     """
     # Set up 1s polynomial.
-    jitter = np.array([1 for i in ypos], dtype='float64')
-
-    # And populate.
-    for n, o in enumerate(coeffs):
-        jitter += np.array(o*(ypos**(n+1)), dtype='float64')
+    poly_coeffs = [1.0]
+    poly_coeffs.extend(coeffs)
     
-    return jitter
+    # Then evaluate and return with numpy.
+    return np.polynomial.polynomial.polyval(ypos,poly_coeffs)
 
 def systematic_psf(widths, coeffs):
     """Returns an offset polynomial correlated to trace width.
@@ -278,13 +313,11 @@ def systematic_psf(widths, coeffs):
         np.array: psf model to be added to Sys(t;A).
     """
     # Set up 1s polynomial.
-    psf = np.array([1 for i in widths], dtype='float64')
+    poly_coeffs = [1.0]
+    poly_coeffs.extend(coeffs)
 
-    # And populate.
-    for n, o in enumerate(coeffs):
-        psf += np.array(o*(widths**(n+1)), dtype='float64')
-    
-    return psf
+    # Then evaluate and return with numpy.
+    return np.polynomial.polynomial.polyval(widths,poly_coeffs)
 
 def flare_model(t, flare, flare_ID):
     """Model of a flare from Tovar Mendoza+ 2022

@@ -13,6 +13,8 @@ from juniper.util.diagnostics import tqdm_translate, plot_translate, timer
 from juniper.util.cleaning import median_timeseries_filter
 from juniper.util.plotting import plot_fit
 
+
+# And now, the function.
 def mcmcfit(exp_times, light_curve, errors, wavelengths,
             planets, flares, systematics, ld,
             inpt_dict, is_spec=False,
@@ -296,7 +298,11 @@ def mcmcfit(exp_times, light_curve, errors, wavelengths,
         # If it is a fraction, the user has asked to burn a fraction of the steps.
         discard = int(inpt_dict["MCMC_burnin"]*steps)
 
-    # Check for parallelization.
+    # Check for parallelization, and globalize args.
+    globalized_args = (bundled_params, fit_or_not, exp_times, light_curve, errors,
+                       unpack_priors, unpack_ptypes,
+                       preserve_timing, preserve_depth, preserve_orbit, preserve_star)
+    
     if inpt_dict["max_cores"] not in (1,'1'):
         # Count cores that are available.
         cores = cpu_count()
@@ -314,16 +320,20 @@ def mcmcfit(exp_times, light_curve, errors, wavelengths,
             n_use = cores
         if inpt_dict["verbose"] >= 1:
             print("Multiprocessing with {} out of {} cores.".format(n_use,cores))
-        pool = Pool(n_use)
+        pool = Pool(n_use,initializer=fit_handler.init_worker,initargs=(globalized_args,),)
     else:
-        pool = None
+        # Need to update the global arguments!
+        fit_handler.init_worker(globalized_args,)
+        pool = None #Pool(1,initializer=fit_handler.init_worker,initargs=((exp_times,light_curve,errors),),)#None
     
     # Define the emcee sampler.
-    sampler = emcee.EnsembleSampler(nwalkers, ndim, fit_handler.log_probability,
-                                    args=(bundled_params, fit_or_not, exp_times, light_curve, errors,
-                                          unpack_priors, unpack_ptypes,
-                                          preserve_timing, preserve_depth, preserve_orbit, preserve_star),
-                                    pool=pool)
+    sampler = emcee.EnsembleSampler(nwalkers, ndim, fit_handler.log_probability,pool=pool)
+    '''
+    args=(bundled_params, fit_or_not, #exp_times, light_curve, errors,
+            unpack_priors, unpack_ptypes,
+            preserve_timing, preserve_depth, preserve_orbit, preserve_star),
+    '''
+    #pool=pool)
     
     # And run it!
     sampler.run_mcmc(pos, steps, progress=True)#;

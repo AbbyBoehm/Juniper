@@ -1,8 +1,19 @@
+import time
+
 import numpy as np
 from scipy.stats import norm
 import matplotlib.pyplot as plt
 
 from juniper.stage5 import models
+
+
+# Empty global variable to hold mcmc fit args, for parallelization compatability
+mcmc_fit_args = None
+
+# Init worker for parallelization
+def init_worker(globalized_args,):
+    global mcmc_fit_args
+    mcmc_fit_args = globalized_args
 
 def bundle_planets_flares_systematics_and_ld(planets,flares,systematics,ld):
     """Simple function which unpacks every provided planet, flare, systematics
@@ -608,9 +619,9 @@ def build_priors_dict(planets, flares, systematics, ld,
 
                     # And special exception for detrends.
                     if "detrend" in key:
-                        # Uniform and broad priors.
-                        superdict_prior[key+str(i+1)] = [-10000,10000]
-                        superdict_ptype[key+str(i+1)] = "uniform"
+                        # Gaussian priors with a very small width.
+                        superdict_prior[key+str(i+1)] = [0,0.1]
+                        superdict_ptype[key+str(i+1)] = "gaussian"
                         superdict_fitornot[key+str(i+1)] = True
 
                     # And an exception for piecewise.
@@ -925,8 +936,7 @@ def log_prior(params_array, priors, priors_types):
         # Then it is a nonfinite number and we also don't want it.
         return -np.inf
 
-def log_probability(params_array, bundled_params, fit_or_not, exp_times, light_curve, errors,
-                    priors, priors_types, preserve_timing, preserve_depth, preserve_orbit, preserve_star):
+def log_probability(params_array):#, bundled_params, fit_or_not, #exp_times, light_curve, errors,priors, priors_types, preserve_timing, preserve_depth, preserve_orbit, preserve_star):
     """For emcee. Generates the log-probability, sum of the log-likelihood
     and log-prior.
 
@@ -956,6 +966,11 @@ def log_probability(params_array, bundled_params, fit_or_not, exp_times, light_c
         float: the log-probability, metric of how likely emcee is to accept
         the move.
     """
+    # Fetch the global data that gets initialized by the Pool.
+    bundled_params, fit_or_not, exp_times, light_curve, errors,\
+        priors, priors_types, \
+            preserve_timing, preserve_depth, preserve_orbit, preserve_star = mcmc_fit_args
+
     # The log-prior gives us a quick way to decide if residuals are worth checking.
     log_p = log_prior(params_array, priors, priors_types)
 
@@ -1066,16 +1081,17 @@ def _residuals(params_array, exp_times, light_curve, errors, bundled_params, pri
         sdnr = np.std(model-light_curve[d])
         for multiplier in (-1,1):
             ax[1].axhline(y=sdnr*multiplier,ls=':',color='k',alpha=0.25)
+        ax[0].set_title(params_array)
         plt.savefig(f's5_diagnostic_model_plot_{d}.png',
                     dpi=300,bbox_inches='tight')
         plt.close()
-        if np.abs(np.sum(residuals_full**2)) > 1e8:
-            print(planets_fit)
-            print(systematics_fit)
-            print("I broke the stuff! OVO")
-            print(1/0)
+        #if np.abs(np.sum(residuals_full**2)) > 1e8:
+        #    print(planets_fit)
+        #    print(systematics_fit)
+        #    print("I broke the stuff! OVO")
+        #    print(1/0)
         #print(1/0)
-        '''
+        #'''
         
     
     if give_res:
