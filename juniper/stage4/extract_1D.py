@@ -49,6 +49,8 @@ def extract(segments, inpt_dict):
         # Now we have to actually build real profiles.
         if inpt_dict["aperture_type"] == "median":
             profile = optimum_median(segments)
+        if inpt_dict["aperture_type"] == "custom":
+            profile = np.load(inpt_dict["aperture_path"],allow_pickle=True)
         for i in tqdm(range(profiles.shape[0]),
                       desc='Building optimum profiles for each frame...',
                       disable=(not time_ints)):

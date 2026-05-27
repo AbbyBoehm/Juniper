@@ -24,10 +24,10 @@ sat_growth      1                                           # int. If do_saturat
 
 do_refpix       True                                        # bool. Whether to perform this step in jwst Detector1Pipeline.
 odd_even_col    True                                        # bool. Keyword of the refpix step. NIR data only.
-use_side_ref    True                                        # bool. Keyword of the refpix step.
+use_side_ref    True                                        # bool. Keyword of the refpix step. NIR data only.
 side_smooth_len 11                                          # bool. Keyword of the refpix step. Only applies if use_side_ref is True.
 side_gain       1.0                                         # bool. Keyword of the refpix step. Only applies if use_side_ref is True.
-odd_even_row    True                                        # bool. Keyword of the refpix step. MIR data only.
+odd_even_row    False                                       # bool. Keyword of the refpix step. Ignored for NIR data if side ref pixels are used.
 ovr_corr_mit    3.0                                         # bool. Keyword of the refpix step. NIRSpec IRS2 mode only.
 pres_irs2_ref   False                                       # bool. Keyword of the refpix step. Always False for science operations, only ever True for some diagnostics or calibrations.
 
@@ -42,8 +42,8 @@ rej_threshold   15                                          # float. The sigma t
 three_group_rej 6                                           # float. The sigma threshold at which to flag a jump if you only have three groups.
 four_group_rej  5                                           # float. The sigma threshold at which to flag a jump if you only have four groups.
 flag_4          True                                        # bool. If True, flags the four adjacent pixels to a jump as also jumping.
-max_jump        200                                         # float. Limits neighbor flagging.
-min_jump        10                                          # float. Limits neighbor flagging.
+max_jump        200                                         # float. Pixels jumping above this threshold are exempted from neighbor flagging. This value should be much higher than rej_threshold to ensure proper functionality!
+min_jump        20                                          # float. Pixels jumping below this threshold are exempted from neighbor flagging. This is because a very small jump is unable to jump its neighbors via inter-pixel capacitance. This value should be larger than rej_threshold to ensure proper functionality!
 snowballs       True                                        # bool. If True, expands contiguous CR flags with ellipses to catch all affected pixels. These events are known as snowballs.
 
 do_ramp_fit     True                                        # bool. Whether to perform this step in jwst Detector1Pipeline.

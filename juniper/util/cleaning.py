@@ -87,7 +87,7 @@ def get_trace_mask(data, threshold=10000):
     # If the data /positively/ exceeds the mean background level even by just
     # a small amount, it is definitely trace and must be masked.
     masked_fg = np.ma.masked_where(data - mu > 0.1*sig, data)
-    return np.ma.getmask(masked_fg)
+    return np.ma.getmask(masked_fg).astype(int)
 
 def get_com_mask(data, width=5, upper=None, contrast=False):
     """Build a com mask using the given 2D data frame.
