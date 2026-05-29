@@ -17,5 +17,6 @@ setup(name='juniper-package',
       python_requires='>=3.8.0',
       install_requires=['scipy>=1.8.0', 'numpy', 'jwst>=1.10.0', 'tqdm',
                         'matplotlib', 'batman-package', 'astropy', 'corner',
-                        'emcee', 'exotic-ld', 'photutils', 'xarray', 'mc3'],
+                        'emcee', 'exotic-ld', 'photutils', 'xarray', 'mc3',
+                        'setuptools<=82.0.0'],
       zip_safe=False)
