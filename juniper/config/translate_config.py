@@ -12,6 +12,9 @@ def s1_to_pipeline(s1_config):
         s1_pipeline[key] = s1_config[key]
 
     # First, handle the complex ones with arguments.    
+    s1_pipeline["dq_init"] = {"skip":(not s1_config["do_dq_init"]),
+                              "user_supplied_dq":s1_config["user_dq"]}
+
     s1_pipeline["saturation"] = {"skip":(not s1_config["do_saturation"]),
                                  "n_pix_grow_sat":s1_config["sat_growth"]}
     
@@ -38,10 +41,45 @@ def s1_to_pipeline(s1_config):
                            "flag_4_neighbors":s1_config["flag_4"],
                            "max_jump_to_flag_neighbors":s1_config["max_jump"],
                            "min_jump_to_flag_neighbors":s1_config["min_jump"],
-                           "expand_large_events":s1_config["snowballs"],
+                           "expand_large_events":s1_config["expand_events"],
                            "maximum_cores":s1_config["max_cores"]}
     
+    s1_pipeline["clean_flicker_noise"] = {"skip":(not s1_config["do_cleanflicker"]),
+                                          "autoparam":s1_config["autoparam"],
+                                          "fit_method":s1_config["fit_method"],
+                                          "fit_by_channel":s1_config["fit_by_channel"],
+                                          "background_method":s1_config["bkg_method"],
+                                          "background_box_size":s1_config["bkg_box_size"],
+                                          "mask_science_regions":s1_config["mask_sci_regs"],
+                                          "apply_flat_field":s1_config["apply_flatfield"],
+                                          "n_sigma":s1_config["n_sigma"],
+                                          "fit_histogram":s1_config["fit_histogram"],
+                                          "single_mask":s1_config["single_mask"],
+                                          "user_mask":s1_config["user_mask"],
+                                          "save_mask":s1_config["save_mask"],
+                                          "save_background":s1_config["save_background"],
+                                          "save_noise":s1_config["save_noise"]}
+    
+    s1_pipeline["picture_frame"] = {"skip":(not s1_config["do_pictureframe"]),
+                                    "mask_science_regions":s1_config["mask_sci_pict"],
+                                    "n_sigma":s1_config["n_sigma_pict"],
+                                    "save_mask":s1_config["save_mask_pict"],
+                                    "save_correction":s1_config["save_correction"]}
+    
+    s1_pipeline["emicorr"] = {"skip":(not s1_config["do_emicorr"]),
+                              "algorithm":s1_config["emi_algorithm"],
+                              "nints_to_phase":s1_config["nints_to_phase"],
+                              "nbins":s1_config["nbins"],
+                              "scale_reference":s1_config["scale_reference"],
+                              "onthefly_corr_freq":s1_config["onthefly_corrf"],
+                              "use_n_cycles":s1_config["use_n_cycles"],
+                              "fit_ints_separately":s1_config["fit_ints_sep"],
+                              "save_intermediate_results":s1_config["save_int_result"]}
+    
     s1_pipeline["ramp_fit"] = {"skip":(not s1_config["do_ramp_fit"]),
+                               "algorithm":s1_config["algorithm"],
+                               "firstgroup":s1_config["firstgroup"],
+                               "lastgroup":s1_config["lastgroup"],
                                "save_opt":s1_config["save_opt"],
                                "opt_name":s1_config["opt_name"],
                                "int_name":s1_config["int_name"],
@@ -49,9 +87,8 @@ def s1_to_pipeline(s1_config):
                                "maximum_cores":s1_config["max_cores"]}
     
     # These next ones are fast because they have no args except for skip.
-    for key in ("gain_scale","superbias","persistence","emicorr",
-                "firstframe","lastframe","reset","rscd","group_scale",
-                "dq_init","linearity"):
+    for key in ("gain_scale","superbias","persistence",
+                "lastframe","reset","rscd","group_scale","linearity"):
         s1_pipeline[key] = {"skip":(not s1_config["do_{}".format(key)])}
 
     return s1_pipeline
@@ -84,15 +121,44 @@ def s1_to_miribckg(s1_config):
     Returns:
         dict: a miribckg dict.
     """
-    s1_glbs = {}
+    s1_miribckg = {}
     for key in ("verbose","show_plots","save_plots"):
-        s1_glbs[key] = s1_config[key]
+        s1_miribckg[key] = s1_config[key]
 
-    # glbs keys are nearly identical.
+    # there's only one key for miri background subtraction.
     for key in ("path",):
-        s1_glbs[key] = s1_config["miribckg_{}".format(key)]
+        s1_miribckg[key] = s1_config["miribckg_{}".format(key)]
+
+    # however, it does need to know whether we are doing refpix.
+    if s1_config["do_refpix"]:
+        s1_miribckg["do_refpix"] = True
+        refpix_instructions = s1_to_miri_refpix(s1_config)
+        for key in refpix_instructions:
+            s1_miribckg[key] = refpix_instructions[key]
+    else:
+        s1_miribckg["do_refpix"] = False
     
-    return s1_glbs
+    return s1_miribckg
+
+def s1_to_miri_refpix(s1_config):
+    """Simple function to translate an s1_config dict to a miri_refpix dict.
+
+    Args:
+        s1_config (dict): the config dictionary generated by the s1 .berry files.
+    
+    Returns:
+        dict: a miri_refpix dict.
+    """
+    s1_miri_refpix = {}
+    for key in ("verbose","show_plots","save_plots"):
+        s1_miri_refpix[key] = s1_config[key]
+
+    # keys go through a bit of a namechange but there's only a few so it's fine.
+    s1_miri_refpix["odd_even_rows"] = s1_config["odd_even_row"]
+    s1_miri_refpix["ovr_corr_mitigation_ftr"] = s1_config["ovr_corr_mit"]
+    s1_miri_refpix["preserve_irs2_refpix"] = s1_config["pres_irs2_ref"]
+    
+    return s1_miri_refpix
 
 def s2_to_pipeline(s2_config):
     """Simple function to translate an s2_config dict to a Spec2Pipeline dict.
@@ -119,17 +185,34 @@ def s2_to_pipeline(s2_config):
                                      "kernel_size":s2_config["kernel_size"],
                                      "save_flagged_bkg":s2_config["save_flagged"]} 
     
-    s2_pipeline["nsclean"] = {"skip":(not s2_config["do_cleanflicker"]),
-                                          "mask_spectral_regions":s2_config["mask_trace"],
+    s2_pipeline["clean_flicker_noise"] = {"skip":(not s2_config["do_cleanflicker"]),
+                                          "autoparam":s2_config["autoparam"],
+                                          "fit_method":s2_config["fit_method"],
+                                          "fit_by_channel":s2_config["fit_by_channel"],
+                                          "background_method":s2_config["bkg_method"],
+                                          "background_box_size":s2_config["bkg_box_size"],
+                                          "mask_science_regions":s2_config["mask_sci_regs"],
+                                          "apply_flat_field":s2_config["apply_flatfield"],
                                           "n_sigma":s2_config["n_sigma"],
+                                          "fit_histogram":s2_config["fit_histogram"],
+                                          "single_mask":s2_config["single_mask"],
+                                          "user_mask":s2_config["user_mask"],
                                           "save_mask":s2_config["save_mask"],
-                                          "user_mask":s2_config["user_mask"]}
+                                          "save_background":s2_config["save_background"],
+                                          "save_noise":s2_config["save_noise"]}
     
     s2_pipeline["background"] = {"skip":(not s2_config["do_background"]),
                                  "sigma":s2_config["bkg_sigma"],
                                  "maxiters":s2_config["maxiters"],
                                  "save_combined_background":s2_config["save_bkg"],
-                                 "wfss_mmag_extract":s2_config["wfss_mmag_bkg"]}
+                                 "soss_source_percentile":s2_config["soss_src_perc"],
+                                 "soss_bkg_percentile":s2_config["soss_bkg_perc"],
+                                 "wfss_mmag_extract":s2_config["wfss_mmag_bkg"],
+                                 "wfss_mask":s2_config["wfss_mask"],
+                                 "wfss_maxiter":s2_config["wfss_maxiter"],
+                                 "wfss_rms_stop":s2_config["wfss_rms_stop"],
+                                 "wfss_outlier_percent":s2_config["wfss_outr_perc"],
+                                 "bkg_list":s2_config["bkg_list"]}
     
     s2_pipeline["extract_2d"] = {"skip":(not s2_config["do_extract_2d"]),
                                  "slit_names":s2_config["slit_names"],
@@ -142,6 +225,9 @@ def s2_to_pipeline(s2_config):
     
     s2_pipeline["srctype"] = {"skip":(not s2_config["do_srctype"]),
                               "source_type":s2_config["source_type_st"]}
+                              
+    s2_pipeline["targ_centroid"] = {"skip":(not s2_config["do_targcentroid"]),
+                                    "ta_file":s2_config["ta_file"]}
     
     s2_pipeline["master_background"] = {"skip":(not s2_config["do_master_bckg"]),
                                         "user_background":s2_config["user_bckg"],
@@ -164,8 +250,8 @@ def s2_to_pipeline(s2_config):
                                 "source_type":s2_config["source_type_bar"]}
     
     # FIX: hard-coding in all those post-JuniperS2 functions to be false.
-    for step in ("photom","residual_fringe","pixel_replace","resample_spec",
-                 "cube_build","extract_1d"):
+    for step in ("photom","residual_fringe","adaptive_trace_model","pixel_replace",
+                 "resample_spec","cube_build","extract_1d"):
         s2_pipeline[step] = {"skip":True}
 
     # These next ones are fast because they have no args except for skip.

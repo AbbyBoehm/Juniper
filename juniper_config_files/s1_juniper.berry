@@ -18,6 +18,7 @@ rename          'name'                                      # str. What you want
 do_group_scale  True                                        # bool. Whether to perform this step in jwst Detector1Pipeline.
 
 do_dq_init      True                                        # bool. Whether to perform this step in jwst Detector1Pipeline.
+user_dq         './'                                        # str. Path to a user-supplied DQ reference fits file pre-populated with desired DQ flags.
 
 do_saturation   True                                        # bool. Whether to perform this step in jwst Detector1Pipeline.
 sat_growth      1                                           # int. If do_saturation is True, how far away saturation should be flagged from the initial flagged pixel, which helps account for bloom.
@@ -44,9 +45,28 @@ four_group_rej  5                                           # float. The sigma t
 flag_4          True                                        # bool. If True, flags the four adjacent pixels to a jump as also jumping.
 max_jump        200                                         # float. Pixels jumping above this threshold are exempted from neighbor flagging. This value should be much higher than rej_threshold to ensure proper functionality!
 min_jump        20                                          # float. Pixels jumping below this threshold are exempted from neighbor flagging. This is because a very small jump is unable to jump its neighbors via inter-pixel capacitance. This value should be larger than rej_threshold to ensure proper functionality!
-snowballs       True                                        # bool. If True, expands contiguous CR flags with ellipses to catch all affected pixels. These events are known as snowballs.
+expand_events   True                                        # bool. If True, expands contiguous CR flags with ellipses to catch all affected pixels. In the NIR these events are snowballs; in the MIR these are CR showers.
+
+do_cleanflicker False                                       # bool. Whether to perform this step in jwst Detector1Pipeline.
+autoparam       False                                       # bool. If True, automatically selects some fit and background parameters when possible.
+fit_method      'median'                                    # str. The noise fitting algorithm to use, with options 'fft' or 'median'.
+fit_by_channel  False                                       # bool. If True, fits flicker noise separately for each channel. Ignored by MIRI, subarrays, and 'fft' method.
+bkg_method      'median'                                    # str. Background structure fitting method to use, with options 'median', 'model', 'median_image', or None.
+bkg_box_size    None                                        # lst of int, or None. Box size for the data grid when using method 'model'.
+mask_sci_regs   False                                       # bool. Masks traces and/or non-science regions depending on detector.
+apply_flatfield False                                       # bool. If True, flat-corrects images prior to fitting background level.
+n_sigma         2.0                                         # float. Sigma-clipping threshold for rejecting outliers and illuminated pixels.
+fit_histogram   False                                       # bool. If True, the sigma threshold for n_sigma will be derived from a Gaussian fit of the values.
+single_mask     True                                        # bool. If True, makes just one data mask for all the data.
+user_mask       './'                                        # str. Points to a custom user-supplied data mask.
+save_mask       False                                       # bool. Whether to save this output of this step.
+save_background False                                       # bool. Whether to save this output of this step.
+save_noise      False                                       # bool. Whether to save this output of this step.
 
 do_ramp_fit     True                                        # bool. Whether to perform this step in jwst Detector1Pipeline.
+algorithm       "OLS_C"                                     # str. The algorithm to use to fit the ramp. Defaults to "OLS_C" but "LIKELY" is also an option.
+firstgroup      None                                        # int or None. If not None, ignores all groups before this one when fitting the ramp.
+lastgroup       None                                        # int or None. If not None, ignores all groups after this one when fitting the ramp.
 save_opt        False                                       # bool. Whether to save optional outputs from this step.
 opt_name        None                                        # str or None. If saving the optional outputs, what to name it.
 int_name        None                                        # str or None. If saving the optional outputs, what to name the per-integration product.
@@ -62,16 +82,28 @@ do_persistence  False                                       # bool. Whether to p
 do_charge_mig   False                                       # bool. Whether to perform this step in jwst Detector1Pipeline. Does not apply to TSOs so usually we do not use this in exoplanetary sciences.
 signal_thres    25000                                       # float. If charge migration is performed, this is the threshold at which a pixel gets flagged as DO_NOT_USE.
 
+do_pictureframe False                                       # bool. Whether to perform this step in jwst Detector1Pipeline. Applies only to NIRSpec full-frame images.
+mask_sci_pict   False                                       # bool. Masks traces defined by WCS bounding boxes for slits/slices.
+n_sigma_pict    2.0                                         # float. Sigma-clipping threshold for rejecting outliers and illuminated pixels.
+save_mask_pict  False                                       # bool. Whether to save this output of this step.
+save_correction False                                       # bool. Whether to save this output of this step.
+
 # Step 1b: MIRI-specific steps
 do_emicorr      False                                       # bool. Whether to perform this step in jwst Detector1Pipeline. Corrects for 390 Hz or other electromagnetic interference (EMI) noise patterns in the raw ramp data.
-
-do_firstframe   False                                       # bool. Whether to perform this step in jwst Detector1Pipeline. Flags the first group of every frame as DO_NOT_USE if the total number of groups per integration is greater than 3.
+emi_algorithm   'joint'                                     # str. Algorithm for emicorr fitting, with options 'joint' or 'sequential'.
+nints_to_phase  None                                        # int or None. Number of integrations to phase for sequential algorithm.
+nbins           None                                        # int or None.  Number of bins in one phased wave for sequential algorithm.
+scale_reference True                                        # bool. If True and using sequential algorithm, reference wavelength will be scaled to the data's phase amplitude.
+onthefly_corrf  None                                        # lst or None. Frequency values to use to create a correction on-the-fly. Will ignore input EMICORR reference models.
+use_n_cycles    3                                           # int. Number of cycles for calculating phase for sequential algorithm.
+fit_ints_sep    False                                       # bool. If True, fit and remove EMI noise for each integration separately for joint algorithm.
+save_int_result False                                       # bool. Whether to save intermediate results of this step.
 
 do_lastframe    False                                       # bool. Whether to perform this step in jwst Detector1Pipeline. Flags the last group of every frame as DO_NOT_USE if the total number of groups in each integration is greater than 2.
 
-do_reset        False                                       # bool. Whether to perform this step in jwst Detector1Pipeline, which attempts to correct for the reset anomaly effect.
+do_reset        False                                       # bool. Whether to perform this step in jwst Detector1Pipeline, which attempts to correct for the reset anomaly effect present in the first roughly 15 groups of an integration.
 
-do_rscd         False                                       # bool. Whether to perform this step in jwst Detector1Pipeline.
+do_rscd         False                                       # bool. Whether to perform this step in jwst Detector1Pipeline. Attempts to fix the Reset Switch Charge Decay effect by flagging the first group in all integrations after the first as DO_NOT_USE.
 
 # Step 2: Specialized background subtraction routines
 # Step 2a: Group-level background subtraction

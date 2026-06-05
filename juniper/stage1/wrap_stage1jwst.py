@@ -63,7 +63,7 @@ def wrap_back_end(datamodel, inpt_dict, outfile, outdir):
     # Copy dict and modify it.
     back_end_steps = inpt_dict.copy()
     for step in ("group_scale","dq_init","saturation","superbias",
-                 "refpix","linearity","dark_current","jump",
+                 "refpix","linearity","dark_current","jump","clean_flicker_noise",
                  "persistence","emicorr","firstframe","lastframe",
                  "reset","rscd","charge_migration"):
         back_end_steps[step] = {"skip":True}

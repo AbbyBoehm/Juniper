@@ -1,22 +1,24 @@
 import os
 from tqdm import tqdm
 from warnings import warn
+from copy import deepcopy
 
 import numpy as np
 import matplotlib.pyplot as plt
 from astropy.io import fits
 
-from juniper.stage1.wrap_stage1jwst import wrap_front_end
+from juniper.config.translate_config import s1_to_miri_refpix
+from juniper.stage1 import wrap_stage1jwst, miri_refpix_step
 from juniper.util.diagnostics import tqdm_translate, plot_translate
 from juniper.util.plotting import img
 
-def miribckg(datamodel, steps, inpt_dict, plot_dir, outfile):
-    """Performs group-level background subtraction on every group in the datamodel according to the instructions in inpt_dict.
-    Adapted from routine developed by Trevor Foote (tof2@cornell.edu).
+def miribckg(datamodel, steps, refpix_steps, inpt_dict, plot_dir, outfile):
+    """Performs background subtraction using a supplied background file, if one was taken with this observation.
 
     Args:
         datamodel (jwst.datamodel): A datamodel containing attribute .data, which is an np array of shape nints x ngroups x nrows x ncols, produced during wrap_front_end.
         steps (dict): The full dictionary of instructions, needed to reprocess the bckg.
+        refpix_steps (dict): The MIRI refpix_step dict, which might also be needed to reprocess the bckg.
         inpt_dict (dict): A dictionary containing instructions for performing this step.
         plot_dir (str): location to save diagnostic plots to.
         outfile (str): helps keep diagnostic plots distinct.
@@ -35,7 +37,17 @@ def miribckg(datamodel, steps, inpt_dict, plot_dir, outfile):
 
     # Load in the MIRI LRS background image.
     try:
-        bckg = wrap_front_end(inpt_dict['path'],steps)
+        # Background processing must not overwrite plots.
+        bckg_steps = deepcopy(steps)
+        bckg_steps["show_plots"] = 0
+        bckg_steps["save_plots"] = 0
+
+        # Now we can reprocess safely.
+        bckg = wrap_stage1jwst.wrap_front_end(inpt_dict['path'],bckg_steps)
+        if (inpt_dict["do_refpix"] and bckg.meta.cal_step.refpix == "SKIPPED"):
+            refpix_steps["show_plots"] = 0
+            refpix_steps["save_plots"] = 0
+            bckg = miri_refpix_step.miri_refpix(bckg, refpix_steps, None, None)
         bckg = bckg.data
         bckg = np.median(bckg,axis=0) # axis 0 is integrations
         if (plot_step or save_step):
@@ -55,11 +67,11 @@ def miribckg(datamodel, steps, inpt_dict, plot_dir, outfile):
 
     # Iterate over frames.
     for i in tqdm(range(datamodel.data.shape[0]),
-                  desc = "Removing 1/f noise from integrations...",
+                  desc = "Removing MIRI background noise from integrations...",
                   disable=(not time_step)): # for each integration
         # Iterate over groups.
         for g in tqdm(range(datamodel.data.shape[1]),
-                      desc = "Correcing integration {}...".format(i),
+                      desc = "Correcting integration {}...".format(i),
                       disable=(not time_ints)): # for each group
             if (plot_step or save_step) and g == 0 and i == 0:
                 # Plot and/or save the pre-sub first int's first group as an example.

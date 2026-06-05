@@ -27,11 +27,21 @@ save_flagged    False                                       # bool. Whether to s
 
 do_msa_flagging False                                       # bool. Whether to perform this step in jwst Spec2Pipeline. Applies only to NIRSpec MOS and IFU. Not recommended by default for TSOs.
 
-do_cleanflicker False                                       # bool. Whether to perform this step in jwst Spec2Pipeline. Applies to all NIRSpec modes.
-mask_trace      True                                        # bool. Whether to mask the trace as defined by the WCS bounding boxes.
-n_sigma         5                                           # float. Sigma for kicking outliers from the background region.
-save_mask       False                                       # bool. Whether to save the trace mask.
-user_mask       None                                        # str or None. User-supplied trace mask path. Recommended to use this if an initial attempt at running this routine results in inadequate masking of trace signal.
+do_cleanflicker False                                       # bool. Whether to perform this step in jwst Spec2Pipeline.
+autoparam       False                                       # bool. If True, automatically selects some fit and background parameters when possible.
+fit_method      'median'                                    # str. The noise fitting algorithm to use, with options 'fft' or 'median'.
+fit_by_channel  False                                       # bool. If True, fits flicker noise separately for each channel. Ignored by MIRI, subarrays, and 'fft' method.
+bkg_method      'median'                                    # str. Background structure fitting method to use, with options 'median', 'model', 'median_image', or None.
+bkg_box_size    None                                        # lst of int, or None. Box size for the data grid when using method 'model'.
+mask_sci_regs   False                                       # bool. Masks traces and/or non-science regions depending on detector.
+apply_flatfield False                                       # bool. If True, flat-corrects images prior to fitting background level.
+n_sigma         2.0                                         # float. Sigma-clipping threshold for rejecting outliers and illuminated pixels.
+fit_histogram   False                                       # bool. If True, the sigma threshold for n_sigma will be derived from a Gaussian fit of the values.
+single_mask     True                                        # bool. If True, makes just one data mask for all the data.
+user_mask       './'                                        # str. Points to a custom user-supplied data mask.
+save_mask       False                                       # bool. Whether to save this output of this step.
+save_background False                                       # bool. Whether to save this output of this step.
+save_noise      False                                       # bool. Whether to save this output of this step.
 
 do_imprint      False                                       # bool. Whether to perform this step in jwst Spec2Pipeline. Applies only to NIRSpec MOS and IFU. Not recommended by default for TSOs.
 
@@ -39,9 +49,16 @@ do_background   False                                       # bool. Whether to p
 bkg_sigma       3                                           # float. Sigma clipping limit.
 maxiters        None                                        # int or None. If int, limits how many iterations are performed.
 save_bkg        False                                       # bool. Whether to save the combined image used to subtract the background.
+soss_src_perc   35.0                                        # float. Flux percentile at which data are considered source.
+soss_bkg_perc   [25.0,50.0]                                 # lst of float. Range of flux percentiles to use as background flux measurements.
 wfss_mmag_bkg   False                                       # float or None. For WFSS only. Magnitude limit for extracting sources.
+wfss_mask       './'                                        # str or None. If not None, it is a path to a custom user-supplied mask.
+wfss_maxiter    5                                           # int. Maximum number of iterations for rejecting outliers from the background scaling factor determination process.
+wfss_rms_stop   0                                           # float. Allows early termination of scaling factor determination if RMS percent difference between iterations becomes this small.
+wfss_outr_perc  1                                           # float. Percentile of low and high outliers to reject in each iteration of scaling factor determination.
+bkg_list        []                                          # lst of str. A list of paths to background files to combine to build the background image.
 
-do_extract_2d   True                                        # bool. Whether to perform this step in jwst Spec2Pipeline. Applies to all NIRSpec modes.
+do_extract_2d   True                                        # bool. Whether to perform this step in jwst Spec2Pipeline.
 slit_names      None                                        # lst of str, lst of int, or None. If not None, extract from specific slits. If None, try to extract from all known slits.
 tsgrism_height  100                                         # int. Cross-dispersion aperture size.
 wfss_halfheight 100                                         # int. WFSS cross-dispersion aperture half-size.
@@ -52,6 +69,9 @@ grism_objects   []                                          # list of jwst.trans
 
 do_srctype      True                                        # bool. Whether to perform this step in jwst Spec2Pipeline.
 source_type_st  None                                        # str ("POINT" or "EXTENDED") or None. Can be used to override Spec2Pipeline's judgment.
+
+do_targcentroid False                                       # bool. Whether to perform this step in jwst Spec2Pipeline. Applies to MIRI LRS. Not recommended for default for TSOs.
+ta_file         './'                                        # str. Absolute path to the target acquisition image for this observation. Necessary to perform this step - step is skipped if file cannot be located!
 
 do_wavecorr     False                                       # bool. Whether to perform this step in jwst Spec2Pipeline. Applies to NIRSpec FS and MOS. Not recommended by default for TSOs.
 
@@ -104,6 +124,13 @@ mrs_time_corr   True                                        # bool. Whether to t
 do_res_fringe   False                                       # bool. Whether to perform this step in jwst Spec2Pipeline. Applies only to MIRI MRS.
 ignore_min      None                                        # float. Min wavelength of regions to be ignored, as comma-separated list.
 ignore_max      None                                        # float. Max wavelength of regions to be ignored, as comma-separated list.
+
+do_tracemodel   False                                       # bool. Whether to perform this step in jwst Spec2Pipeline. Short for "adaptive trace model". Applies to MIRI MRS and NIRSpec IFU. Not recommended by default for TSOs.
+fit_threshold   10.0                                        # float. Signal threshold value for attempting a spline fit in standard deviations.
+oversample      1.0                                         # float. Factor by which to oversample the data.
+slope_limit     0.1                                         # float. Slope limit for using the spline model to compute the trace.
+psf_optimal     False                                       # bool. If True, ignores fit_threshold and slope_limit, and spline fits to all data.
+save_int_result False                                       # bool. Whether to save intermediate outputs for full diagnostics of spline fitting performance.
 
 do_pixelreplace False                                       # bool. Whether to perform this step in jwst Spec2Pipeline.
 algorithm       'fit_profile'                               # str. How to replace bad pixels.
