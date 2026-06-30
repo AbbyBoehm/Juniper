@@ -54,8 +54,8 @@ def glbs(datamodel, inpt_dict, plot_dir, outfile):
 
     # If needed, get the trace mask using the median last group.
     trace_mask = np.zeros_like(data[0,0,:,:])
+    median_last_group = np.median(np.copy(data[:,-1,:,:]),axis=0)
     if inpt_dict["mask"]:
-        median_last_group = np.median(np.copy(data[:,-1,:,:]),axis=0)
         if inpt_dict["com_mask"]:
             trace_mask = get_com_mask(median_spatial_filter(median_last_group,
                                                             sigma=inpt_dict["sigma"],
