@@ -598,10 +598,15 @@ def build_priors_dict(planets, flares, systematics, ld,
                 for i,coeff in enumerate(systematics[superdict_key][key+"_coeffs"]):
                     # Prepare for lots of exceptions!
                     if key in ("singleramp","doubleramp"):
-                        # Small priors on exponentials, I don't need to see any bad exp behavior.
-                        superdict_prior[key+str(i+1)] = [0,10]
-                        superdict_ptype[key+str(i+1)] = "gaussian"
-                        superdict_fitornot[key+str(i+1)] = True
+                        # Small priors on exponential scaling coefficient, large prior on the ramp
+                        if i in (0,2):
+                            superdict_prior[key+str(i+1)] = [0,1]
+                            superdict_ptype[key+str(i+1)] = "gaussian"
+                            superdict_fitornot[key+str(i+1)] = True
+                        else:
+                            superdict_prior[key+str(i+1)] = [-1000,1000]
+                            superdict_ptype[key+str(i+1)] = "uniform"
+                            superdict_fitornot[key+str(i+1)] = True
                     
                     # Special exception for poly.
                     if "poly" in key:

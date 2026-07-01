@@ -11,13 +11,14 @@ import matplotlib.pyplot as plt
 from juniper.stage5 import batman_handler, fit_handler, exotic_handler, models
 from juniper.util.diagnostics import tqdm_translate, plot_translate, timer
 from juniper.util.cleaning import median_timeseries_filter
-from juniper.util.plotting import plot_fit
+from juniper.util.plotting import plot_fit, plot_res
 
 
 def nestfit(exp_times, light_curve, errors, wavelengths,
             planets, flares, systematics, ld,
             inpt_dict, is_spec=False,
             show_guess_plot=False, save_guess_plot=False,
+            show_estimate=False, save_estimate=False,
             plot_dir=None, outfile=None, wavestr=None):
     """Performs static or dynamic nested sampling fitting on the given array(s) using dynesty.
     
@@ -44,6 +45,10 @@ def nestfit(exp_times, light_curve, errors, wavelengths,
         vs final guess. Defaults to False.
         save_guess_plot (bool, optional): whether to save a plot of the initial
         vs final guess. Defaults to False.
+        show_estimate (bool, optional): whether to show a plot of the model
+        estimate. Defaults to False.
+        save_estimate (bool, optional): whether to save a plot of the model
+        estimate. Defaults to False.
         plot_dir (str, optional): location to save diagnostic plots to. Defaults to None.
         outfile (str, optional): name to save diagnostic plots to. Defaults to None.
         wavestr (str, optional): name to save spec plots to. Defaults to None.
@@ -85,7 +90,7 @@ def nestfit(exp_times, light_curve, errors, wavelengths,
             polyfit_coeffs[0] = np.median(light_curve[i])*polyfit_coeffs[0]
 
             # If asked, plot how we got the poly model.
-            if (save_guess_plot or show_guess_plot):
+            if (save_estimate or show_estimate):
                 fig, ax = plt.subplots(figsize=(7,5))
                 ax.scatter(exp_times[i],light_curve[i],color='k')
                 ax.scatter(exp_times[i],light_curve[i]/planet_flux,color='grey')
@@ -94,32 +99,32 @@ def nestfit(exp_times, light_curve, errors, wavelengths,
                 ax.set_xlabel("Exposure Time [BJD_TDB]")
                 ax.set_ylabel("Flux [normalized]")
                 ax.tick_params(which='both',axis='both',direction='in',)
-                if save_guess_plot:
+                if save_estimate:
                     if is_spec:
                         plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"detector{}".format(key)+"_spec{}nested_system-estimate.png".format(wavestr)),
                                     dpi=300, bbox_inches='tight')
                     else:
                         plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"detector{}".format(key)+"_broadbandnested_system-estimate.png"),
                                     dpi=300, bbox_inches='tight')
-                if show_guess_plot:
+                if show_estimate:
                     plt.show(block=True)
                 plt.close()
 
-            if (save_guess_plot or show_guess_plot):
+            if (save_estimate or show_estimate):
                 fig, ax = plt.subplots(figsize=(7,5))
                 ax.scatter(exp_times[i],light_curve[i]/np.median(light_curve[i]),color='grey',zorder=0)
                 ax.plot(exp_times[i],planet_flux,color='k',zorder=1)
                 ax.set_xlabel("Exposure Time [BJD_TDB]")
                 ax.set_ylabel("Flux [normalized]")
                 ax.tick_params(which='both',axis='both',direction='in',)
-                if save_guess_plot:
+                if save_estimate:
                     if is_spec:
                         plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"detector{}".format(key)+"_spec{}nested_system-planetflare.png".format(wavestr)),
                                     dpi=300, bbox_inches='tight')
                     else:
                         plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"detector{}".format(key)+"_broadbandnested_system-planetflare.png"),
                                     dpi=300, bbox_inches='tight')
-                if show_guess_plot:
+                if show_estimate:
                     plt.show(block=True)
                 plt.close()
     
@@ -162,7 +167,7 @@ def nestfit(exp_times, light_curve, errors, wavelengths,
                 systematics[key][f"{detrend_type}_detrend_coeffs"] = polyfit_coeffs
 
                 # If asked, plot how we got the poly model.
-                if (save_guess_plot or show_guess_plot):
+                if (save_estimate or show_estimate):
                     fig, ax = plt.subplots(figsize=(7,5))
                     ax.scatter(exp_times[i],light_curve[i]/np.median(light_curve[i]),color='k')
                     ax.scatter(exp_times[i],light_curve[i]/planet_flux/np.median(light_curve[i]),color='grey')
@@ -179,14 +184,14 @@ def nestfit(exp_times, light_curve, errors, wavelengths,
                     ax.set_xlabel("Exposure Time [BJD_TDB]")
                     ax.set_ylabel("Flux [normalized]")
                     ax.tick_params(which='both',axis='both',direction='in',)
-                    if save_guess_plot:
+                    if save_estimate:
                         if is_spec:
                             plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"detector{}".format(key)+"_spec{}nested_{}-estimate.png".format(wavestr,detrend_type)),
                                         dpi=300, bbox_inches='tight')
                         else:
                             plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"detector{}".format(key)+"_broadbandnested_{}-estimate.png".format(detrend_type)),
                                         dpi=300, bbox_inches='tight')
-                    if show_guess_plot:
+                    if show_estimate:
                         plt.show(block=True)
                     plt.close()
     
@@ -240,29 +245,43 @@ def nestfit(exp_times, light_curve, errors, wavelengths,
 
     # If asked, make a plot of the initial guess.
     if (show_guess_plot or save_guess_plot):
-        fig, ax = plt.subplots(figsize=(7,int(2.5*len(list(planets.keys())))),
-                               nrows=len(list(planets.keys())))
-        # On each ax[i], plot the full model and its components.
+        fig, ax = plt.subplots(figsize=(12,int(2.5*len(list(planets.keys())))),
+                               nrows=len(list(planets.keys())),ncols=2)
+        # On each ax[i,0], plot the full model, and on ax[i,1], plot its res
         for i,key in enumerate(list(planets.keys())):
             full_model, _ = models.full_model(exp_times[i],
                                               planets[key],
                                               flares[key],
                                               systematics[key],
                                               None, None)
-            
+            norm_factor = np.median(light_curve[i])
             # Plot the initial model over the data.
             if len(list(planets.keys())) > 1:
-                ax[i] = plot_fit(ax[i], exp_times[i], light_curve[i], errors[i],
-                                exp_times[i], full_model, fit_color='blue')
-                ax[i].set_xlabel("Exposure Time [BJD_TDB]")
-                ax[i].set_ylabel("Flux [normalized]")
-                ax[i].tick_params(which='both',axis='both',direction='in',)
+                ax[i,0] = plot_fit(ax[i,0], exp_times[i], light_curve[i]/norm_factor,
+                                   errors[i]/norm_factor, exp_times[i], full_model/norm_factor,
+                                   fit_color='blue')
+                ax[i,1] = plot_res(ax[i,1], exp_times[i],
+                                   1e6*(light_curve[i]-full_model)/norm_factor,
+                                   1e6*errors[i]/norm_factor)
+                for column_idx in (0,1):
+                    ax[i,column_idx].set_xlabel("Exposure Time [BJD_TDB]")
+                    ax[i,column_idx].set_ylabel("Flux [normalized]")
+                    if column_idx==1:
+                        ax[i,column_idx].set_ylabel("Residuals [ppm]")
+                    ax[i,column_idx].tick_params(which='both',axis='both',direction='in',)
             else:
-                ax = plot_fit(ax, exp_times[i], light_curve[i], errors[i],
-                                exp_times[i], full_model, fit_color='blue')
-                ax.set_xlabel("Exposure Time [BJD_TDB]")
-                ax.set_ylabel("Flux [normalized]")
-                ax.tick_params(which='both',axis='both',direction='in',)
+                ax[0] = plot_fit(ax[0], exp_times[i], light_curve[i]/norm_factor,
+                                 errors[i]/norm_factor, exp_times[i], full_model/norm_factor,
+                                 fit_color='blue')
+                ax[1] = plot_res(ax[1], exp_times[i],
+                                 1e6*(light_curve[i]-full_model)/norm_factor,
+                                 1e6*errors[i]/norm_factor)
+                for column_idx in (0,1):
+                    ax[column_idx].set_xlabel("Exposure Time [BJD_TDB]")
+                    ax[column_idx].set_ylabel("Flux [normalized]")
+                    if column_idx==1:
+                        ax[column_idx].set_ylabel("Residuals [ppm]")
+                    ax[column_idx].tick_params(which='both',axis='both',direction='in',)
         if save_guess_plot:
             if is_spec:
                 plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_spec{}nested-initial.png".format(wavestr)),
@@ -480,29 +499,43 @@ def nestfit(exp_times, light_curve, errors, wavelengths,
 
     # If asked, make a plot of the final guess.
     if (show_guess_plot or save_guess_plot):
-        fig, ax = plt.subplots(figsize=(7,int(2.5*len(list(planets.keys())))),
-                               nrows=len(list(planets.keys())))
-        # On each ax[i], plot the full model and its components.
+        fig, ax = plt.subplots(figsize=(12,int(2.5*len(list(planets.keys())))),
+                               nrows=len(list(planets.keys())),ncols=2)
+        # On each ax[i,0], plot the full model, and on ax[i,1], plot its res
         for i,key in enumerate(list(planets.keys())):
             full_model, _ = models.full_model(exp_times[i],
                                               planets[key],
                                               flares[key],
                                               systematics[key],
                                               None, None)
-            
+            norm_factor = np.median(light_curve[i])
             # Plot the final model over the data.
             if len(list(planets.keys())) > 1:
-                ax[i] = plot_fit(ax[i], exp_times[i], light_curve[i], errors[i],
-                                exp_times[i], full_model, fit_color='red')
-                ax[i].set_xlabel("Exposure Time [BJD_TDB]")
-                ax[i].set_ylabel("Flux [normalized]")
-                ax[i].tick_params(which='both',axis='both',direction='in',)
+                ax[i,0] = plot_fit(ax[i,0], exp_times[i], light_curve[i]/norm_factor,
+                                   errors[i]/norm_factor, exp_times[i], full_model/norm_factor,
+                                   fit_color='red')
+                ax[i,1] = plot_res(ax[i,1], exp_times[i],
+                                   1e6*(light_curve[i]-full_model)/norm_factor,
+                                   1e6*errors[i]/norm_factor)
+                for column_idx in (0,1):
+                    ax[i,column_idx].set_xlabel("Exposure Time [BJD_TDB]")
+                    ax[i,column_idx].set_ylabel("Flux [normalized]")
+                    if column_idx==1:
+                        ax[i,column_idx].set_ylabel("Residuals [ppm]")
+                    ax[i,column_idx].tick_params(which='both',axis='both',direction='in',)
             else:
-                ax = plot_fit(ax, exp_times[i], light_curve[i], errors[i],
-                                exp_times[i], full_model, fit_color='red')
-                ax.set_xlabel("Exposure Time [BJD_TDB]")
-                ax.set_ylabel("Flux [normalized]")
-                ax.tick_params(which='both',axis='both',direction='in',)
+                ax[0] = plot_fit(ax[0], exp_times[i], light_curve[i]/norm_factor,
+                                 errors[i]/norm_factor, exp_times[i], full_model/norm_factor,
+                                 fit_color='red')
+                ax[1] = plot_res(ax[1], exp_times[i],
+                                 1e6*(light_curve[i]-full_model)/norm_factor,
+                                 1e6*errors[i]/norm_factor)
+                for column_idx in (0,1):
+                    ax[column_idx].set_xlabel("Exposure Time [BJD_TDB]")
+                    ax[column_idx].set_ylabel("Flux [normalized]")
+                    if column_idx==1:
+                        ax[column_idx].set_ylabel("Residuals [ppm]")
+                    ax[column_idx].tick_params(which='both',axis='both',direction='in',)
         if save_guess_plot:
             if is_spec:
                 plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_spec{}nested-final.png".format(wavestr)),

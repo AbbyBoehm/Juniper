@@ -38,7 +38,6 @@ def read_config(path_to_config_file):
                         "disp_detrend","disp_order",
                         "spatial_detrend","spatial_order",
                         "width_detrend","width_order",
-                        "superbias_scale",
                         "singleramp","doubleramp"]
     
     # Keep track of how many times we have seen this key appear.

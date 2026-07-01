@@ -517,12 +517,12 @@ def make_systematics(s5_config, xpos, ypos, widths, event_ID=1):
     systematics["singleramp"] = s5_config["singleramp_{}".format(event_ID)]
     if systematics["singleramp"]:
         # We need coefficients for a single exponential ramp.
-        systematics["singleramp_coeffs"] = [0,0,0]
+        systematics["singleramp_coeffs"] = [0,0]
 
     systematics["doubleramp"] = s5_config["doubleramp_{}".format(event_ID)]
     if systematics["doubleramp"]:
         # We need coefficients for a double exponential ramp.
-        systematics["doubleramp_coeffs"] = [0,0,0,0,0,0]
+        systematics["doubleramp_coeffs"] = [0,0,0,0]
 
     # We're done parsing!
     return systematics

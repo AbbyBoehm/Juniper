@@ -190,13 +190,14 @@ def bin_light_curves(spectra, inpt_dict):
             plt.close()
 
             # Also, create Allan Variance plot.
-            fig, ax = allan_variance(spectra["time"][d], broadband_det)
-            if save_ints:
-                plt.savefig(os.path.join(inpt_dict['plot_dir'],'S5_detector{}_Allanbroadband_lc.png'.format(d)),
-                            dpi=300, bbox_inches='tight')
-            if plot_ints:
-                plt.show(block=True)
-            plt.close()
+            if (plot_ints or save_ints):
+                fig, ax = allan_variance(spectra["time"][d], broadband_det)
+                if save_ints:
+                    plt.savefig(os.path.join(inpt_dict['plot_dir'],'S5_detector{}_Allanbroadband_lc.png'.format(d)),
+                                dpi=300, bbox_inches='tight')
+                if plot_ints:
+                    plt.show(block=True)
+                plt.close()
 
         # The spec curves are more nuanced.
         if inpt_dict["bin_method"] == "columns":
@@ -241,27 +242,28 @@ def bin_light_curves(spectra, inpt_dict):
                 specwave_det.append(bin_wave)
                 specbins_det.append(bin_bins)
 
-                if (plot_ints or save_ints):
+                if (plot_step or save_step):
                     # Create diagnostic plot of this spec light curve.
                     plt.errorbar(spectra["time"][d], bin_spec, yerr=bin_err, fmt='ko', capsize=3)
                     plt.title("Spectroscopic light curve")
                     plt.xlabel("time [mjd]")
                     plt.ylabel("flux [a.u.]")
-                    if save_ints:
+                    if save_step:
                         plt.savefig(os.path.join(inpt_dict['plot_dir'],'S5_detector{}_spec{}um_lc.png'.format(d,np.round(bin_wave,3))),
                                     dpi=300, bbox_inches='tight')
-                    if plot_ints:
+                    if plot_step:
                         plt.show(block=True)
                     plt.close()
 
-                    # Also, create Allan Variance plot.
-                    fig, ax = allan_variance(spectra["time"][d], bin_spec)
-                    if save_ints:
-                        plt.savefig(os.path.join(inpt_dict['plot_dir'],'S5_detector{}_Allan{}um_lc.png'.format(d,np.round(bin_wave,3))),
-                                    dpi=300, bbox_inches='tight')
-                    if plot_ints:
-                        plt.show(block=True)
-                    plt.close()
+                    if (plot_ints or save_ints):
+                        # Also, create Allan Variance plot.
+                        fig, ax = allan_variance(spectra["time"][d], bin_spec)
+                        if save_ints:
+                            plt.savefig(os.path.join(inpt_dict['plot_dir'],'S5_detector{}_Allan{}um_lc.png'.format(d,np.round(bin_wave,3))),
+                                        dpi=300, bbox_inches='tight')
+                        if plot_ints:
+                            plt.show(block=True)
+                        plt.close()
 
                 # Progress bar update.
                 pbar.update(1)
@@ -293,27 +295,28 @@ def bin_light_curves(spectra, inpt_dict):
             specwave_det.append(bin_wave)
             specbins_det.append(bin_bins)
 
-            if (plot_ints or save_ints):
+            if (plot_step or save_step):
                 # Create diagnostic plot of this spec light curve.
                 plt.errorbar(spectra["time"][d], bin_spec, yerr=bin_err, fmt='ko', capsize=3)
                 plt.title("Spectroscopic light curve")
                 plt.xlabel("time [mjd]")
                 plt.ylabel("flux [a.u.]")
-                if save_ints:
+                if save_step:
                     plt.savefig(os.path.join(inpt_dict['plot_dir'],'S5_detector{}_spec{}um_lc.png'.format(d,np.round(bin_wave,3))),
                                 dpi=300, bbox_inches='tight')
-                if plot_ints:
+                if plot_step:
                     plt.show(block=True)
                 plt.close()
 
-                # Also, create Allan Variance plot.
-                fig, ax = allan_variance(spectra["time"][d], bin_spec)
-                if save_ints:
-                    plt.savefig(os.path.join(inpt_dict['plot_dir'],'S5_detector{}_Allan{}um_lc.png'.format(d,np.round(bin_wave,3))),
-                                dpi=300, bbox_inches='tight')
-                if plot_ints:
-                    plt.show(block=True)
-                plt.close()
+                if (plot_ints or save_ints):
+                    # Also, create Allan Variance plot.
+                    fig, ax = allan_variance(spectra["time"][d], bin_spec)
+                    if save_ints:
+                        plt.savefig(os.path.join(inpt_dict['plot_dir'],'S5_detector{}_Allan{}um_lc.png'.format(d,np.round(bin_wave,3))),
+                                    dpi=300, bbox_inches='tight')
+                    if plot_ints:
+                        plt.show(block=True)
+                    plt.close()
 
             # Close the progress bar.
             pbar.close()
@@ -359,27 +362,28 @@ def bin_light_curves(spectra, inpt_dict):
                 specwave_det.append(bin_wave)
                 specbins_det.append(bin_bins)
 
-                if (plot_ints or save_ints):
+                if (plot_step or save_step):
                     # Create diagnostic plot of this spec light curve.
                     plt.errorbar(spectra["time"][d], bin_spec, yerr=bin_err, fmt='ko', capsize=3)
                     plt.title("Spectroscopic light curve")
                     plt.xlabel("time [mjd]")
                     plt.ylabel("flux [a.u.]")
-                    if save_ints:
+                    if save_step:
                         plt.savefig(os.path.join(inpt_dict['plot_dir'],'S5_detector{}_spec{}um_lc.png'.format(d,np.round(bin_wave,3))),
                                     dpi=300, bbox_inches='tight')
-                    if plot_ints:
+                    if plot_step:
                         plt.show(block=True)
                     plt.close()
 
-                    # Also, create Allan Variance plot.
-                    fig, ax = allan_variance(spectra["time"][d], bin_spec)
-                    if save_ints:
-                        plt.savefig(os.path.join(inpt_dict['plot_dir'],'S5_detector{}_Allan{}um_lc.png'.format(d,np.round(bin_wave,3))),
-                                    dpi=300, bbox_inches='tight')
-                    if plot_ints:
-                        plt.show(block=True)
-                    plt.close()
+                    if (plot_ints or save_ints):
+                        # Also, create Allan Variance plot.
+                        fig, ax = allan_variance(spectra["time"][d], bin_spec)
+                        if save_ints:
+                            plt.savefig(os.path.join(inpt_dict['plot_dir'],'S5_detector{}_Allan{}um_lc.png'.format(d,np.round(bin_wave,3))),
+                                        dpi=300, bbox_inches='tight')
+                        if plot_ints:
+                            plt.show(block=True)
+                        plt.close()
 
         # And store.
         spec.append(spec_det)
@@ -461,14 +465,15 @@ def bin_light_curves(spectra, inpt_dict):
                     plt.show(block=True)
                 plt.close()
 
-                # Also, create Allan Variance plot.
-                fig, ax = allan_variance(t[d], broadband[d])#, broaderr[d,:])
-                if save_ints:
-                    plt.savefig(os.path.join(inpt_dict['plot_dir'],'S5_detector{}_Allanbinnedbroadband_lc.png'.format(d)),
-                                dpi=300, bbox_inches='tight')
-                if plot_ints:
-                    plt.show(block=True)
-                plt.close()
+                if (plot_ints or save_ints):
+                    # Also, create Allan Variance plot.
+                    fig, ax = allan_variance(t[d], broadband[d])#, broaderr[d,:])
+                    if save_ints:
+                        plt.savefig(os.path.join(inpt_dict['plot_dir'],'S5_detector{}_Allanbinnedbroadband_lc.png'.format(d)),
+                                    dpi=300, bbox_inches='tight')
+                    if plot_ints:
+                        plt.show(block=True)
+                    plt.close()
                     
     # Bundle as dictionary.
     light_curves = {"broadband":broadband,

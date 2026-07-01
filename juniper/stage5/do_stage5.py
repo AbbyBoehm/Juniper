@@ -83,20 +83,6 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
         ypos = 1 + (ypos - np.min(ypos)) * (-1 - 1) / (np.max(ypos) - np.min(ypos))
         widths = 1 + (widths - np.min(widths)) * (-1 - 1) / (np.max(widths) - np.min(widths))
 
-        if (plot_step or save_step):
-            for var, var_name in zip((xpos,ypos,widths),("dispersion","cross-dispersion","widths")):
-                plt.figure(figsize=(10,5))
-                plt.scatter(light_curves["time"][d],var,color='k')
-                plt.xlabel('Exposure Time [BJD TDB]')
-                plt.ylabel(f'Trend: {var_name}')
-                plt.tick_params(which='both',axis='both',direction='in')
-                if save_step:
-                    plt.savefig(os.path.join(plot_dir,"s5_"+outfile+f"_ID{d}_trend-{var_name}.png"),
-                                dpi=300, bbox_inches='tight')
-                if plot_step:
-                    plt.show(block=True)
-                plt.close()
-
         # Optionally, clean and smooth the position and widths data
         # since fitter often struggles with this.
         if steps["clean_pos"]:
@@ -117,6 +103,21 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
             if flen % 2 == 0:
                 flen += 1
             widths = median_filter(widths,flen,mode='nearest')
+        
+        if (plot_step or save_step):
+            # Plot the detrending variables for reference.
+            for var, var_name in zip((xpos,ypos,widths),("dispersion","cross-dispersion","widths")):
+                plt.figure(figsize=(10,5))
+                plt.scatter(light_curves["time"][d],var,color='k')
+                plt.xlabel('Exposure Time [BJD TDB]')
+                plt.ylabel(f'Trend: {var_name}')
+                plt.tick_params(which='both',axis='both',direction='in')
+                if save_step:
+                    plt.savefig(os.path.join(plot_dir,"s5_"+outfile+f"_ID{d}_trend-{var_name}.png"),
+                                dpi=300, bbox_inches='tight')
+                if plot_step:
+                    plt.show(block=True)
+                plt.close()
         
         systematics[str(event_ID)] = make_systematics(steps,
                                                       xpos=xpos,
@@ -144,6 +145,8 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
                                                                      inpt_dict=steps, is_spec=False,
                                                                      show_guess_plot=plot_step,
                                                                      save_guess_plot=save_step,
+                                                                     show_estimate=plot_ints,
+                                                                     save_estimate=save_ints,
                                                                      plot_dir=plot_dir,outfile=outfile,wavestr=None)
             
             # Save output. Needs to be formatted as if there is more than one dimension.
@@ -168,6 +171,8 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
                                                      inpt_dict=steps, is_spec=False,
                                                      show_guess_plot=plot_step,
                                                      save_guess_plot=save_step,
+                                                     show_estimate=plot_ints,
+                                                     save_estimate=save_ints,
                                                      plot_dir=plot_dir,outfile=outfile,wavestr=None)
             
             # Save output.
@@ -180,15 +185,6 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
             if (plot_step or save_step):
                 # Unpack plotting items.
                 ndim, samples, flat_samples, labels, n = plotting_items
-                
-                # Plot posteriors.
-                fig, ax = plot_post(ndim,samples,labels,n)
-                if save_step:
-                    plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_broadbandMCMC-posterior.png"),
-                                dpi=300, bbox_inches='tight')
-                if plot_step:
-                    plt.show(block=True)
-                plt.close()
 
                 # Plot corners.
                 fig = plot_corner(flat_samples,labels)
@@ -199,14 +195,24 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
                     plt.show(block=True)
                 plt.close()
 
-                # Plot chains.
-                fig, ax = plot_chains(ndim,samples,labels)
-                if save_step:
-                    plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_broadbandMCMC-chains.png"),
-                                dpi=300, bbox_inches='tight')
-                if plot_step:
-                    plt.show(block=True)
-                plt.close()
+                if (plot_ints or save_ints):
+                    # Plot posteriors.
+                    fig, ax = plot_post(ndim,samples,labels,n)
+                    if save_ints:
+                        plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_broadbandMCMC-posterior.png"),
+                                    dpi=300, bbox_inches='tight')
+                    if plot_ints:
+                        plt.show(block=True)
+                    plt.close()
+
+                    # Plot chains.
+                    fig, ax = plot_chains(ndim,samples,labels)
+                    if save_ints:
+                        plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_broadbandMCMC-chains.png"),
+                                    dpi=300, bbox_inches='tight')
+                    if plot_ints:
+                        plt.show(block=True)
+                    plt.close()
         
         # Alternatively or additionally, use nested sampling to fit the broadband data.
         if steps["use_nested"]:
@@ -223,6 +229,8 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
                                                             inpt_dict=steps, is_spec=False,
                                                             show_guess_plot=plot_step,
                                                             save_guess_plot=save_step,
+                                                            show_estimate=plot_ints,
+                                                            save_estimate=save_ints,
                                                             plot_dir=plot_dir,outfile=outfile,wavestr=None)
             
             # Save output.
@@ -235,15 +243,6 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
             if (plot_step or save_step):
                 # Unpack plotting items.
                 ndim, samples, labels = plotting_items
-                
-                # Plot posteriors.
-                fig, ax = plot_nest_post(ndim,samples,labels)
-                if save_step:
-                    plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_broadbandnested-posterior.png"),
-                                dpi=300, bbox_inches='tight')
-                if plot_step:
-                    plt.show(block=True)
-                plt.close()
 
                 # Plot corners.
                 fig = plot_corner(samples,labels)
@@ -253,6 +252,16 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
                 if plot_step:
                     plt.show(block=True)
                 plt.close()
+
+                if (plot_ints or save_ints):
+                    # Plot posteriors.
+                    fig, ax = plot_nest_post(ndim,samples,labels)
+                    if save_ints:
+                        plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_broadbandnested-posterior.png"),
+                                    dpi=300, bbox_inches='tight')
+                    if plot_ints:
+                        plt.show(block=True)
+                    plt.close()
             
     # Then fit the spectroscopic curves.
     if steps["fit_spec"]:
@@ -322,8 +331,10 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
                                                                              planets=planets, flares=flares,
                                                                              systematics=systematics, ld=ld,
                                                                              inpt_dict=steps, is_spec=True,
-                                                                             show_guess_plot=plot_ints,
-                                                                             save_guess_plot=save_ints,
+                                                                             show_guess_plot=plot_step,
+                                                                             save_guess_plot=save_step,
+                                                                             show_estimate=plot_ints,
+                                                                             save_estimate=save_ints,
                                                                              plot_dir=plot_dir,outfile=outfile,wavestr=wavestr)
                 
                     # Save output. Needs to be formatted as if there is more than one dimension.
@@ -345,8 +356,10 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
                                                             planets=planets, flares=flares,
                                                             systematics=systematics, ld=ld,
                                                             inpt_dict=steps, is_spec=True,
-                                                            show_guess_plot=plot_ints,
-                                                            save_guess_plot=save_ints,
+                                                            show_guess_plot=plot_step,
+                                                            save_guess_plot=save_step,
+                                                            show_estimate=plot_ints,
+                                                            save_estimate=save_ints,
                                                             plot_dir=plot_dir,outfile=outfile,wavestr=wavestr)
                     
                     # Save output.
@@ -360,32 +373,33 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
                         # Unpack plotting items.
                         ndim, samples, flat_samples, labels, n = plotting_items
                         
-                        # Plot posteriors.
-                        fig, ax = plot_post(ndim,samples,labels,n)
-                        if save_ints:
-                            plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_spec{}MCMC-posterior.png".format(wavestr)),
-                                        dpi=300, bbox_inches='tight')
-                        if plot_ints:
-                            plt.show(block=True)
-                        plt.close()
-
                         # Plot corners.
                         fig = plot_corner(flat_samples,labels)
-                        if save_ints:
-                            plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_spec{}MCMC-corner.png".format(wavestr)),
-                                        dpi=300, bbox_inches='tight')
-                        if plot_ints:
-                            plt.show(block=True)
-                        plt.close()
-
-                        # Plot chains.
-                        fig, ax = plot_chains(ndim,samples,labels)
                         if save_step:
-                            plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_spec{}MCMC-chains.png".format(wavestr)),
+                            plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_spec{}MCMC-corner.png".format(wavestr)),
                                         dpi=300, bbox_inches='tight')
                         if plot_step:
                             plt.show(block=True)
                         plt.close()
+
+                        if (plot_ints or save_ints):
+                            # Plot posteriors.
+                            fig, ax = plot_post(ndim,samples,labels,n)
+                            if save_ints:
+                                plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_spec{}MCMC-posterior.png".format(wavestr)),
+                                            dpi=300, bbox_inches='tight')
+                            if plot_ints:
+                                plt.show(block=True)
+                            plt.close()
+
+                            # Plot chains.
+                            fig, ax = plot_chains(ndim,samples,labels)
+                            if save_ints:
+                                plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_spec{}MCMC-chains.png".format(wavestr)),
+                                            dpi=300, bbox_inches='tight')
+                            if plot_ints:
+                                plt.show(block=True)
+                            plt.close()
 
                 # Alternatively or additionally, fit with dynesty.
                 if steps["use_nested"]:
@@ -400,8 +414,10 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
                                                                     planets=planets, flares=flares,
                                                                     systematics=systematics, ld=ld,
                                                                     inpt_dict=steps, is_spec=True,
-                                                                    show_guess_plot=plot_ints,
-                                                                    save_guess_plot=save_ints,
+                                                                    show_guess_plot=plot_step,
+                                                                    save_guess_plot=save_step,
+                                                                    show_estimate=plot_ints,
+                                                                    save_estimate=save_ints,
                                                                     plot_dir=plot_dir,outfile=outfile,wavestr=wavestr)
             
                     # Save output
@@ -414,15 +430,6 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
                     if (plot_step or save_step):
                         # Unpack plotting items.
                         ndim, samples, labels = plotting_items
-                        
-                        # Plot posteriors.
-                        fig, ax = plot_nest_post(ndim,samples,labels)
-                        if save_step:
-                            plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_spec{}nested-posterior.png".format(wavestr)),
-                                        dpi=300, bbox_inches='tight')
-                        if plot_step:
-                            plt.show(block=True)
-                        plt.close()
 
                         # Plot corners.
                         fig = plot_corner(samples,labels)
@@ -432,6 +439,16 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
                         if plot_step:
                             plt.show(block=True)
                         plt.close()
+                        
+                        if (plot_ints or save_ints):
+                            # Plot posteriors.
+                            fig, ax = plot_nest_post(ndim,samples,labels)
+                            if save_ints:
+                                plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_spec{}nested-posterior.png".format(wavestr)),
+                                            dpi=300, bbox_inches='tight')
+                            if plot_ints:
+                                plt.show(block=True)
+                            plt.close()
                 
                 # Reset planets, etc. to originals.
                 planets, flares, systematics, ld = planets0, flares0, systematics0, ld0
@@ -470,8 +487,10 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
                                                                                  planets=planets, flares=flares,
                                                                                  systematics=systematics, ld=ld,
                                                                                  inpt_dict=steps, is_spec=True,
-                                                                                 show_guess_plot=plot_ints,
-                                                                                 save_guess_plot=save_ints,
+                                                                                 show_guess_plot=plot_step,
+                                                                                 save_guess_plot=save_step,
+                                                                                 show_estimate=plot_ints,
+                                                                                 save_estimate=save_ints,
                                                                                  plot_dir=plot_dir,outfile=outfile,wavestr=wavestr)
                     
                         # Save output. Needs to be formatted as if there is more than one dimension.
@@ -493,8 +512,10 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
                                                                  planets=planets, flares=flares,
                                                                  systematics=systematics, ld=ld,
                                                                  inpt_dict=steps, is_spec=True,
-                                                                 show_guess_plot=plot_ints,
-                                                                 save_guess_plot=save_ints,
+                                                                 show_guess_plot=plot_step,
+                                                                 save_guess_plot=save_step,
+                                                                 show_estimate=plot_ints,
+                                                                 save_estimate=save_ints,
                                                                  plot_dir=plot_dir,outfile=outfile,wavestr=wavestr)
                         
                         # Save output.
@@ -507,33 +528,34 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
                         if (plot_step or save_step):
                             # Unpack plotting items.
                             ndim, samples, flat_samples, labels, n = plotting_items
-                            
-                            # Plot posteriors.
-                            fig, ax = plot_post(ndim,samples,labels,n)
-                            if save_ints:
-                                plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_spec{}MCMC_ID{}-posterior.png".format(wavestr,d+1)),
-                                            dpi=300, bbox_inches='tight')
-                            if plot_ints:
-                                plt.show(block=True)
-                            plt.close()
 
                             # Plot corners.
                             fig = plot_corner(flat_samples,labels)
-                            if save_ints:
-                                plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_spec{}_ID{}MCMC-corner.png".format(wavestr,d+1)),
-                                            dpi=300, bbox_inches='tight')
-                            if plot_ints:
-                                plt.show(block=True)
-                            plt.close()
-
-                            # Plot chains.
-                            fig, ax = plot_chains(ndim,samples,labels)
                             if save_step:
-                                plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_spec{}_ID{}MCMC-chains.png".format(wavestr,d+1)),
+                                plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_spec{}_ID{}MCMC-corner.png".format(wavestr,d+1)),
                                             dpi=300, bbox_inches='tight')
                             if plot_step:
                                 plt.show(block=True)
                             plt.close()
+
+                            if (plot_ints or save_ints):
+                                # Plot posteriors.
+                                fig, ax = plot_post(ndim,samples,labels,n)
+                                if save_ints:
+                                    plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_spec{}MCMC_ID{}-posterior.png".format(wavestr,d+1)),
+                                                dpi=300, bbox_inches='tight')
+                                if plot_ints:
+                                    plt.show(block=True)
+                                plt.close()
+
+                                # Plot chains.
+                                fig, ax = plot_chains(ndim,samples,labels)
+                                if save_ints:
+                                    plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_spec{}_ID{}MCMC-chains.png".format(wavestr,d+1)),
+                                                dpi=300, bbox_inches='tight')
+                                if plot_ints:
+                                    plt.show(block=True)
+                                plt.close()
                     
                     # Alternatively or additionally, fit with dynesty.
                     if steps["use_nested"]:
@@ -548,8 +570,10 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
                                                                         planets=planets, flares=flares,
                                                                         systematics=systematics, ld=ld,
                                                                         inpt_dict=steps, is_spec=True,
-                                                                        show_guess_plot=plot_ints,
-                                                                        save_guess_plot=save_ints,
+                                                                        show_guess_plot=plot_step,
+                                                                        save_guess_plot=save_step,
+                                                                        show_estimate=plot_ints,
+                                                                        save_estimate=save_ints,
                                                                         plot_dir=plot_dir,outfile=outfile,wavestr=wavestr)
                 
                         # Save output
@@ -563,15 +587,6 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
                             # Unpack plotting items.
                             ndim, samples, labels = plotting_items
                             
-                            # Plot posteriors.
-                            fig, ax = plot_nest_post(ndim,samples,labels)
-                            if save_step:
-                                plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_spec{}_ID{}nested-corner.png".format(wavestr,d+1)),
-                                            dpi=300, bbox_inches='tight')
-                            if plot_step:
-                                plt.show(block=True)
-                            plt.close()
-
                             # Plot corners.
                             fig = plot_corner(samples,labels)
                             if save_step:
@@ -580,6 +595,16 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
                             if plot_step:
                                 plt.show(block=True)
                             plt.close()
+
+                            if (plot_ints or save_ints):
+                                # Plot posteriors.
+                                fig, ax = plot_nest_post(ndim,samples,labels)
+                                if save_ints:
+                                    plt.savefig(os.path.join(plot_dir,"s5_"+outfile+"_spec{}_ID{}nested-corner.png".format(wavestr,d+1)),
+                                                dpi=300, bbox_inches='tight')
+                                if plot_ints:
+                                    plt.show(block=True)
+                                plt.close()
                         
                     # Reset planets, etc. to originals.
                     planets, flares, systematics, ld = planets0, flares0, systematics0, ld0

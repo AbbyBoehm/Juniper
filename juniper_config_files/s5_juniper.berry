@@ -193,8 +193,6 @@ spatial_order   0                                           # float. The order o
 width_detrend   False                                       # bool. Whether to detrend based on the cross-dispersion width measured in Stage 3.
 width_order     0                                           # float. The order of polynomial to fit.
 
-superbias_scale False                                       # bool. Whether to do superbias scaling. WIP!
-
 singleramp      False                                       # bool. Whether to fit a single exponential ramp.
 doubleramp      False                                       # bool. Whether to fit a double exponential ramp.
 
