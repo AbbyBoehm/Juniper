@@ -42,11 +42,6 @@ def do_stage1(filepaths, outfiles, outdir, steps, plot_dir):
         # Wrap the first steps of Detector1Pipeline.
         datamodel = wrap_stage1jwst.wrap_front_end(filepath, s1_pipeline)
 
-        # Perform group-level background subtraction.
-        if steps["do_glbs"]:
-            s1_glbs = s1_to_glbs(steps)
-            datamodel = group_level_bckg_sub.glbs(datamodel, s1_glbs, plot_dir, outfile)
-
         # Perform MIRI refpix step, skipped for MIRI subarrays (e.g. LRS) by default.
         if (steps["do_refpix"] and datamodel.meta.cal_step.refpix == "SKIPPED"):
             s1_miri_refpix = s1_to_miri_refpix(steps)
@@ -57,6 +52,11 @@ def do_stage1(filepaths, outfiles, outdir, steps, plot_dir):
             s1_miribckg = s1_to_miribckg(steps)
             s1_miri_refpix = s1_to_miri_refpix(steps)
             datamodel = miri_bckg_sub.miribckg(datamodel, dict(s1_pipeline), s1_miri_refpix, s1_miribckg, plot_dir, outfile)
+
+        # Perform group-level background subtraction.
+        if steps["do_glbs"]:
+            s1_glbs = s1_to_glbs(steps)
+            datamodel = group_level_bckg_sub.glbs(datamodel, s1_glbs, plot_dir, outfile)
 
         # Wrap the last steps of Detector1Pipeline.
         result = wrap_stage1jwst.wrap_back_end(datamodel, s1_pipeline, outfile, outdir)

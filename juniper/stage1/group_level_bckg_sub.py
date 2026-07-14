@@ -32,6 +32,14 @@ def glbs(datamodel, inpt_dict, plot_dir, outfile):
     plot_step, plot_ints = plot_translate(inpt_dict["show_plots"])
     save_step, save_ints = plot_translate(inpt_dict["save_plots"])
 
+    # If needed, rotate MIRI LRS data.
+    if datamodel.meta.exposure.type == "MIR_LRS-SLITLESS":
+        previous_shape = np.shape(datamodel.data)
+        datamodel.data = np.rot90(datamodel.data,k=3,axes=(2,3))
+        new_shape = np.shape(datamodel.data)
+        if inpt_dict["verbose"] == 2:
+            print("Shape temporarily changed from {} to {}.".format(previous_shape,new_shape))
+
     # Copy data.
     data = np.copy(datamodel.data)
 
@@ -206,6 +214,14 @@ def glbs(datamodel, inpt_dict, plot_dir, outfile):
             if plot_step:
                 plt.show()
             plt.close()
+
+    # If needed, re-rotate MIRI LRS data.
+    if datamodel.meta.exposure.type == "MIR_LRS-SLITLESS":
+        previous_shape = np.shape(datamodel.data)
+        datamodel.data = np.rot90(datamodel.data,k=1,axes=(2,3))
+        new_shape = np.shape(datamodel.data)
+        if inpt_dict["verbose"] == 2:
+            print("Shape {} restored to {}.".format(previous_shape,new_shape))
     
     # Log.
     if inpt_dict["verbose"] >= 1:

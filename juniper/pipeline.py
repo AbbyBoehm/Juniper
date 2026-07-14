@@ -53,7 +53,7 @@ def run_pipeline(config_folder,stages=(1,2,3,4,5,6,)):
         outfiles = [None for i in files] # use default names and change uncal to rateints, that's all.
         if s1_config["rename"]:
             # Set up new outfile names and also change uncal to rateints.
-            outfiles = ['{}_f{}_rateints'.format(s1_config["rename"],i) for i, f in enumerate(files)]
+            outfiles = ['{}_f{:02d}_rateints'.format(s1_config["rename"],i) for i, f in enumerate(files)]
 
         # Set up crds cache.
         os.environ["CRDS_PATH"] = "crds_cache" # if no path to crds_cache defined, set it up in the cwdir
@@ -106,7 +106,7 @@ def run_pipeline(config_folder,stages=(1,2,3,4,5,6,)):
         outfiles = [str.replace(f,'_rateints.fits','_calints') for f in fnames] # use default names and change rateints to calints, that's all.
         if s2_config["rename"]:
             # Set up new outfile names and also change rateints to calints.
-            outfiles = ['{}_f{}_calints'.format(s2_config["rename"],i) for i, f in enumerate(files)]
+            outfiles = ['{}_f{:02d}_calints'.format(s2_config["rename"],i) for i, f in enumerate(files)]
 
         # Set up crds cache.
         os.environ["CRDS_PATH"] = "crds_cache/jwst_ops/" # if no path to crds_cache defined, set it up in the cwdir
@@ -159,7 +159,7 @@ def run_pipeline(config_folder,stages=(1,2,3,4,5,6,)):
         outfiles = [str.replace(f,'_calints.fits','_reduced') for f in fnames] # use default names and change rateints to calints, that's all.
         if s3_config["rename"]:
             # Set up new outfile names and also change rateints to calints.
-            outfiles = ['{}_f{}_reduced'.format(s3_config["rename"],i) for i, f in enumerate(files)]
+            outfiles = ['{}_f{:02d}_reduced'.format(s3_config["rename"],i) for i, f in enumerate(files)]
 
         # Process Stage 3.
         do_stage3(files,outfiles,output_dir,s3_config,diagnosticplots_dir)

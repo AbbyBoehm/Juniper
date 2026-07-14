@@ -42,7 +42,7 @@ def miri_refpix(datamodel, inpt_dict, plot_dir, outfile):
         # Iterate over groups.
         odd_refs, even_refs, group_ns = [], [], []
         for g in tqdm(range(1,datamodel.data.shape[1]),
-                      desc = "Correcing integration {}...".format(i),
+                      desc = "Correcting integration {}...".format(i),
                       disable=(not time_ints)): # for each group
             if (plot_step or save_step) and g == 1 and i == 0:
                 # Plot and/or save the pre-sub first int's first group as an example.
