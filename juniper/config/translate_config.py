@@ -171,7 +171,7 @@ def s2_to_pipeline(s2_config):
     """
     s2_pipeline = {}
 
-    for key in ("verbose","show_plots","save_plots"):
+    for key in ("verbose","show_plots","save_plots","pipeline_type"):
         s2_pipeline[key] = s2_config[key]
 
     # First, handle the complex ones with arguments.

@@ -5,7 +5,10 @@ from tqdm import tqdm
 import numpy as np
 from scipy.signal import medfilt
 import matplotlib.pyplot as plt
+import matplotlib.colors as colors
 from astropy import modeling
+from photutils.centroids import centroid_com
+from photutils.psf import fit_fwhm
 
 from juniper.util.diagnostics import tqdm_translate, plot_translate, timer
 from juniper.stage2.correct_curvature import fix_curvature
@@ -199,7 +202,7 @@ def track_pos(segments, inpt_dict):
     if inpt_dict["verbose"] >= 1:
         print("Frame tracking complete.")
         if bad_k:
-            print("Total frames slated for S4 rejection due to sudden motion: {}".format(len(bad_k)))
+            print("Total frames slated for S4 rejection due to sudden motion or width change: {}".format(len(bad_k)))
 
     # Report time, if asked.
     if time_step:
@@ -240,3 +243,210 @@ def fit_disp_profile(profile, template):
     """
     shift = cross_correlate(profile, template, tspc=3, hrf=0.005, tfit=7)
     return shift
+
+def track_psf(segments, inpt_dict):
+    """Tracks position of star PSF in each integration.
+
+    Args:
+        segments (dict): Its segments["data"] object is the integrations which will be tracked.
+        inpt_dict (dict): instructions for running this step.
+
+    Returns:
+        dict, list, list, list, list: the segments array with updated data
+        quality flags, and the x positions, y positions, fwhms, and identified
+        indices of bad frames.
+    """
+    # Log.
+    if inpt_dict["verbose"] >= 1:
+        print("Tracking motion of the PSF...")
+
+    # Check tqdm and plotting requests.
+    time_step, time_ints = tqdm_translate(inpt_dict["verbose"])
+    plot_step, plot_ints = plot_translate(inpt_dict["show_plots"])
+    save_step, save_ints = plot_translate(inpt_dict["save_plots"])
+
+    # Time step, if asked.
+    if time_step:
+        t0 = time.time()
+
+    # Start tracking.
+    bad_k = []
+    bad_frame_map = np.zeros_like(segments["data"])
+
+    # Since we are centroiding, we get x and y all in one.
+    x_position, y_position = [], []
+    if inpt_dict["track_xy"]:
+        # For each image, get x-y from centroid_com
+        for k in tqdm(range(segments["data"].shape[0]),
+                      desc='Fitting x-y position of PSF...',
+                      disable=(not time_ints)):
+            image = segments["data"][k,:,:]
+            x, y = centroid_com(image)
+            x_position.append(x)
+            y_position.append(y)
+    
+            # Plot an example.
+            if (plot_step or save_step) and k == 0:
+                # Create a plot of the COM as found by centroid_com.
+                lin_threshold = 0.1
+                vmin, vmax = np.nanpercentile(segments["data"][:,:,:],q=1), np.nanpercentile(segments["data"][:,:,:],q=99)
+                symlog_norm_bckgs = colors.SymLogNorm(linthresh=lin_threshold, 
+                                              linscale=1, 
+                                              vmin=vmin,
+                                              vmax=vmax,
+                                              base=10)
+
+                fig, ax = plt.subplots(figsize=(5,5))
+                im = ax.imshow(image, cmap='viridis',origin='lower',
+                           norm=symlog_norm_bckgs,aspect=1)
+                cbar = plt.colorbar(mappable=im,orientation='horizontal')
+                cbar.set_label("Flux [DN]")
+                ax.set_title("PSF COM located by centroiding")
+                ax.scatter(x,y,color='k',marker='x',s=20,label='PSF COM')
+                ax.legend()
+                ax.set_xlabel('Detector X Axis')
+                ax.set_ylabel('Detector Y Axis')
+                ax.tick_params(which='both',axis='both',direction='in')
+                if save_step:
+                    plt.savefig(os.path.join(inpt_dict["diagnostic_plots"],"S3_x-y_example.png"),
+                                dpi=300, bbox_inches='tight')
+                if plot_step:
+                    plt.show(block=True)
+                plt.close()
+        
+        if inpt_dict["reject_x"]:
+            # Flag any integration with sudden movement.
+            med_x, std_x = np.median(x_position), np.std(x_position)
+
+            for k in tqdm(range(segments["data"].shape[0]),
+                          desc='Identifying PSF x position outliers...',
+                          disable=(not time_ints)):
+                if np.abs(med_x - x_position[k]) > 3*std_x:
+                    # The frame moved by 3 sigma, kick it.
+                    bad_k.append(k)
+                    bad_frame_map[k,:,:] = np.ones_like(bad_frame_map[k,:,:]) # the whole frame is flagged for data quality
+        
+        # Plot the x positions.
+        if (plot_step or save_step):
+            # Create a plot in time of the measured x positions.
+            plt.figure(figsize=(5,5))
+            plt.scatter(segments["time"], x_position, color='k')
+            if inpt_dict["reject_x"]:
+                # Plot lines marking where things were kicked.
+                plt.axhline(med_x,ls='--',color='red')
+                for mult in (-1,1):
+                    plt.axhline(med_x+(mult*3*std_x),ls=':',color='red')
+            plt.xlabel('Exposure Time [BJD TDB]')
+            plt.ylabel('X Position [pixels]')
+            plt.tick_params(which='both',axis='both',direction='in')
+            if save_step:
+                plt.savefig(os.path.join(inpt_dict["diagnostic_plots"],"S3_x_positions.png"),
+                            dpi=300, bbox_inches='tight')
+            if plot_step:
+                plt.show(block=True)
+            plt.close()
+
+        if inpt_dict["reject_y"]:
+            # Flag any integration with sudden movement.
+            med_y, std_y = np.median(y_position), np.std(y_position)
+
+            for k in tqdm(range(segments["data"].shape[0]),
+                          desc='Identifying PSF y position outliers...',
+                          disable=(not time_ints)):
+                if np.abs(med_y - y_position[k]) > 3*std_y:
+                    # The frame moved by 3 sigma, kick it.
+                    bad_k.append(k)
+                    bad_frame_map[k,:,:] = np.ones_like(bad_frame_map[k,:,:]) # the whole frame is flagged for data quality
+        
+        # Plot the y positions.
+        if (plot_step or save_step):
+            # Create a plot in time of the measured y positions.
+            plt.figure(figsize=(5,5))
+            plt.scatter(segments["time"], y_position, color='k')
+            if inpt_dict["reject_y"]:
+                # Plot lines marking where things were kicked.
+                plt.axhline(med_y,ls='--',color='red')
+                for mult in (-1,1):
+                    plt.axhline(med_y+(mult*3*std_y),ls=':',color='red')
+            plt.xlabel('Exposure Time [BJD TDB]')
+            plt.ylabel('Y Position [pixels]')
+            plt.tick_params(which='both',axis='both',direction='in')
+            if save_step:
+                plt.savefig(os.path.join(inpt_dict["diagnostic_plots"],"S3_y_positions.png"),
+                            dpi=300, bbox_inches='tight')
+            if plot_step:
+                plt.show(block=True)
+            plt.close()
+
+    # Now get the fwhm.
+    fwhms = []
+    if inpt_dict["track_fwhm"]:
+        fwhm_x, fwhm_y = x_position, y_position
+
+        # If the x-y pos are not available, get them from centroiding the median image.
+        if not inpt_dict["track_xy"]:
+            med_img = np.median(segments["data"],axis=0)
+            x, y = centroid_com(med_img)
+            fwhm_x, fwhm_y = [x for k in range(len(segments["time"]))], [y for k in range(len(segments["time"]))]
+
+        # Define fitting region size.
+        data_x, data_y = segments["data"].shape[1], segments["data"].shape[2]
+        mean_shape = int((data_x+data_y)/2)
+        if mean_shape % 2 == 0:
+            mean_shape += 1
+
+        # Now use the x-y pos to get the fwhm.
+        for k in tqdm(range(segments["data"].shape[0]),
+                      desc='Fitting FWHM of PSF...',
+                      disable=(not time_ints)):
+            image = segments["data"][k,:,:]
+            fwhm = fit_fwhm(image,xypos=[(fwhm_x[k],fwhm_y[k]),],
+                            fwhm=5,fit_shape=mean_shape)
+            fwhms.append(fwhm)
+
+        if inpt_dict["reject_fwhm"]:
+            # Flag any integration with extreme fwhm change.
+            med_fwhm, std_fwhm = np.median(fwhm), np.std(fwhm)
+
+            for k in tqdm(range(segments["data"].shape[0]),
+                          desc='Identifying PSF FWHM outliers...',
+                          disable=(not time_ints)):
+                if np.abs(med_fwhm - fwhm[k]) > 3*std_fwhm:
+                    # The PSF changed fwhm by 3 sigma, kick it.
+                    bad_k.append(k)
+                    bad_frame_map[k,:,:] = np.ones_like(bad_frame_map[k,:,:]) # the whole frame is flagged for data quality
+        
+        # Plot the fwhm.
+        if (plot_step or save_step):
+            # Create a plot in time of the measured fwhm positions.
+            plt.figure(figsize=(5,5))
+            plt.scatter(segments["time"], fwhms, color='k')
+            if inpt_dict["reject_fwhm"]:
+                # Plot lines marking where things were kicked.
+                plt.axhline(med_fwhm,ls='--',color='red')
+                for mult in (-1,1):
+                    plt.axhline(med_fwhm+(mult*3*std_fwhm),ls=':',color='red')
+            plt.xlabel('Exposure Time [BJD TDB]')
+            plt.ylabel('Full Width at Half Maximum [pixels]')
+            plt.tick_params(which='both',axis='both',direction='in')
+            if save_step:
+                plt.savefig(os.path.join(inpt_dict["diagnostic_plots"],"S3_fwhm.png"),
+                            dpi=300, bbox_inches='tight')
+            if plot_step:
+                plt.show(block=True)
+            plt.close()
+
+    # Update data flags.
+    segments["junidq"] = np.where(bad_frame_map != 0, 1, segments["junidq"])
+
+    # Report outliers found.
+    if inpt_dict["verbose"] >= 1:
+        print("Frame tracking complete.")
+        if bad_k:
+            print("Total frames slated for S4 rejection due to sudden motion or width change: {}".format(len(bad_k)))
+
+    # Report time, if asked.
+    if time_step:
+        timer(time.time()-t0,None,None,None)
+
+    return segments, x_position, y_position, fwhms, bad_k

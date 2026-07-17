@@ -14,7 +14,9 @@ save_plots      2                                           # Int from 0 to 2. 0
 diagnostics     'diagnostics'                               # str. If save_plots >= 1, diagnostic plots will be written to this folder.
 rename          None                                        # str. What you want to rename the files to. Can be None to keep the default name. Suggestions include naming the files after the target planet and program ID (e.g. 'PLANET-B_ID12345').
 
-# Step 1: Extract 1D spectrum
+# Step 1: Extract signal
+
+# Step 1a: 1D spectrum
 extract_method  'box'                                       # str. Options are 'box' (for an unweighted sum) and 'optimum' (for a weighted sum, see Horne 1986).
 wavelengths     None                                        # tuple of float. If not None, limit 1D extraction to between these wavelengths in micron.
 columns         None                                        # tuple of float. If not None, limit 1D extraction to between these column indices.
@@ -22,22 +24,38 @@ mask_bad_pix    False                                       # bool. If True, ful
 aperture        (0,-1)                                      # tuple of int. Defines the lower and upper row bounding the extraction aperture. Used whether method is 'box' or 'optimum'.
 com_halfwidth   None                                        # int or None. If not None, ignores aperture argument and instead builds an aperture from the com which extends +/- com_halfwidth pixels from the com. Used whether method is 'box' or 'optimum'.
 
-# Step 1a: Optimum extraction
+# Step 1ai: Optimum extraction
 aperture_type   'median'                                    # str. Defines the kind of spatial profile P to build for optimum extraction. Options are 'median' (use median integration), 'polyrow' (polynomial fit on rows), 'polycol' (polynomial fit on columns), 'gaussian' (gaussian fit on columns), or 'custom' to supply your own prebuilt profile.
 aperture_path   './'                                        # str. If aperture_type is 'custom', this defines the path to the aperture .npy file. Must be the same size as your array.
 poly_order      7                                           # int. Order of polynomial to fit, only used for 'polyrow' and 'polycol'.
+
+# Step 1b: Photometric time-series
+ap_method       'unweighted'                                # str. Options are 'unweighted' (for an unweighted sum) and 'weighted' (for a weighted sum, see Horne 1986).
+ap_radius       'auto'                                      # str or int. If str 'auto', optimizes aperture radius. If int, sets aperture radius.
+bckg_inner_ap   'auto'                                      # str or int. If str 'auto', optimizes inner background annulus radius. If int, sets inner background annulus radius.
+bckg_outer_ap   'auto'                                      # str or int. If str 'auto', optimizes outer background annulus radius. If int, sets outer background annulus radius.
 
 # Step 2: Trimming integrations
 s3_kick_ints    True                                        # bool. If True, checks for frames that were flagged by Stage 3 (reject_disp and reject_spatial keys in s3_*.berry) as bad frames and fully kicks them from the segments.
 s4_trim_ints    [[0,2500],]                                 # list of list of int, or False. Bounds for integration numbers to reject. Useful for trimming the first ~10% of integrations, which often suffer from detector settling systematics.
 
-# Step 3: Align spectra
-align           True                                        # bool. Whether to align the extracted 1D spectra.
+# Step 3: Correct signal shifts
+
+# Step 3a: Align 1D spectra on dispersion direction
+align           True                                        # bool. Whether to align the extracted 1D spectra along the dispersion direction.
 trim_spec       3                                           # int. How many points to trim from the edges of the spectra. Useful for ensuring measured shifts are not dominated by the flux falloff at the edges.
 high_res_factor 0.005                                       # float. How finely to interpolate spectra when aligning. The smaller this is, the finer the fit but the longer the runtime.
 trim_fit        7                                           # int. How many points to trim from the edges of the fit. Useful for ensuring measured shifts are not dominated by the flux falloff at the edges.
 
+# Step 3b: Decorrelate PSF from x-y-FWHM
+decorrelate     True                                        # bool. Whether to decorrelate the extracted photometric time-series using the PSF x and y positions and FWHM.
+omit_idxs       [0,1]                                       # lst of int or None. If not None, defines the left/right indices of flux omitted from the detrending. Useful for keeping the transit/eclipse out of things.
+x_order         1                                           # int or None. If not None, order of polynomial to fit to the time-series using the x position as the detrending variable.
+y_order         1                                           # int or None. If not None, order of polynomial to fit to the time-series using the y position as the detrending variable.
+fwhm_order      1                                           # int or None. If not None, order of polynomial to fit to the time-series using the FWHM as the detrending variable.
+
 # Step 4: Clean spectra
-sigma           3.5                                         # float. Sigma at which to detect a spectral outlier and replace it with the median in time. Enter None to skip this step.
+sigma           3.5                                         # float. Sigma at which to detect a time-series outlier and replace it with the median in time. Enter None to skip this step.
+reject_window   40                                          # even int. Photometry only. Total length of the window used to compute the running median when rejecting outliers from the photometric time-series.
 
 # ENDPARSE

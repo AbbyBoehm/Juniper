@@ -33,7 +33,7 @@ def glbs(datamodel, inpt_dict, plot_dir, outfile):
     save_step, save_ints = plot_translate(inpt_dict["save_plots"])
 
     # If needed, rotate MIRI LRS data.
-    if datamodel.meta.exposure.type == "MIR_LRS-SLITLESS":
+    if datamodel.meta.exposure.type in ("MIR_LRS-SLITLESS","MIR_IMAGE"):
         previous_shape = np.shape(datamodel.data)
         datamodel.data = np.rot90(datamodel.data,k=3,axes=(2,3))
         new_shape = np.shape(datamodel.data)
@@ -216,7 +216,7 @@ def glbs(datamodel, inpt_dict, plot_dir, outfile):
             plt.close()
 
     # If needed, re-rotate MIRI LRS data.
-    if datamodel.meta.exposure.type == "MIR_LRS-SLITLESS":
+    if datamodel.meta.exposure.type in ("MIR_LRS-SLITLESS","MIR_IMAGE"):
         previous_shape = np.shape(datamodel.data)
         datamodel.data = np.rot90(datamodel.data,k=1,axes=(2,3))
         new_shape = np.shape(datamodel.data)

@@ -105,13 +105,19 @@ def do_stage3(filepaths, outfiles, outdir, steps, plot_dir):
     if steps["subtract_bckg"]:
         segments = subtract_background.subtract_background(segments, steps)
 
-    # Track motion of the trace.
-    disp_pos, cdisp_pos, cdisp_width, moved_ints = [],[],[],[]
+    # Track motion of the signal.
+    x_pos, y_pos, signal_width, moved_ints = [],[],[],[]
+
     if any((steps["track_disp"],steps["track_spatial"])):
-        segments, disp_pos, cdisp_pos, cdisp_width, moved_ints = track_motion.track_pos(segments, steps)
+        # Confirm this data is the right kind for this form of tracking.
+        segments, x_pos, y_pos, signal_width, moved_ints = track_motion.track_pos(segments, steps)
+
+    if any((steps["track_xy"],steps["track_fwhm"])):
+        # Confirm this data is the right kind for this form of tracking.
+        segments, x_pos, y_pos, signal_width, moved_ints = track_motion.track_psf(segments, steps)
 
     # Save everything out.
-    save_s3_output(segments, disp_pos, cdisp_pos, cdisp_width, moved_ints, outfiles, outdir)
+    save_s3_output(segments, x_pos, y_pos, signal_width, moved_ints, outfiles, outdir)
 
     if plot_step or save_step:
         fig, ax = plt.subplots(2,1,figsize=(20,8),sharex=True)

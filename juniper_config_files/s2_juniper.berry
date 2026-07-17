@@ -14,8 +14,10 @@ save_plots      2                                           # Int from 0 to 2. 0
 diagnostics     'diagnostics'                               # str. If save_plots >= 1, diagnostic plots will be written to this folder.
 rename          'name'                                      # str. What you want to rename the files to. Can be None to keep the default name. Suggestions include naming the files after the target planet and program ID (e.g. 'PLANET-B_ID12345').
 
-# Step 1: JWST Spec2Pipeline wrapper
-do_assign_wcs   True                                        # bool. Whether to perform this step in jwst Spec2Pipeline.
+# Step 1: JWST Image2Pipeline/Spec2Pipeline wrapper
+pipeline_type   "spec"                                      # str. Options are "spec" or "image". Determines whether you are using Spec2Pipeline to process dispersed data, or Image2Pipeline to process photometric data.
+
+do_assign_wcs   True                                        # bool. Whether to perform this step in jwst Image2Pipeline or Spec2Pipeline.
 slit_y_low      -0.55                                       # float. Lower edge of slit.
 slit_y_high     0.55                                        # float. Upper edge of slit.
 
@@ -45,7 +47,7 @@ save_noise      False                                       # bool. Whether to s
 
 do_imprint      False                                       # bool. Whether to perform this step in jwst Spec2Pipeline. Applies only to NIRSpec MOS and IFU. Not recommended by default for TSOs.
 
-do_background   False                                       # bool. Whether to perform this step in jwst Spec2Pipeline. Not recommended by default for TSOs.
+do_background   False                                       # bool. Whether to perform this step in jwst Image2Pipeline or Spec2Pipeline. Not recommended by default for TSOs.
 bkg_sigma       3                                           # float. Sigma clipping limit.
 maxiters        None                                        # int or None. If int, limits how many iterations are performed.
 save_bkg        False                                       # bool. Whether to save the combined image used to subtract the background.
@@ -115,10 +117,10 @@ keep_cols       [0,-1]                                      # bool. Indices of t
 # This is the end of Juniper Stage 2, technically. If you do the steps after this, the outputs are such that Juniper Stages 3-6 are not designed to handle them.
 # If you intend to use Juniper Stages 3-6, leave all below as their defaults. If you don't intend to Juniper Stages 3-6, change things as you like.
 
-# Step 5 (optional): JWST Spec2Pipeline 1D extraction
-do_photom       False                                       # bool. Whether to perform this step in jwst Spec2Pipeline. Only needed if absolute photometry is necessary, which for exoplanets it often isn't.
+# Step 5 (optional): JWST Image2Pipeline/Spec2Pipeline 1D extraction
+do_photom       False                                       # bool. Whether to perform this step in jwst Image2Pipeline or Spec2Pipeline. Only needed if absolute photometry is necessary, which for exoplanets it often isn't.
 inverse_photom  False                                       # bool. Whether correction should be multiplied in (True) instead of the usual dividing out (False).
-source_type_pho None                                        # str ("POINT" or "EXTENDED") or None. Can be used to override Spec2Pipeline's judgment.
+source_type_pho None                                        # str ("POINT" or "EXTENDED") or None. Can be used to override jwst pipeline's judgment.
 mrs_time_corr   True                                        # bool. Whether to turn on the time and wavelength dependent corrections for MIRI MRS data.
 
 do_res_fringe   False                                       # bool. Whether to perform this step in jwst Spec2Pipeline. Applies only to MIRI MRS.
@@ -136,7 +138,7 @@ do_pixelreplace False                                       # bool. Whether to p
 algorithm       'fit_profile'                               # str. How to replace bad pixels.
 n_adj_cols      3                                           # int. Cross-dispersion columns to bin in 1D extraction.
 
-do_resamplespec False                                       # bool. Whether to perform this step in jwst Spec2Pipeline.
+do_resamplespec False                                       # bool. Whether to perform this step in jwst Image2Pipeline or Spec2Pipeline.
 pixfrac         1.0                                         # float. Fraction to shrink pixels by before drizzling.
 kernel          'square'                                    # str. Shape of kernel function for drizzling.
 pixel_ratio     1.0                                         # float. Ratio of input to output pixel.

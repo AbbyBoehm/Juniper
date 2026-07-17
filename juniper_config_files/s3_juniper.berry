@@ -52,7 +52,7 @@ space_sigma     5.0                                         # float. The sigma t
 space_kernel    (31,1)                                      # tuple of odd int. The kernel to use when filtering bad pixels.
 
 # Step 4: Subtract background
-subtract_bckg   True                                        # bool. Whether to do integration-level background subtraction. If you ran NSClean in Stage 1, this step is likely unnecessary.
+subtract_bckg   True                                        # bool. Whether to do integration-level background subtraction. Not for use with photometric data!
 bckg_sigma      3.0                                         # float. How aggressively to clean outliers from the background region during background subtraction.
 bckg_kernel     (31,1)                                      # tuple of odd int. The cols x rows to span during filtering of the background. Recommended to filter over many columns and just one row to avoid trace signal.
 bckg_rows       [0,1,2,-3,-2,-1]                            # list of ints. Row indices to use as the background. Best used with a straight trace. Never ignored unless empty.
@@ -61,10 +61,19 @@ bckg_threshold  10000                                       # float. Median inte
 trace_com_mask  5                                           # int or None. If not None, identifies the COM of each column and then masks all pixels +/- this value from the COM to build a mask. Only called if trace_mask is True. Overrides bckg_threshold if not None.
 trace_upw_mask  5                                           # int or None. If not None, applies this mask in the upwards spatial direction. Useful if your trace is asymmetric due to e.g. CTE.
 
-# Step 5: Track x, y displacement of trace in space
+# Step 5: Track displacement of data across detector
+
+# Step 5a: Track dispersion and spatial displacement of trace
 track_disp      True                                        # bool. Whether to track frame motion in the dispersion direction.
 reject_disp     True                                        # bool. Whether to reject frames which show significant motion in the dispersion direction. Rejection occurs in Stage 4 if s3_kick_ints in s4_*.berry is set to True.
-track_spatial   True                                        # bool. Whether to track frame motion in the spatial or cross-dispersion direction.
+track_spatial   True                                        # bool. Whether to track frame motion in the spatial or cross-dispersion direction. Also measures trace width.
 reject_spatial  True                                        # bool. Whether to reject frames which show significant motion in the spatial or cross-dispersion direction. Rejection occurs in Stage 4 if s3_kick_ints in s4_*.berry is set to True.
+
+# Step 5b: Track x and y displacement and FWHM of PSF
+track_xy        True                                       # bool. Whether to track frame motion in the horizontal and vertical directions.
+reject_x        True                                        # bool. Whether to reject frames which show significant motion in the horizontal direction. Rejection occurs in Stage 4 if s3_kick_ints in s4_*.berry is set to True.
+reject_y        True                                        # bool. Whether to reject frames which show significant motion in the vertical direction. Rejection occurs in Stage 4 if s3_kick_ints in s4_*.berry is set to True.
+track_fwhm      True                                        # bool. Whether to track PSF full width at half maximum (FWHM) using a 2D Gaussian.
+reject_fwhm     True                                        # bool. Whether to reject frames which show significant change in the FWHM. Rejection occurs in Stage 4 if s3_kick_ints in s4_*.berry is set to True.
 
 # ENDPARSE

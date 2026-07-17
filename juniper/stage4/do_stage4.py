@@ -4,7 +4,7 @@ import numpy as np
 
 from juniper.util.diagnostics import tqdm_translate, plot_translate
 from juniper.util.datahandling import stitch_npys, save_s4_output
-from juniper.stage4 import extract_1D, align_spec, clean_spec, plot_spec_gif
+from juniper.stage4 import clean_signal, extract_1D, align_spec, plot_signal_gif
 
 def do_stage4(filepaths, outfile, outdir, steps, plot_dir):
     """Performs Stage 4 extraction on the given files.
@@ -45,6 +45,8 @@ def do_stage4(filepaths, outfile, outdir, steps, plot_dir):
     segments = stitch_npys(filepaths,
                            time_step=time_step,
                            verbose=steps["verbose"])
+    
+    # Check type and assign flag.
     
     # Need to track xpos, ypos, widths.
     xpos, ypos, widths = (np.array(segments["disp"]),
@@ -89,16 +91,16 @@ def do_stage4(filepaths, outfile, outdir, steps, plot_dir):
         
     # Clean spectra.
     if steps["sigma"]:
-        oneD_spec = clean_spec.clean_spec(oneD_spec, steps)
+        oneD_spec = clean_signal.clean_spec(oneD_spec, steps)
 
     # Make diagnostic static plots.
     if (plot_step or save_step):
-        plot_spec_gif.make_stack(oneD_spec,wav_sols,time,steps)
-        plot_spec_gif.make_err_median(oneD_spec,wav_sols,oneD_err,steps)
-        plot_spec_gif.make_wlc(oneD_spec,wav_sols,time,steps)
+        plot_signal_gif.make_stack(oneD_spec,wav_sols,time,steps)
+        plot_signal_gif.make_err_median(oneD_spec,wav_sols,oneD_err,steps)
+        plot_signal_gif.make_wlc(oneD_spec,wav_sols,time,steps)
     # Make diagnostic gif.
     if (plot_ints or save_ints):
-        plot_spec_gif.make_gif(oneD_spec,wav_sols,time,steps)
+        plot_signal_gif.make_gif(oneD_spec,wav_sols,time,steps)
 
     # Save everything out.
     save_s4_output(oneD_spec, oneD_err, time, wav_sols,
