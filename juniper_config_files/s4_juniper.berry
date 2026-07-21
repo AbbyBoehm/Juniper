@@ -25,7 +25,7 @@ com_halfwidth   None                                        # int or None. If no
 # Step 1a: Optimum extraction
 aperture_type   'median'                                    # str. Defines the kind of spatial profile P to build for optimum extraction. Options are 'median' (use median integration), 'polyrow' (polynomial fit on rows), 'polycol' (polynomial fit on columns), 'gaussian' (gaussian fit on columns), or 'custom' to supply your own prebuilt profile.
 aperture_path   './'                                        # str. If aperture_type is 'custom', this defines the path to the aperture .npy file. Must be the same size as your array.
-poly_order      7                                           # int. Order of polynomial to fit, only used for 'polyrow' and 'polycol'.
+ap_poly_order    7                                          # int. Order of polynomial to fit, only used for 'polyrow' and 'polycol'.
 
 # Step 2: Trimming integrations
 s3_kick_ints    True                                        # bool. If True, checks for frames that were flagged by Stage 3 (reject_disp and reject_spatial keys in s3_*.berry) as bad frames and fully kicks them from the segments.

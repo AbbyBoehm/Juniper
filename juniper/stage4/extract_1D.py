@@ -3,7 +3,10 @@ import time
 from tqdm import tqdm
 
 import numpy as np
+from scipy.signal import medfilt2d
+from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
+from photutils.centroids import centroid_com
 
 from juniper.util.diagnostics import tqdm_translate, plot_translate, timer
 from juniper.util.cleaning import get_com_mask
@@ -49,6 +52,12 @@ def extract(segments, inpt_dict):
         # Now we have to actually build real profiles.
         if inpt_dict["aperture_type"] == "median":
             profile = optimum_median(segments)
+        if inpt_dict["aperture_type"] == "gaussian":
+            profile = optimum_gauss(segments)
+        if inpt_dict["aperture_type"] == "polyrow":
+            profile = optimum_polyrow(segments,order=inpt_dict["ap_poly_order"])
+        if inpt_dict["aperture_type"] == "polycol":
+            profile = optimum_polycol(segments,order=inpt_dict["ap_poly_order"])
         if inpt_dict["aperture_type"] == "custom":
             profile = np.load(inpt_dict["aperture_path"],allow_pickle=True)
         for i in tqdm(range(profiles.shape[0]),
@@ -207,3 +216,196 @@ def optimum_median(segments):
     # And normalize.
     median_frame = median_frame/np.nansum(median_frame, axis=0)
     return median_frame
+
+def optimum_polyrow(segments, order):
+    """Builds the spatial optimum profile using row-wise polynomial fits to the median data frame.
+
+    Args:
+        segments (xarray): its data DataSet contains the integrations to
+        build the profile with.
+        order (int): order of polynomial to fit.
+
+    Returns:
+        np.array: the profiles array.
+    """
+    # Take the median of the segments on time.
+    median_frame = np.nanmedian(segments["data"], axis=0)
+    # Create empty array to populate.
+    polyrow = np.empty_like(median_frame) # has shape nrow x ncol
+    # Set limit for how much to iterate kicking outliers - no infinite loops!
+    iterlim = polyrow.shape[1]
+    # Fit requested order of poly to each row, kicking outliers as we go.
+    ncol, nrow = range(polyrow.shape[1]), range(polyrow.shape[0])
+    for k in nrow:
+        # Grab the median row and copy it to prevent modification.
+        median_row = np.copy(median_frame[k,:]) # span one row, all cols
+        # If there are nans, replace them.
+        median_row[np.isnan(median_row)] = np.nanmedian(median_row)
+
+        # Start iterating the fit.
+        badpix = True
+        iteration = 0
+        while badpix and iteration < iterlim:
+            # Fit the row with polyfit.
+            row_coeffs = np.polyfit(ncol,median_row,
+                                    deg=order)
+            model_row = np.polyval(row_coeffs,ncol)
+            residuals = model_row - median_row
+            std_res = np.std(residuals)
+            outliers = np.abs(residuals)/std_res
+            # See if the worst outlier is bad enough to replace.
+            if np.max(outliers)>=5:
+                # It's 3 standard deviations or more above the norm, it's bad.
+                worst_outlier = np.argmax(outliers)
+                median_row[worst_outlier] = model_row[worst_outlier]
+            else:
+                badpix = False
+            iteration += 1
+        # The row is now good enough to add.
+        polyrow[k,:] = model_row
+    # Force positivity.
+    polyrow[polyrow < 0] = 0
+    # And normalize.
+    polyrow = polyrow/np.nansum(polyrow, axis=0)
+    return polyrow
+
+def optimum_polycol(segments, order):
+    """Builds the spatial optimum profile using column-wise polynomial fits to the median data frame.
+
+    Args:
+        segments (xarray): its data DataSet contains the integrations to
+        build the profile with.
+        order (int): order of polynomial to fit.
+
+    Returns:
+        np.array: the profiles array.
+    """
+    # Take the median of the segments on time.
+    median_frame = np.nanmedian(segments["data"], axis=0)
+    # Create empty array to populate.
+    polycol = np.empty_like(median_frame) # has shape nrow x ncol
+    # Set limit for how much to iterate kicking outliers - no infinite loops!
+    iterlim = polycol.shape[0]
+    # Fit requested order of poly to each column, kicking outliers as we go.
+    ncol, nrow = range(polycol.shape[1]), range(polycol.shape[0])
+    for k in ncol:
+        # Grab the median column and copy it to prevent modification.
+        median_col = np.copy(median_frame[:,k]) # span one col, all rows
+        # If there are nans, replace them.
+        median_col[np.isnan(median_col)] = np.nanmedian(median_col)
+
+        # Start iterating the fit.
+        badpix = True
+        iteration = 0
+        while badpix and iteration < iterlim:
+            # Fit the column with polyfit.
+            col_coeffs = np.polyfit(nrow,median_col,
+                                    deg=order)
+            model_col = np.polyval(col_coeffs,nrow)
+            residuals = model_col - median_col
+            std_res = np.std(residuals)
+            outliers = np.abs(residuals)/std_res
+            # See if the worst outlier is bad enough to replace.
+            if np.max(outliers)>=5:
+                # It's 3 standard deviations or more above the norm, it's bad.
+                worst_outlier = np.argmax(outliers)
+                median_col[worst_outlier] = model_col[worst_outlier]
+            else:
+                badpix = False
+            iteration += 1
+        # The column is now good enough to add.
+        polycol[:,k] = model_col
+    # Force positivity.
+    polycol[polycol < 0] = 0
+    # And normalize.
+    polycol = polycol/np.nansum(polycol, axis=0)
+    return polycol
+
+def optimum_gauss(segments):
+    """Builds the spatial optimum profile using column-wise gaussian fits to the median data frame.
+
+    Args:
+        segments (xarray): its data DataSet contains the integrations to
+        build the profile with.
+
+    Returns:
+        np.array: the profiles array.
+    """
+    # Take the median of the segments on time.
+    median_frame = np.nanmedian(segments["data"], axis=0)
+    # Create empty array to populate.
+    gauss = np.empty_like(median_frame) # has shape nrow x ncol
+    # Set limit for how much to iterate kicking outliers - no infinite loops!
+    iterlim = gauss.shape[0]
+
+    # Define centers for each row.
+    centers = []
+    for k in range(gauss.shape[1]):
+        # Grab the median column and copy it to prevent modification.
+        median_col = np.copy(median_frame[:,k]) # span one col, all rows
+        # If there are nans, replace them.
+        median_col[np.isnan(median_col)] = np.nanmedian(median_col)
+        center_guess = centroid_com(median_col)[0]
+        if np.abs(center_guess) > gauss.shape[0]:
+            center_guess = int(gauss.shape[0]/2)
+        centers.append(center_guess)
+
+    # Fit a sixth-order poly to centers.
+    badfit = True
+    iteration = 0
+    while badfit and iteration < iterlim:
+        coeffs = np.polyfit(range(len(centers)),centers,6)
+        poly = np.polyval(coeffs,range(len(centers)))
+        residuals = poly - centers
+        std_res = np.std(residuals)
+        outliers = np.abs(residuals)/std_res
+        # See if the worst outlier is bad enough to replace.
+        if np.max(outliers)>=3:
+            # It's 3 standard deviations or more above the norm, it's bad.
+            worst_outlier = np.argmax(outliers)
+            centers[worst_outlier] = poly[worst_outlier]
+        else:
+            badpix = False
+        iteration += 1
+    centers = poly
+
+    # Fit requested order of poly to each column, kicking outliers as we go.
+    ncol, nrow = range(gauss.shape[1]), range(gauss.shape[0])
+    for k in ncol:
+        # Grab the median column and copy it to prevent modification.
+        median_col = np.copy(median_frame[:,k]) # span one col, all rows
+        # If there are nans, replace them.
+        median_col[np.isnan(median_col)] = np.nanmedian(median_col)
+
+        # Start iterating the fit.
+        badpix = True
+        iteration = 0
+        while badpix and iteration < iterlim:
+            # Fit the column with a gaussian.
+            gauss_coeffs, _ = curve_fit(_gauss,nrow,median_col,
+                                        p0=[np.percentile(median_col,99),centers[k],1],
+                                        bounds=((0,centers[k]-1,0),
+                                                (np.percentile(median_col,99)*1.1,centers[k]+1,2)))
+            a,mu,sig = gauss_coeffs
+            model_col = _gauss(nrow,a,mu,sig)
+            residuals = model_col - median_col
+            std_res = np.std(residuals)
+            outliers = np.abs(residuals)/std_res
+            # See if the worst outlier is bad enough to replace.
+            if np.max(outliers)>=5:
+                # It's 3 standard deviations or more above the norm, it's bad.
+                worst_outlier = np.argmax(outliers)
+                median_col[worst_outlier] = model_col[worst_outlier]
+            else:
+                badpix = False
+            iteration += 1
+        # The column is now good enough to add.
+        gauss[:,k] = model_col
+    # Force positivity.
+    gauss[gauss < 0] = 0
+    # And normalize.
+    gauss = gauss/np.nansum(gauss, axis=0)
+    return gauss
+
+def _gauss(x,a,mu,sig):
+    return a*np.exp(-((x - mu)**2)/(2*(sig**2)))
