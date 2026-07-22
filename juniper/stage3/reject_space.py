@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 from scipy.ndimage import median_filter
 
 from juniper.util.diagnostics import tqdm_translate, plot_translate, timer
+from juniper.util.plotting import aspect_handler
 
 def smooth(segments, inpt_dict):
     """Uses median filtering to smooth outliers.
@@ -87,10 +88,11 @@ def smooth(segments, inpt_dict):
         # Create plots of the entire bad_pix_map collapsed in on itself in time.
         bad_pix_alltime = np.sum(bad_pix_map,axis=0)
         fig, ax = plt.subplots(figsize=(20,4))
+        img_aspect, cbar_aspect = aspect_handler(bad_pix_alltime)
         im = ax.imshow(bad_pix_alltime/bad_pix_map.shape[0],origin='lower',cmap='viridis',
-                       norm='linear',aspect='auto',vmin=0,vmax=1)
+                       norm='linear',aspect=img_aspect,vmin=0,vmax=1)
         ax.set_title("Spatial smoothing DQ flags")
-        cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=40)
+        cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=cbar_aspect)
         cbar.set_label('Fraction of integrations flagged')
 
         if save_step:
@@ -103,14 +105,15 @@ def smooth(segments, inpt_dict):
         # Create a plot of the median smoothed model.
         fig, ax = plt.subplots(figsize=(20,4))
         medsmooth = np.median(smooths,axis=0)
+        img_aspect, cbar_aspect = aspect_handler(medsmooth)
         vmin, vmax = np.nanpercentile(medsmooth,q=5), np.nanpercentile(medsmooth,q=95)
         if vmin <= 0:
             pos = medsmooth[medsmooth>0]
             vmin, vmax = np.nanpercentile(pos[np.isfinite(pos)],q=5), np.percentile(pos[np.isfinite(pos)],q=95)
         im = ax.imshow(medsmooth,origin='lower',cmap='viridis',
-                       norm='log',aspect='auto',vmin=vmin,vmax=vmax)
+                       norm='log',aspect=img_aspect,vmin=vmin,vmax=vmax)
         ax.set_title("Median spatially-filtered model")
-        cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=40)
+        cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=cbar_aspect)
         cbar.set_label('Flux [DN]')
 
         if save_step:
@@ -124,6 +127,7 @@ def smooth(segments, inpt_dict):
         # Create a plot of the maximum absolute differences between the data and smoothed model.
         fig, ax = plt.subplots(figsize=(20,4))
         abs_diff = np.empty_like(abs_diffs[0,:,:])
+        img_aspect, cbar_aspect = aspect_handler(abs_diff)
         for x1 in range(abs_diffs.shape[1]):
             for x2 in range(abs_diffs.shape[2]):
                 abs_diff[x1,x2] = np.nanmax(abs_diffs[:,x1,x2])
@@ -132,10 +136,10 @@ def smooth(segments, inpt_dict):
         if vmin <= 0:
             pos = abs_diff[abs_diff>0]
             vmin, vmax = np.nanpercentile(pos[np.isfinite(pos)],q=5), np.percentile(pos[np.isfinite(pos)],q=95)
-        im = ax.imshow(medsmooth,origin='lower',cmap='viridis',
-                       norm='log',aspect='auto',vmin=vmin,vmax=vmax)
+        im = ax.imshow(abs_diff,origin='lower',cmap='viridis',
+                       norm='log',aspect=img_aspect,vmin=vmin,vmax=vmax)
         ax.set_title("Maximum difference between data and model")
-        cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=40)
+        cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=cbar_aspect)
         cbar.set_label('Flux [DN]')
 
         if save_step:
@@ -308,10 +312,11 @@ def led(segments, inpt_dict):
         # Create plots of the entire bad_pix_map collapsed in on itself in time.
         bad_pix_alltime = np.sum(bad_pix_map,axis=0)
         fig, ax = plt.subplots(figsize=(20,4))
+        img_aspect, cbar_aspect = aspect_handler(bad_pix_alltime)
         im = ax.imshow(bad_pix_alltime/bad_pix_map.shape[0],origin='lower',cmap='viridis',
-                       norm='linear',aspect='auto',vmin=0,vmax=1)
+                       norm='linear',aspect=img_aspect,vmin=0,vmax=1)
         ax.set_title("Laplacian Edge Detection DQ flags")
-        cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=40)
+        cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=cbar_aspect)
         cbar.set_label('Fraction of integrations flagged')
 
         if save_step:
@@ -325,14 +330,15 @@ def led(segments, inpt_dict):
         # Create plots of the median noise model, fine structure model, and S images.
         fig, ax = plt.subplots(figsize=(20,4))
         medimg = np.median(noise_models,axis=0)
+        img_aspect, cbar_aspect = aspect_handler(medimg)
         vmin, vmax = np.nanpercentile(medimg,q=5), np.nanpercentile(medimg,q=95)
         if vmin <= 0:
             pos = medimg[medimg>0]
             vmin, vmax = np.nanpercentile(pos[np.isfinite(pos)],q=5), np.percentile(pos[np.isfinite(pos)],q=95)
         im = ax.imshow(medimg,origin='lower',cmap='viridis',
-                       norm='log',aspect='auto',vmin=vmin,vmax=vmax)
+                       norm='log',aspect=img_aspect,vmin=vmin,vmax=vmax)
         ax.set_title("Median noise model")
-        cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=40)
+        cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=cbar_aspect)
         cbar.set_label('Flux [DN]')
 
         if save_step:
@@ -344,14 +350,15 @@ def led(segments, inpt_dict):
 
         fig, ax = plt.subplots(figsize=(20,4))
         medimg = np.median(fine_structure_models,axis=0)
+        img_aspect, cbar_aspect = aspect_handler(medimg)
         vmin, vmax = np.nanpercentile(medimg,q=5), np.nanpercentile(medimg,q=95)
         if vmin <= 0:
             pos = medimg[medimg>0]
             vmin, vmax = np.nanpercentile(pos[np.isfinite(pos)],q=5), np.percentile(pos[np.isfinite(pos)],q=95)
         im = ax.imshow(medimg,origin='lower',cmap='viridis',
-                       norm='log',aspect='auto',vmin=vmin,vmax=vmax)
+                       norm='log',aspect=img_aspect,vmin=vmin,vmax=vmax)
         ax.set_title("Median fine structure model")
-        cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=40)
+        cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=cbar_aspect)
         cbar.set_label('Flux [DN]')
 
         if save_step:
@@ -363,14 +370,15 @@ def led(segments, inpt_dict):
 
         fig, ax = plt.subplots(figsize=(20,4))
         medimg = np.median(s_images,axis=0)
+        img_aspect, cbar_aspect = aspect_handler(medimg)
         vmin, vmax = np.nanpercentile(medimg,q=5), np.nanpercentile(medimg,q=95)
         if vmin <= 0:
             pos = medimg[medimg>0]
             vmin, vmax = np.nanpercentile(pos[np.isfinite(pos)],q=5), np.percentile(pos[np.isfinite(pos)],q=95)
         im = ax.imshow(medimg,origin='lower',cmap='viridis',
-                       norm='log',aspect='auto',vmin=vmin,vmax=vmax)
+                       norm='log',aspect=img_aspect,vmin=vmin,vmax=vmax)
         ax.set_title("Median S")
-        cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=40)
+        cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=cbar_aspect)
         cbar.set_label('Flux [DN]')
 
         if save_step:

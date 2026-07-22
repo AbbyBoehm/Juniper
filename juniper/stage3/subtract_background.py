@@ -8,6 +8,7 @@ import matplotlib.colors as colors
 
 from juniper.util.diagnostics import tqdm_translate, plot_translate, timer
 from juniper.util.cleaning import median_spatial_filter, colbycol_bckg, get_trace_mask, get_com_mask
+from juniper.util.plotting import aspect_handler
 
 def subtract_background(segments, inpt_dict):
     """Performs background subtraction on every integration in segments according to the instructions in inpt_dict.
@@ -70,11 +71,12 @@ def subtract_background(segments, inpt_dict):
             # Create a diagnostic plot of the mask applied to the data.
             trace_mask_inverse = np.ma.masked_array(trace_mask,mask=np.ones_like(trace_mask)-trace_mask)
             fig, ax = plt.subplots(figsize=(20, 4))
+            img_aspect, cbar_aspect = aspect_handler(median_integration)
             im = ax.imshow(median_integration,cmap='viridis',origin='lower',
-                           norm=symlog_norm_bckgs,aspect='auto')
+                           norm=symlog_norm_bckgs,aspect=img_aspect)
             ax.imshow(trace_mask_inverse,cmap='binary_r',origin='lower',
-                      norm=symlog_norm_bckgs,aspect='auto')
-            cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=40)
+                      norm=symlog_norm_bckgs,aspect=img_aspect)
+            cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=cbar_aspect)
             cbar.set_label("Flux [DN]")
             ax.set_title("Integration-level 1/f trace mask")
 
@@ -107,14 +109,15 @@ def subtract_background(segments, inpt_dict):
         median_integration = np.median(segments["data"],axis=0)
 
         fig, ax = plt.subplots(figsize=(20,12),nrows=3)
+        img_aspect, cbar_aspect = aspect_handler(precorrected_data[0,:,:])
         fig.subplots_adjust(hspace=0.01,wspace=0.01)
         im1 = ax[0].imshow(precorrected_data[0,:,:],cmap='viridis',origin='lower',
-                        norm=symlog_norm_trace,aspect='auto')
+                        norm=symlog_norm_trace,aspect=img_aspect)
         im2 = ax[1].imshow(segments["data"][0,:,:],cmap='viridis',origin='lower',
-                        norm=symlog_norm_trace,aspect='auto')
+                        norm=symlog_norm_trace,aspect=img_aspect)
         im3 = ax[2].imshow(precorrected_data[0,:,:]-segments["data"][0,:,:],cmap='viridis',origin='lower',
-                        norm='linear',aspect='auto')
-        cbar = plt.colorbar(mappable=im3,orientation='horizontal',aspect=40)
+                        norm='linear',aspect=img_aspect)
+        cbar = plt.colorbar(mappable=im3,orientation='horizontal',aspect=cbar_aspect)
         cbar.set_label("Stripe Flux [DN]")
         ax[0].set_title("Pre-corrected frame")
         ax[1].set_title("Corrected frame")
@@ -142,13 +145,14 @@ def subtract_background(segments, inpt_dict):
         masked_background=np.ma.masked_array(median_background,mask=background_mask)
 
         fig, ax = plt.subplots(figsize=(20, 4))
+        img_aspect, cbar_aspect = aspect_handler(median_integration)
         im1 = ax.imshow(median_integration,cmap='viridis',origin='lower',
-                        norm=symlog_norm_trace,aspect='auto')
+                        norm=symlog_norm_trace,aspect=img_aspect)
         im2 = ax.imshow(masked_background,cmap='viridis',origin='lower',
-                        norm=symlog_norm_bckgs,aspect='auto')
-        cbar1 = plt.colorbar(mappable=im1,orientation='horizontal',aspect=40)
+                        norm=symlog_norm_bckgs,aspect=img_aspect)
+        cbar1 = plt.colorbar(mappable=im1,orientation='horizontal',aspect=cbar_aspect)
         cbar1.set_label("Trace Flux [DN]")
-        cbar2 = plt.colorbar(mappable=im2,orientation='horizontal',aspect=40)
+        cbar2 = plt.colorbar(mappable=im2,orientation='horizontal',aspect=cbar_aspect)
         cbar2.set_label("Bckg Flux [DN]")
         ax.set_title("ILBS median background")
         if save_step:
@@ -200,9 +204,10 @@ def subtract_background(segments, inpt_dict):
         vmin, vmax = np.nanpercentile(bckg_tseries,q=5), np.nanpercentile(bckg_tseries,q=95)
 
         fig, ax = plt.subplots(figsize=(20,4))
+        img_aspect, cbar_aspect = aspect_handler(bckg_tseries)
         im1 = ax.imshow(bckg_tseries,origin='lower',cmap='viridis',
-                        norm='linear',vmin=vmin,vmax=vmax,aspect='auto')
-        cbar = plt.colorbar(mappable=im1,location='bottom',aspect=40)
+                        norm='linear',vmin=vmin,vmax=vmax,aspect=img_aspect)
+        cbar = plt.colorbar(mappable=im1,orientation='horizontal',aspect=cbar_aspect)
         cbar.set_label('Flux [DN]')
         ax.set_xlabel('Column Index [#]')
         ax.set_ylabel('Integration Number [#]')

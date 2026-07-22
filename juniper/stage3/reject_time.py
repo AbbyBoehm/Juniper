@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 from scipy.signal import medfilt
 
 from juniper.util.diagnostics import tqdm_translate, plot_translate, timer
+from juniper.util.plotting import aspect_handler
 
 def iterate_fixed(segments, inpt_dict):
     """Iterate a fixed number of times at specified sigmas to remove cosmic rays.
@@ -93,10 +94,11 @@ def iterate_fixed(segments, inpt_dict):
         # Create a plot of the entire bad_pix_map collapsed in on itself in time.
         bad_pix_alltime = np.sum(bad_pix_map,axis=0)
         fig, ax = plt.subplots(figsize=(20,4))
+        img_aspect, cbar_aspect = aspect_handler(bad_pix_alltime)
         im = ax.imshow(bad_pix_alltime/bad_pix_map.shape[0],origin='lower',cmap='viridis',
-                       norm='linear',aspect='auto',vmin=0,vmax=0.01)
+                       norm='linear',aspect=img_aspect,vmin=0,vmax=0.01)
         ax.set_title("Fixed-iteration DQ flags")
-        cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=40)
+        cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=cbar_aspect)
         cbar.set_label('Fraction of integrations flagged')
 
         if save_step:
@@ -110,15 +112,16 @@ def iterate_fixed(segments, inpt_dict):
         # Create a plot of the maximum sigma difference that pixel felt.
         fig, ax = plt.subplots(figsize=(20,4))
         sig_diff = np.empty_like(sig_diffs[0,:,:])
+        img_aspect, cbar_aspect = aspect_handler(sig_diff)
         for x1 in range(sig_diffs.shape[1]):
             for x2 in range(sig_diffs.shape[2]):
                 sig_diff[x1,x2] = np.nanmax(sig_diffs[:,x1,x2])
         
         vmin, vmax = 0, 1.5*max(inpt_dict["fixed_sigmas"])
         im = ax.imshow(sig_diff,origin='lower',cmap='viridis',
-                       norm='linear',aspect='auto',vmin=vmin,vmax=vmax)
+                       norm='linear',aspect=img_aspect,vmin=vmin,vmax=vmax)
         ax.set_title("Maximum sigma difference from median")
-        cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=40)
+        cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=cbar_aspect)
         cbar.set_label('Flux [DN]')
 
         if save_step:
@@ -228,10 +231,11 @@ def iterate_free(segments, inpt_dict):
         # Create a plot of the entire bad_pix_map collapsed in on itself in time.
         bad_pix_alltime = np.sum(bad_pix_map,axis=0)
         fig, ax = plt.subplots(figsize=(20,4))
+        img_aspect, cbar_aspect = aspect_handler(bad_pix_alltime)
         im = ax.imshow(bad_pix_alltime/bad_pix_map.shape[0],origin='lower',cmap='viridis',
-                       norm='linear',aspect='auto',vmin=0,vmax=0.01)
+                       norm='linear',aspect=img_aspect,vmin=0,vmax=0.01)
         ax.set_title("Free-iteration DQ flags")
-        cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=40)
+        cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=cbar_aspect)
         cbar.set_label('Fraction of integrations flagged')
 
         if save_step:
@@ -245,15 +249,16 @@ def iterate_free(segments, inpt_dict):
         # Create a plot of the maximum sigma difference that pixel felt.
         fig, ax = plt.subplots(figsize=(20,4))
         sig_diff = np.empty_like(sig_diffs[0,:,:])
+        img_aspect, cbar_aspect = aspect_handler(sig_diff)
         for x1 in range(sig_diffs.shape[1]):
             for x2 in range(sig_diffs.shape[2]):
                 sig_diff[x1,x2] = np.nanmax(sig_diffs[:,x1,x2])
         
         vmin, vmax = 0, 1.5*sigma
         im = ax.imshow(sig_diff,origin='lower',cmap='viridis',
-                       norm='linear',aspect='auto',vmin=vmin,vmax=vmax)
+                       norm='linear',aspect=img_aspect,vmin=vmin,vmax=vmax)
         ax.set_title("Maximum sigma difference from median")
-        cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=40)
+        cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=cbar_aspect)
         cbar.set_label('Flux [DN]')
 
         if save_step:

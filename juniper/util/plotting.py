@@ -5,6 +5,22 @@ import matplotlib.pyplot as plt
 from matplotlib.scale import get_scale_names
 from mc3.stats import time_avg
 
+
+def aspect_handler(img):
+    """Handler for getting the right image and colorbar aspect ratios.
+
+    Args:
+        array (np.array): Image you want to plot.
+    
+    Returns:
+        float or str, int: the correct aspect values for spectroscopic vs photometric plots.
+    """
+    # Check if img is mostly square.
+    if abs((img.shape[0]/img.shape[1])-1)<1:
+        return 1, 5
+    else:
+        return 'auto', 40
+
 def img(array, aspect=1, title=None, vmin=None, vmax=None, norm=None, verbose=2):
     """Image plotting utility to plot the given 2D array.
 

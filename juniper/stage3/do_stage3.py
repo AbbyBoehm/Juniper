@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 
 from juniper.util.diagnostics import tqdm_translate, plot_translate
 from juniper.util.datahandling import stitch_files, save_s3_output
+from juniper.util.plotting import aspect_handler
 from juniper.stage3 import reject_time, reject_space, reject_flagged, track_motion, subtract_background
 
 def do_stage3(filepaths, outfiles, outdir, steps, plot_dir):
@@ -121,15 +122,16 @@ def do_stage3(filepaths, outfiles, outdir, steps, plot_dir):
 
     if plot_step or save_step:
         fig, ax = plt.subplots(2,1,figsize=(20,8),sharex=True)
+        img_aspect, _ = aspect_handler(segments["data"][0,:,:])
         vmin, vmax = np.nanpercentile(segments["data"][0,:,:],q=5), np.nanpercentile(segments["data"][0,:,:],q=95)
         if vmin <= 0:
             frame1 = np.copy(segments["data"][0,:,:])
             pos = frame1[frame1>0]
             vmin, vmax = np.nanpercentile(pos[np.isfinite(pos)],q=5), np.percentile(pos[np.isfinite(pos)],q=95)
-        ax[0].imshow(raw_f0,cmap='viridis',origin='lower',aspect='auto',
+        ax[0].imshow(raw_f0,cmap='viridis',origin='lower',aspect=img_aspect,
                      vmin=vmin,vmax=vmax,norm='log')
         ax[0].set_title("Pre-correction integration 0")
-        ax[1].imshow(segments["data"][0,:,:],cmap='viridis',origin='lower',aspect='auto',
+        ax[1].imshow(segments["data"][0,:,:],cmap='viridis',origin='lower',aspect=img_aspect,
                      vmin=vmin,vmax=vmax,norm='log')
         ax[1].set_title("Post-correction integration 0")
         if save_step:

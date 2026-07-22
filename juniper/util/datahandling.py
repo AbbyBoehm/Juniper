@@ -256,7 +256,11 @@ def save_s3_output(segments, disp_pos, cdisp_pos, cdisp_widths, moved_ints, outf
         jwstdq = segments["jwstdq"][int_left:int_right,:,:]
         junidq = segments["junidq"][int_left:int_right,:,:]
         time = segments["time"][int_left:int_right]
-        wavelengths = segments["wavelengths"][int_left:int_right,:,:]
+        try:
+            wavelengths = segments["wavelengths"][int_left:int_right,:,:]
+        except IndexError:
+            # This is photometric data where segments["wavelengths"] is empty
+            wavelengths = np.zeros_like(time)
         insts = segments["insts"][i]
         dets = segments["detectors"][i]
         filters = segments["filters"][i]
@@ -302,17 +306,17 @@ def save_s3_output(segments, disp_pos, cdisp_pos, cdisp_widths, moved_ints, outf
         # Advance int_left.
         int_left = int_right
 
-def save_s4_output(oneD_spec, oneD_err, time, wav_sols, shifts,
+def save_s4_output(signal_tseries, signal_err, time, wav_sols, shifts,
                    xpos, ypos, widths, insts, dets, filters, gratings,
                    outfile, outdir):
-    """Saves a .npy for the extracted 1D spectra.
+    """Saves a .npy for the extracted signal time-series.
 
     Args:
-        oneD_spec (np.array): extracted 1D spectra.
-        oneD_err (np.array): extracted uncertainties on 1D spectra.
+        signal_tseries (np.array): extracted signal time-series.
+        signal_err (np.array): extracted uncertainties on signal time-series.
         time (np.array): mid-exposure times for each 1D spectrum.
-        wav_sols (np.array): wavelength solutions for the 1D spectra.
-        shifts (np.array): cross-correlation shfits for 1D spectra.
+        wav_sols (np.array): wavelength solutions for the 1D spectra, if applicable.
+        shifts (np.array): cross-correlation shfits for 1D spectra, if applicable.
         xpos (np.array): dispersion positions for trace.
         ypos (np.array): cross-dispersion positions for trace.
         widths (np.array): cross-dispersion widths for trace.
@@ -328,8 +332,8 @@ def save_s4_output(oneD_spec, oneD_err, time, wav_sols, shifts,
         shifts = [0 for i in time]
 
     # Convert to dictionary.
-    spectra = {"spectrum":oneD_spec,
-               "err":oneD_err,
+    spectra = {"spectrum":signal_tseries,
+               "err":signal_err,
                "waves":wav_sols,
                "shifts":shifts,
                "xpos":xpos,
@@ -345,16 +349,17 @@ def save_s4_output(oneD_spec, oneD_err, time, wav_sols, shifts,
     np.save(os.path.join(outdir, '{}.npy'.format(outfile)),spectra)
 
 def read_one_spec(file):
-    """Read one 1D spectra .npy file and return its attributes.
+    """Read one signal time-series .npy file and return its attributes.
 
     Args:
         file (str): path to the .npy file you want to read out.
 
     Returns:
         np.array, np.array, np.array, np.array, np.array, np.array, np.array, \
-        np.array, list: the spectrum, uncertainties, wavelength solutions, \
-        alignment shifts, dispersion/cross-dispersion positions and widths, \
-        times of mid-exposure for each spectrum, and the observing details \
+        np.array, list: the signal time-series, uncertainties, wavelength solutions \
+        if applicable, alignment shifts, dispersion/cross-dispersion positions \
+        and widths or the x/y positions and fwhms depending on exposure type, \
+        times of mid-exposure for each frame, and the observing details \
         which are instrument, detector, filter, and grating.
     """
     spectra = np.load(file,allow_pickle=True).item()

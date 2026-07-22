@@ -9,6 +9,7 @@ from scipy.signal import medfilt2d
 from jwst.datamodels import dqflags
 
 from juniper.util.diagnostics import tqdm_translate, plot_translate, timer
+from juniper.util.plotting import aspect_handler
 
 def mask_flags(segments, inpt_dict):
     """Uses the jwst pipeline data quality flags to mask bad pixels.
@@ -79,9 +80,10 @@ def mask_flags(segments, inpt_dict):
         # Create plots of the entire dq_mask collapsed in on itself in time.
         dq_alltime = np.sum(dq_mask,axis=0)
         fig, ax = plt.subplots(figsize=(20,4))
+        img_aspect, cbar_aspect = aspect_handler(dq_alltime)
         im = ax.imshow(dq_alltime/dq_mask.shape[0],origin='lower',cmap='viridis',
-                       norm='linear',aspect='auto',vmin=0,vmax=1)
-        cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=40)
+                       norm='linear',aspect=img_aspect,vmin=0,vmax=1)
+        cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=cbar_aspect)
         cbar.set_label('Fraction of integrations flagged')
 
         if save_step:
@@ -120,9 +122,10 @@ def mask_flags(segments, inpt_dict):
 
             # And plot!
             fig, ax = plt.subplots(figsize=(20,4))
+            img_aspect, cbar_aspect = aspect_handler(thisflagovertime)
             im = ax.imshow(thisflagovertime/thisflag.shape[0],origin='lower',cmap='viridis',
-                           norm='linear',aspect='auto',vmin=0,vmax=1)
-            cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=40)
+                           norm='linear',aspect=img_aspect,vmin=0,vmax=1)
+            cbar = plt.colorbar(mappable=im,orientation='horizontal',aspect=cbar_aspect)
             cbar.set_label('Fraction of integrations flagged {}'.format(flag))
 
             if save_ints:
@@ -163,14 +166,15 @@ def mask_flags(segments, inpt_dict):
     # Show change in first frame after this action.
     if (plot_step or save_step):
         fig, ax = plt.subplots(2,1,figsize=(20,5),sharex=True)
+        img_aspect, _ = aspect_handler(precorrected_frame)
         vmin, vmax = np.nanpercentile(precorrected_frame[np.isfinite(precorrected_frame)],q=5), np.nanpercentile(precorrected_frame[np.isfinite(precorrected_frame)],q=95)
         if vmin <= 0:
             pos = np.copy(precorrected_frame[precorrected_frame>0])
             vmin, vmax = np.nanpercentile(pos[np.isfinite(pos)],q=5), np.nanpercentile(pos[np.isfinite(pos)],q=95)
-        ax[0].imshow(precorrected_frame,aspect='auto',cmap='viridis',origin='lower',
+        ax[0].imshow(precorrected_frame,aspect=img_aspect,cmap='viridis',origin='lower',
                      vmin=vmin,vmax=vmax,norm='log')
         ax[0].set_title("Pre-correction integration 0")
-        ax[1].imshow(segments["data"][0,:,:],aspect='auto',cmap='viridis',origin='lower',
+        ax[1].imshow(segments["data"][0,:,:],aspect=img_aspect,cmap='viridis',origin='lower',
                      vmin=vmin,vmax=vmax,norm='log')
         ax[1].set_title("Post-correction integration 0")
         if save_step:

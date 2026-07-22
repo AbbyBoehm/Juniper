@@ -15,25 +15,26 @@ diagnostics     'diagnostics'                               # str. If save_plots
 rename          None                                        # str. What you want to rename the files to. Can be None to keep the default name. Suggestions include naming the files after the target planet and program ID (e.g. 'PLANET-B_ID12345').
 
 # Step 1: Extract signal
+extract_method  'unweighted'                                # str. Options are 'unweighted' (for an unweighted sum) and 'optimum' (for a weighted sum, see Horne 1986).
+mask_bad_pix    False                                       # bool. If True, fully masks any pixels flagged by the data quality array. Useful if, in Stage 3, you did not replace bad pixels.
+aperture_type   'median'                                    # str. For 'optimum' method. Defines the kind of spatial profile P to build for optimum extraction. Options are 'median' (use median integration), 'polyrow' (polynomial fit on rows), 'polycol' (polynomial fit on columns), 'gaussian' (gaussian fit on columns), or 'custom' to supply your own prebuilt profile.
+aperture_path   './'                                        # str. For 'optimum' method. If aperture_type is 'custom', this defines the path to the aperture .npy file. Must be the same size as your array.
+poly_order      7                                           # int. For 'optimum' method. Order of polynomial to fit, only used for 'polyrow' and 'polycol'.
 
 # Step 1a: 1D spectrum
-extract_method  'box'                                       # str. Options are 'box' (for an unweighted sum) and 'optimum' (for a weighted sum, see Horne 1986).
-wavelengths     None                                        # tuple of float. If not None, limit 1D extraction to between these wavelengths in micron.
 columns         None                                        # tuple of float. If not None, limit 1D extraction to between these column indices.
-mask_bad_pix    False                                       # bool. If True, fully masks any pixels flagged by the data quality array. Useful if, in Stage 3, you did not replace bad pixels.
-aperture        (0,-1)                                      # tuple of int. Defines the lower and upper row bounding the extraction aperture. Used whether method is 'box' or 'optimum'.
-com_halfwidth   None                                        # int or None. If not None, ignores aperture argument and instead builds an aperture from the com which extends +/- com_halfwidth pixels from the com. Used whether method is 'box' or 'optimum'.
-
-# Step 1ai: Optimum extraction
-aperture_type   'median'                                    # str. Defines the kind of spatial profile P to build for optimum extraction. Options are 'median' (use median integration), 'polyrow' (polynomial fit on rows), 'polycol' (polynomial fit on columns), 'gaussian' (gaussian fit on columns), or 'custom' to supply your own prebuilt profile.
-aperture_path   './'                                        # str. If aperture_type is 'custom', this defines the path to the aperture .npy file. Must be the same size as your array.
-poly_order      7                                           # int. Order of polynomial to fit, only used for 'polyrow' and 'polycol'.
+aperture        (0,-1)                                      # tuple of int. Defines the lower and upper row bounding the extraction aperture. Used whether method is 'unweighted' or 'optimum'.
+wavelengths     None                                        # tuple of float. If not None, limit 1D extraction to between these wavelengths in micron.
+com_halfwidth   None                                        # int or None. If not None, ignores aperture argument and instead builds an aperture from the trace center-of-mass which extends +/- com_halfwidth pixels from the com. Used whether method is 'unweighted' or 'optimum'.
 
 # Step 1b: Photometric time-series
-ap_method       'unweighted'                                # str. Options are 'unweighted' (for an unweighted sum) and 'weighted' (for a weighted sum, see Horne 1986).
 ap_radius       'auto'                                      # str or int. If str 'auto', optimizes aperture radius. If int, sets aperture radius.
+ap_rad_limits   (1,10)                                      # tuple of int. If ap_radius is 'auto', tests all values from the lower to the upper value while optimizing.
 bckg_inner_ap   'auto'                                      # str or int. If str 'auto', optimizes inner background annulus radius. If int, sets inner background annulus radius.
+bc_inn_limits   (10,20)                                     # tuple of int. If bckg_inner_ap is 'auto', tests all values from the lower to the upper value while optimizing.
 bckg_outer_ap   'auto'                                      # str or int. If str 'auto', optimizes outer background annulus radius. If int, sets outer background annulus radius.
+bo_out_limits   (20,30)                                     # tuple of int. If bckg_outer_ap is 'auto', tests all values from the lower to the upper value while optimizing.
+idx_outofevent  (0,1000)                                    # tuple of int. The out-of-transit or out-of-eclipse indices used to optimize aperture radii.
 
 # Step 2: Trimming integrations
 s3_kick_ints    True                                        # bool. If True, checks for frames that were flagged by Stage 3 (reject_disp and reject_spatial keys in s3_*.berry) as bad frames and fully kicks them from the segments.
