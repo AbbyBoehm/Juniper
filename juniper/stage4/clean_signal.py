@@ -162,7 +162,7 @@ def clean_photseries(phot_tseries, phot_time, inpt_dict):
         
         if outlier_found:
             # Calculate running median time-series.
-            runmed = medfilt(phot_tseries,kernel=inpt_dict["reject_window"]+1)
+            runmed = medfilt(phot_tseries,kernel_size=inpt_dict["reject_window"]+1)
             
             # Get standard deviation of tseries.
             std = np.std(phot_tseries)

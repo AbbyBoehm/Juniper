@@ -51,8 +51,14 @@ def do_stage5(filepaths, outfile, outdir, steps, plot_dir):
     if steps["read_1D"]:
         spectra = stitch_spectra(filepaths, steps["detectors"], time_step, steps["verbose"])
 
-        # Bin light curves.
-        light_curves = bin_light_curves.bin_light_curves(spectra, steps)
+        # Check type: if photometric, simply write out to the expected format.
+        if spectra["spectrum"][0].ndim == 1:
+            # A "spectrum" with shape time is a photometric time-series.
+            light_curves = bin_light_curves.write_phot_to_dict(spectra, steps)
+
+        else:
+            # True 1D spectra have shape time x waves.
+            light_curves = bin_light_curves.bin_light_curves(spectra, steps)
 
         # Save light curves out.
         filename = os.path.join(outdir, 's5_{}_lightcurves.npy'.format(outfile))

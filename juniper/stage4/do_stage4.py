@@ -102,11 +102,12 @@ def do_stage4(filepaths, outfile, outdir, steps, plot_dir):
         
     # Decorrelate photometric time-series if applicable.
     if steps["decorrelate"] and exposure_type == "photometric":
-        signal_tseries, signal_err, shifts = decorrelate_photseries.decorrelate(signal_tseries,
-                                                                                segments['disp'],
-                                                                                segments['cdisp'],
-                                                                                segments['cwidth'],
-                                                                                time, steps)
+        signal_tseries = decorrelate_photseries.decorrelate(signal_tseries,
+                                                            xpos,
+                                                            ypos,
+                                                            widths,
+                                                            time, steps)
+        shifts = np.zeros_like(signal_tseries)
         
     # Clean spectra.
     if steps["sigma"]:
@@ -122,13 +123,11 @@ def do_stage4(filepaths, outfile, outdir, steps, plot_dir):
             plot_signal_gif.make_err_median(signal_tseries,wav_sols,signal_err,steps)
             plot_signal_gif.make_wlc(signal_tseries,wav_sols,time,steps)
         if exposure_type == "photometric":
-            print("GO INSTALL SOME NICE PHOT PLOTS PLEASE :3")
+            plot_signal_gif.plot_wlc(signal_tseries,signal_err,time,steps)
     # Make diagnostic gif.
     if (plot_ints or save_ints):
         if exposure_type == "spectroscopic":
             plot_signal_gif.make_gif(signal_tseries,wav_sols,time,steps)
-        if exposure_type == "photometric":
-            print("GO INSTALL SOME NICE PHOT PLOTS PLEASE :3")
 
     # Save everything out.
     save_s4_output(signal_tseries, signal_err, time, wav_sols,

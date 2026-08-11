@@ -494,6 +494,181 @@ def bin_light_curves(spectra, inpt_dict):
         timer(time.time()-t0,None,None,None)
     return light_curves
 
+def write_phot_to_dict(spectra, inpt_dict):
+    """Converts a photometric light curve into light curve.
+
+    Args:
+        spectra (dict): its "spectrum" key has shape [detectors, time], \
+        and its "time" key will be used in binning.
+        inpt_dict (dict): instructions for running this step.
+
+    Returns:
+        dict: light_curves dictionary.
+    """
+    # Log.
+    if inpt_dict["verbose"] >= 1:
+        print("Converting photometric time-series to light-curve object...")
+
+    # Log.
+    if inpt_dict["verbose"] >= 1:
+        print("Binning 1D spectra to produce broad-band and spectroscopic light curves...")
+
+    # Check tqdm and plotting requests.
+    time_step, time_ints = tqdm_translate(inpt_dict["verbose"])
+    plot_step, plot_ints = plot_translate(inpt_dict["show_plots"])
+    save_step, save_ints = plot_translate(inpt_dict["save_plots"])
+    
+    # Time step, if asked.
+    if time_step:
+        t0 = time.time()
+
+    # Initialize some lists at the detector level.
+    broadband = [] # shape detector x time
+    broaderr = [] # shape detector x time
+    broadwave = [] # shape detector
+    broadbins = [] # shape detector
+    spec = [] # shape detector x time x central_wavelength
+    specerr = [] # shape detector x time x central_wavelength
+    specwave = []  # shape detector x central_wavelength
+    specbins = [] # shape detector x wavelength edges
+
+    # And begin processing detectors.
+    for d in tqdm(range(len(spectra["spectrum"])),#.spectrum.shape[0]),
+                  desc='Processing photometric light curves from each detector...',
+                  disable=(not time_ints)):
+        # Load the spectra and uncertainties from this detector.
+        spectrum = spectra["spectrum"][d]
+        error = spectra["errors"][d]
+
+        # The broad-band light curve is already available.
+        broadband_det = spectrum
+        # Broad-band uncertainties also ready.
+        broaderr_det = error
+        # Getting the central wavelength and bounds depends on the instrument used.
+        filter_name = spectra["filters"][d]
+        broadwave_det, min_wav, max_wav = translate_filter_to_waves(filter_name)
+        broadbins_det = np.array([min_wav,max_wav])
+        # If asked, replace outliers from the curve.
+        if inpt_dict["clip_outliers"]:
+            broadband_det, n_changed = running_median_filter(broadband_det,
+                                                             sigma=inpt_dict["clip_outliers"],
+                                                             window=inpt_dict["clip_window"])
+            if inpt_dict["verbose"] == 2:
+                print("Replaced {} outliers in the broadband detector light curve.".format(n_changed))
+        # Store both the spectrum and each point's uncertainty.
+        broadband.append(broadband_det)
+        broaderr.append(broaderr_det)
+        broadwave.append(broadwave_det)
+        broadbins.append(broadbins_det)
+
+        if (plot_step or save_step):
+            # Create diagnostic plot of the broad-band light curve.
+            plt.errorbar(spectra["time"][d], broadband_det, yerr=broaderr_det, fmt='ko', capsize=3)
+            plt.title("Broad-band light curve")
+            plt.xlabel("time [mjd]")
+            plt.ylabel("flux [a.u.]")
+            if save_step:
+                plt.savefig(os.path.join(inpt_dict['plot_dir'],'S5_detector{}_broadband_lc.png'.format(d)),
+                            dpi=300, bbox_inches='tight')
+            if plot_step:
+                plt.show(block=True)
+            plt.close()
+
+            # Also, create Allan Variance plot.
+            if (plot_ints or save_ints):
+                fig, ax = allan_variance(spectra["time"][d], broadband_det)
+                if save_ints:
+                    plt.savefig(os.path.join(inpt_dict['plot_dir'],'S5_detector{}_Allanbroadband_lc.png'.format(d)),
+                                dpi=300, bbox_inches='tight')
+                if plot_ints:
+                    plt.show(block=True)
+                plt.close()
+    
+    # Need these in case you don't want to bin in time.
+    xpos = spectra["xpos"]
+    ypos = spectra["ypos"]
+    widths = spectra["widths"]
+    t = spectra["time"]
+
+    # If asked, bin in time.
+    if inpt_dict["bin_time"]:
+        # FIX THIS: this is going to break xpos, ypos when binning time! too bad!
+        if inpt_dict["verbose"] >= 1:
+            print("Binning light curves down in time...")
+            
+        # Get the bin size once.
+        s = inpt_dict["bin_size"]
+
+        # Start by binning time itself.
+        t_new = []
+        for d in range(len(t)):
+            t_new.append(time_bin(t[d],s,'median'))
+
+        t = t_new
+
+        # We can initialize a lot of empty arrays this way.
+        broadband_new = [0 for x in t]
+        broaderr_new = [0 for x in t]
+        xpos_new = [0 for x in t]
+        ypos_new = [0 for x in t]
+        widths_new = [0 for x in t]
+
+        for d in range(len(t)):
+            broadband_new[d] = time_bin(broadband[d],s,'mean')
+            broaderr_new[d] = time_bin(broaderr[d],s,'quadrature')
+            xpos_new[d] = time_bin(xpos[d],s,'median')
+            ypos_new[d] = time_bin(ypos[d],s,'median')
+            widths_new[d] = time_bin(widths[d],s,'median')
+
+        broadband = broadband_new
+        broaderr = broaderr_new
+        xpos = xpos_new
+        ypos = ypos_new
+        widths = widths_new
+
+        if (plot_step or save_step):
+            # Create diagnostic plot of the binned broad-band light curve.
+            for d in range(len(t)):
+                plt.errorbar(t[d], broadband[d], yerr=broaderr[d], fmt='ko', capsize=3)
+                plt.title("Broad-band light curve")
+                plt.xlabel("time [mjd]")
+                plt.ylabel("flux [a.u.]")
+                if save_step:
+                    plt.savefig(os.path.join(inpt_dict['plot_dir'],'S5_detector{}_binnedbroadband_lc.png'.format(d)),
+                                dpi=300, bbox_inches='tight')
+                if plot_step:
+                    plt.show(block=True)
+                plt.close()
+
+                if (plot_ints or save_ints):
+                    # Also, create Allan Variance plot.
+                    fig, ax = allan_variance(t[d], broadband[d])#, broaderr[d,:])
+                    if save_ints:
+                        plt.savefig(os.path.join(inpt_dict['plot_dir'],'S5_detector{}_Allanbinnedbroadband_lc.png'.format(d)),
+                                    dpi=300, bbox_inches='tight')
+                    if plot_ints:
+                        plt.show(block=True)
+                    plt.close()
+                    
+    # Bundle as dictionary.
+    light_curves = {"broadband":broadband,
+                    "broaderr":broaderr,
+                    "broadwave":broadwave,
+                    "broadbins":broadbins,
+                    "spec":spec,
+                    "specerr":specerr,
+                    "specwave":specwave,
+                    "specbins":specbins,
+                    "time":t,
+                    "xpos":xpos,
+                    "ypos":ypos,
+                    "widths":widths}
+    
+    # Report time, if asked.
+    if time_step:
+        timer(time.time()-t0,None,None,None)
+    return light_curves
+
 def time_bin(array, bin_size, mode='sum'):
     """Simple function to bin an array down in size.
 
@@ -618,3 +793,32 @@ def running_median_filter(lc,sigma=5.0,window=None):
     n_changed = np.count_nonzero(np.where(corrected_lc!=lc,1,0))
     
     return lc, n_changed
+
+
+def translate_filter_to_waves(filter_name):
+    """Takes a str filter_name and translates it to wavelengths.
+
+    Args:
+        filter_name (str): JWST pipeline-assigned filter name.
+    Returns:
+        float, float, float: the central wavelength and the lower and upper limits.
+    """
+    # For now, MIRI imaging is supported.
+    # TO DO: add NIRSpec, NIRISS, NIRCam.
+    wave_data = {'F560W':(5.6,5.054,6.171,),
+                 'F770W':(7.7,6.581,8.687),
+                 'F1000W':(10.0,9.023,10.891),
+                 'F1130W':(11.3,10.953,11.667),
+                 'F1280W':(12.8,11.588,14.115),
+                 'F1500W':(15.0,13.527,16.640),
+                 'F1800W':(18.0,16.519,19.502),
+                 'F2100W':(21.0,18.477,23.159),
+                 'F2550W':(25.5,23.301,26.733),
+                 }
+
+    try:
+        return wave_data[filter_name[0]]
+    except KeyError:
+        print('WARNING: filter_name',filter_name[0],'was not recognized as a JWST filter.')
+        print('Please report this as an issue on our GitHub! We are sorry for the oversight.')
+        return 

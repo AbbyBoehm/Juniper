@@ -195,7 +195,7 @@ def make_wlc(oneD_spec, wav_sols, timestamps, inpt_dict):
     """
     # Log.
     if inpt_dict["verbose"] >= 1:
-        print("Creating stack of extracted spectra...")
+        print("Creating plot of summed 1D spectra...")
 
     # Check tqdm and plotting requests.
     time_step, time_ints = tqdm_translate(inpt_dict["verbose"])
@@ -214,6 +214,54 @@ def make_wlc(oneD_spec, wav_sols, timestamps, inpt_dict):
     for i in range(oneD_spec.shape[0]):
         wlc.append(np.sum(oneD_spec[i,:]))
     ax.scatter(timestamps,wlc,color='k',marker='o')
+    ax.set_title('Broad-band light curve')
+    ax.set_xlabel('Exposure Time [BJD TDB]')
+    ax.set_ylabel('Flux [a.u.]')
+
+    plt.tight_layout()
+
+    # save animation
+    if save_step:
+        plt.savefig(os.path.join(inpt_dict['plot_dir'],'S4_1D_extraction_broadband-final.png'),
+                    dpi=300,bbox_inches='tight')
+
+    if plot_step:
+        plt.show(block = True)
+
+    plt.close() # save memory
+
+    # Report time, if asked.
+    if time_step:
+        timer(time.time()-t0,None,None,None)
+
+def plot_wlc(signal_tseries, signal_err, timestamps, inpt_dict):
+    """Plots the summed 1D spectrum at each time stamp.
+
+    Args:
+        signal_tseries (_type_): _description_
+        signal_err (_type_): _description_
+        timestamps (_type_): _description_
+        inpt_dict (_type_): _description_
+    """
+    # Log.
+    if inpt_dict["verbose"] >= 1:
+        print("Creating plot of photometric time-series...")
+
+    # Check tqdm and plotting requests.
+    time_step, time_ints = tqdm_translate(inpt_dict["verbose"])
+    plot_step, plot_ints = plot_translate(inpt_dict["show_plots"])
+    save_step, save_ints = plot_translate(inpt_dict["save_plots"])
+
+    # Time step, if asked.
+    if time_step:
+        t0 = time.time()
+
+    # create plot
+    fig,ax = plt.subplots(figsize = (7,5))
+
+    # just plot
+    ax.errorbar(timestamps,signal_tseries,yerr=signal_err,color='k',marker='o',
+                ls='--',capsize=3)
     ax.set_title('Broad-band light curve')
     ax.set_xlabel('Exposure Time [BJD TDB]')
     ax.set_ylabel('Flux [a.u.]')

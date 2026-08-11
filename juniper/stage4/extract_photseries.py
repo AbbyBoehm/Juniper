@@ -127,6 +127,7 @@ def extract(segments, inpt_dict):
             print("Optimized extraction aperture and annulus to:",scatters[0][1:])
 
     if (plot_step or save_step):
+        idxstart, idxend = (0,int(0.2*len(segments["disp"])))
         x0, y0 = np.median(segments["disp"][idxstart:idxend]), np.median(segments["cdisp"][idxstart:idxend])
         # Plot the optimized apertures over the median out-of-event frame.
         lin_threshold = 0.1
@@ -242,7 +243,7 @@ def extract(segments, inpt_dict):
 
     if (plot_step or save_step):
         plt.imshow(np.median(np.array(extraction_masks),axis=0),
-                   aspect=5,origin='lower')
+                   aspect=1,origin='lower')
         plt.title('Median photometric extraction mask')
         if save_step:
             plt.savefig(os.path.join(inpt_dict['plot_dir'],'S4_photometric_extraction_mask_median.png'),
@@ -253,7 +254,7 @@ def extract(segments, inpt_dict):
 
         if inpt_dict["extract_method"] == "optimum":
             plt.imshow(np.median(profiles,axis=0), vmin=0, vmax=1,
-                       aspect=5,origin='lower')
+                       aspect=1,origin='lower')
             plt.title('1D extraction median optimum profile')
             if save_step:
                 plt.savefig(os.path.join(inpt_dict['plot_dir'],'S4_photometric_extraction_profile_median.png'),
