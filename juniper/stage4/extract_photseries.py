@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 from matplotlib.patches import Circle
 from photutils.centroids import centroid_com
-from photutils.aperture import aperture_photometry, CircularAperture, CircularAnnulus
+from photutils.aperture import aperture_photometry, CircularAperture, CircularAnnulus, ApertureStats
 
 from juniper.util.diagnostics import tqdm_translate, plot_translate, timer
 
@@ -98,10 +98,10 @@ def extract(segments, inpt_dict):
             # And get the with-background aperture flux.
             an_fluxes.append([an[0],an[1],np.array(an_flux)])
         
-        # Now optimize combinations of ap and an flux for the one that minimizes scatter.
-        scatters = []
+        # Now optimize combinations of ap and an flux for the one that minimizes the MAD.
+        mads = []
         # Take only combinations where the aperture radius is inside the inner annulus radius.
-        aper_annuli = [x for x in product(ap_fluxes,an_fluxes) if x[0][0]<x[1][0]]
+        aper_annuli = [x for x in product(ap_fluxes,an_fluxes) if x[0][0]<=x[1][0]]
         for ap_an in tqdm(aper_annuli,desc='Optimizing over annulus radii...',
                           disable=(not time_ints and len(aper_annuli)==1)):
             # Get the fluxes.
@@ -113,18 +113,20 @@ def extract(segments, inpt_dict):
             scaled_annulus_flux = (aper_area/annulus_area)*annulus_flux
             # De-background the aperture flux.
             aper_flux -= scaled_annulus_flux
-            # Linear fit to get scatter.
+            # Normalize it and fit a simple quadratic trend to it.
             norm_aper_flux = aper_flux/np.nanmedian(aper_flux)
-            p = np.polyfit(rel_time,norm_aper_flux,1)
+            p = np.polyfit(rel_time,norm_aper_flux,2)
             model = np.polyval(p,rel_time)
-            res = np.sum((model-norm_aper_flux)**2)
-            scatters.append([res,ap_r,inner,outer])
+            # Detrend the flux and compuet the MAD.
+            detrended = norm_aper_flux-model
+            mad = np.median(np.abs(detrended - np.median(detrended)))
+            mads.append([mad,ap_r,inner,outer])
         
         # Sort scatters by minimized scatter. 0th key will now be the optimized setings.
-        scatters = sorted(scatters, key = lambda x:x[0])
-        aperture_radius, inner_annulus_radius, outer_annulus_radius = scatters[0][1:]
+        mads = sorted(mads, key = lambda x:x[0])
+        aperture_radius, inner_annulus_radius, outer_annulus_radius = mads[0][1:]
         if inpt_dict["verbose"] == 2:
-            print("Optimized extraction aperture and annulus to:",scatters[0][1:])
+            print("Optimized extraction aperture and annulus to:",mads[0][1:])
 
     if (plot_step or save_step):
         idxstart, idxend = (0,int(0.2*len(segments["disp"])))
@@ -216,7 +218,12 @@ def extract(segments, inpt_dict):
 
         # Apply the mask to the errors, which add in quadrature.
         error_i = np.ma.masked_array(error_i, mask=mask)
-        signal_err[i] = np.sqrt(aperture_photometry(error_i**2,annulus)[0][-1])
+        # Get the total variance within the aperture.
+        var_ap_i = ApertureStats(error_i**2,aperture).sum
+        # Then, fetch the background variance per pixel.
+        var_bkg_i = (ApertureStats(data_i,annulus).std**2)/annulus_area
+        # Now scale and combine them in quadrature to get the error.
+        signal_err[i] = np.sqrt(var_ap_i+(var_bkg_i*(aper_area**2)))
 
         # If we are doing optimum, we must revise our extraction.
         if inpt_dict["extract_method"] == "optimum":

@@ -70,7 +70,7 @@ track_spatial   True                                        # bool. Whether to t
 reject_spatial  True                                        # bool. Whether to reject frames which show significant motion in the spatial or cross-dispersion direction. Rejection occurs in Stage 4 if s3_kick_ints in s4_*.berry is set to True.
 
 # Step 5b: Track x and y displacement and FWHM of PSF
-track_xy        True                                       # bool. Whether to track frame motion in the horizontal and vertical directions.
+track_xy        True                                        # bool. Whether to track frame motion in the horizontal and vertical directions.
 reject_x        True                                        # bool. Whether to reject frames which show significant motion in the horizontal direction. Rejection occurs in Stage 4 if s3_kick_ints in s4_*.berry is set to True.
 reject_y        True                                        # bool. Whether to reject frames which show significant motion in the vertical direction. Rejection occurs in Stage 4 if s3_kick_ints in s4_*.berry is set to True.
 track_fwhm      True                                        # bool. Whether to track PSF full width at half maximum (FWHM) using a 2D Gaussian.

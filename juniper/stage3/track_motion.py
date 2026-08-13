@@ -282,6 +282,13 @@ def track_psf(segments, inpt_dict):
                       disable=(not time_ints)):
             image = segments["data"][k,:,:]
             x, y = centroid_com(image)
+            # Zero out image beyond a search window
+            y_indices, x_indices = np.indices(np.shape(image))
+            rr = np.sqrt((y_indices - y)**2 + (x_indices - x)**2)
+            ok = (rr<15)
+            search_window = np.copy(image)
+            search_window[~ok] = 0
+            x, y = centroid_com(search_window)
             x_position.append(x)
             y_position.append(y)
     
@@ -302,7 +309,7 @@ def track_psf(segments, inpt_dict):
                 cbar = plt.colorbar(mappable=im,orientation='horizontal')
                 cbar.set_label("Flux [DN]")
                 ax.set_title("PSF COM located by centroiding")
-                ax.scatter(x,y,color='k',marker='x',s=20,label='PSF COM')
+                ax.scatter(x_position[-1],y_position[-1],color='k',marker='x',s=20,label='PSF COM')
                 ax.legend()
                 ax.set_xlabel('Detector X Axis')
                 ax.set_ylabel('Detector Y Axis')
