@@ -173,7 +173,7 @@ def plot_waterfall(wavelengths, ts, lcs, lc_errs, t_interps, lc_interps, residua
     print("Normalizing wavelengths for colormap...")
     wavelengths -= wav_bounds[0] # subtract the lowest value.
     wavelengths[wavelengths <= 0] = 0 # anything lower than that minimum is 0.
-    wavelengths /= wav_bounds[1] # and normalize by the highest value.
+    wavelengths /= (wav_bounds[1]-wav_bounds[0]) # and normalize by the highest value, which just got shifted.
     wavelengths[wavelengths >= 1] = 1 # anything above that maximum is 1.
 
     # Define the colormap object.

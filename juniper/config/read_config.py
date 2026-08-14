@@ -103,11 +103,27 @@ def read_config(path_to_config_file):
         while "#" not in line[i]:
             param = ''.join([param,line[i]])
             i += 1
+
+        if 'np.concat' in param or 'np.concatenate' in param:
+            # Handling for concatenated arrays.
+            repl_param = str.replace(param,'np.concatenate','')
+            repl_param = str.replace(repl_param,'np.concat','')
+            repl_param = eval(repl_param)
+            unpacked_items = []
+            for unpacked_item in repl_param:
+                if isinstance(unpacked_item,tuple):
+                    # Concatenate it.
+                    unpacked_items.append(np.concatenate(unpacked_item))
+                else:
+                    # Take as is.
+                    unpacked_items.append(unpacked_item)
+            param = unpacked_items
+
         try:
             # If the parameter is an evaluatable statement (a bool, a list, a numpy object, etc.), make it so.
             param = eval(param)
         except:
-            # It was just a string after all.
+            # It was just a string after all, or it has already been evaluated.
             pass
 
         # Note that event_type, n_planets, and n_flares are all event_ID-dependent. So...
