@@ -617,4 +617,4 @@ def running_median_filter(lc,sigma=5.0,window=None):
     # Track number changed.
     n_changed = np.count_nonzero(np.where(corrected_lc!=lc,1,0))
     
-    return lc, n_changed
+    return corrected_lc, n_changed
